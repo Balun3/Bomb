@@ -114,13 +114,44 @@ summary{font-weight:750;cursor:pointer}
 .board.done .boardTitle::after{content:"  ✓";color:#16a34a}
 .tokenHelp{font-size:.88rem;line-height:1.55;color:#4b5563;margin:8px 0}
 
+
+.tile.cut{
+  position:relative;background:#dcfce7;border-color:#16a34a;color:#166534;
+  opacity:.78
+}
+.tile.cut::before{
+  content:"✓";position:absolute;left:2px;top:0;font-size:.65rem;font-weight:900;color:#16a34a
+}
+.actionPanel{
+  margin:12px 0;padding:12px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff
+}
+.actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.actionButtons button{min-height:56px}
+.boardChoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.actionStep{font-weight:850;margin-bottom:6px}
+.actionSummary{line-height:1.65}
+.actionControls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.actionControls button{flex:1}
+.resultBox{margin:12px 0;padding:12px;border-radius:12px;font-weight:750;line-height:1.55}
+.resultBox.success{background:#dcfce7;color:#166534}
+.resultBox.failure{background:#fee2e2;color:#991b1b}
+.resultBox.self{background:#ede9fe;color:#5b21b6}
+.resultBox.neutral{background:#e5e7eb;color:#374151}
+.gameEnd{
+  margin:16px 0;padding:20px 14px;border-radius:16px;text-align:center;
+  font-size:1.35rem;font-weight:900
+}
+.gameEnd.clear{background:#dcfce7;color:#166534}
+.gameEnd.over{background:#fee2e2;color:#991b1b}
+.life.low{color:#b91c1c}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用・通信＆ゲーム準備テスト（STUN対応・低密度QR版）</p>
+  <p class="sub">2人用ゲーム版（STUN対応・低密度QR）</p>
 
   <section class="card">
     <div class="status">
@@ -211,13 +242,43 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
         <div class="small">あなたの役職</div>
         <span id="myRoleBadge" class="roleBadge">―</span>
       </div>
-      <div class="life">ライフ ♥♥</div>
+      <div id="lifeDisplay" class="life">ライフ ♥♥</div>
     </div>
 
     <div id="phaseBox">
       <div id="phaseTitle" class="phaseTitle">情報トークン配置</div>
       <div id="turnBanner" class="turnBanner">準備中</div>
       <div id="phaseHelp" class="tokenHelp"></div>
+    </div>
+
+    <div id="lastEventBox" class="resultBox neutral hidden"></div>
+    <div id="gameEndBox" class="gameEnd hidden"></div>
+
+    <div id="playControls" class="actionPanel hidden">
+      <div id="actionChoice">
+        <div class="actionStep">このターンはどうしますか？</div>
+        <div class="actionButtons">
+          <button id="normalCutBtn" class="primary">相手を指定して切断</button>
+          <button id="selfCutBtn" class="secondary">自分だけで切断</button>
+        </div>
+      </div>
+
+      <div id="actionProgress" class="hidden">
+        <div id="actionStepText" class="actionStep"></div>
+        <div id="actionHint" class="small"></div>
+
+        <div id="boardChoiceArea" class="boardChoice hidden">
+          <button id="chooseBoardABtn" class="secondary">台A</button>
+          <button id="chooseBoardBBtn" class="secondary">台B</button>
+        </div>
+
+        <div id="actionSummary" class="notice info hidden"></div>
+
+        <div class="actionControls">
+          <button id="confirmActionBtn" class="primary hidden">切断を確定</button>
+          <button id="cancelActionBtn" class="secondary">選択をやり直す</button>
+        </div>
+      </div>
     </div>
 
     <div class="playerBlock">
@@ -243,7 +304,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </section>
 
   <footer>
-    STUN対応。役職決定・48枚配布・情報トークン配置まで実装済み。
+    2人用：役職・配牌・情報トークン・通常切断・自分だけ切断・ライフ・勝敗判定まで実装。
   </footer>
 </div>
 
@@ -257,6 +318,7 @@ let connectedOnce=false;
 let gameState=null;
 let currentView=null;
 let selectedInfoToken=null;
+let actionState=null;
 
 const $=id=>document.getElementById(id);
 const els={
@@ -275,6 +337,12 @@ const els={
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
   myRoleBadge:$("myRoleBadge"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
+  lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
+  playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
+  normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),
+  actionStepText:$("actionStepText"),actionHint:$("actionHint"),
+  boardChoiceArea:$("boardChoiceArea"),chooseBoardABtn:$("chooseBoardABtn"),chooseBoardBBtn:$("chooseBoardBBtn"),
+  actionSummary:$("actionSummary"),confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   tokenConfirmArea:$("tokenConfirmArea"),tokenSelectionText:$("tokenSelectionText"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
   disconnectBtn:$("disconnectBtn")
@@ -347,11 +415,23 @@ function onConnected(){
 function handleMessage(msg){
   if(msg.type==="state"&&role==="guest"){
     renderPlayerView(msg.view);
-    els.guestLobby.innerHTML='<div class="notice good">ゲーム準備が完了しました。</div>';
+    els.guestLobby.innerHTML='<div class="notice good">ゲーム開始済み</div>';
   }
 
   if(msg.type==="placeInfoToken"&&role==="host"){
     applyInfoTokenPlacement("guest",msg.boardIndex,msg.position);
+  }
+
+  if(msg.type==="normalCut"&&role==="host"){
+    processNormalCut("guest",msg.myBoard,msg.myPosition,msg.targetBoard,msg.targetPosition);
+  }
+
+  if(msg.type==="selfCut"&&role==="host"){
+    processSelfCut("guest",msg.boardIndex,msg.position);
+  }
+
+  if(msg.type==="actionError"&&role==="guest"){
+    alert(msg.message||"操作を実行できませんでした。");
   }
 
   if(msg.type==="disconnect"){
@@ -397,9 +477,10 @@ function createGameState(){
   const guestRole=captainIsHost?"minion":"captain";
 
   return {
-    version:2,
+    version:3,
     phase:"infoTokens",
     lives:2,
+    lastEvent:null,
     infoTurn:captainIsHost?"host":"guest",
     infoPlaced:{
       host:[false,false],
@@ -439,6 +520,7 @@ function makeViewFor(playerKey){
     infoPlaced:[...gameState.infoPlaced[playerKey]],
     opponentInfoPlaced:[...gameState.infoPlaced[opponentKey]],
     turn:gameState.turn,
+    lastEvent:gameState.lastEvent,
     myBoards:me.boards.map(board=>board.map(t=>({
       id:t.id,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
     }))),
@@ -486,10 +568,181 @@ function applyInfoTokenPlacement(playerKey,boardIndex,position){
   broadcastViews();
 }
 
+
+function otherPlayer(playerKey){
+  return playerKey==="host"?"guest":"host";
+}
+
+function allTiles(){
+  return [
+    ...gameState.players.host.boards[0],
+    ...gameState.players.host.boards[1],
+    ...gameState.players.guest.boards[0],
+    ...gameState.players.guest.boards[1]
+  ];
+}
+
+function allCut(){
+  return allTiles().every(t=>t.cut);
+}
+
+function finishTurn(actor){
+  if(allCut()){
+    gameState.phase="clear";
+    gameState.turn=null;
+    return;
+  }
+  if(gameState.lives<=0){
+    gameState.phase="gameover";
+    gameState.turn=null;
+    return;
+  }
+  gameState.turn=otherPlayer(actor);
+}
+
+function actionError(actor,message){
+  if(actor==="guest")send({type:"actionError",message});
+  else alert(message);
+}
+
+function validBoardIndex(v){
+  return v===0||v===1;
+}
+
+function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
+  if(!gameState||gameState.phase!=="play"){
+    actionError(actor,"現在は切断フェーズではありません。");
+    return;
+  }
+  if(gameState.turn!==actor){
+    actionError(actor,"あなたの手番ではありません。");
+    return;
+  }
+  if(!validBoardIndex(myBoard)||!validBoardIndex(targetBoard)){
+    actionError(actor,"台の指定が正しくありません。");
+    return;
+  }
+
+  const targetPlayer=otherPlayer(actor);
+  const myTile=gameState.players[actor].boards[myBoard][myPosition];
+  const targetTile=gameState.players[targetPlayer].boards[targetBoard][targetPosition];
+
+  if(!myTile||!targetTile){
+    actionError(actor,"タイルの指定が正しくありません。");
+    return;
+  }
+  if(myTile.cut||targetTile.cut){
+    actionError(actor,"すでに切断済みのタイルは選べません。");
+    return;
+  }
+
+  const guess=myTile.number;
+  const targetActual=targetTile.number;
+
+  if(guess===targetActual){
+    myTile.cut=true;
+    targetTile.cut=true;
+
+    gameState.lastEvent={
+      kind:"success",
+      actorRole:gameState.players[actor].role,
+      number:guess,
+      myBoard,
+      myPosition,
+      targetBoard,
+      targetPosition
+    };
+
+    finishTurn(actor);
+    broadcastViews();
+    return;
+  }
+
+  // 不正解：対象タイルへ必ず情報トークンを置いて真の数字を公開。
+  targetTile.infoToken=true;
+  gameState.lives=Math.max(0,gameState.lives-1);
+
+  gameState.lastEvent={
+    kind:"failure",
+    actorRole:gameState.players[actor].role,
+    guessed:guess,
+    actual:targetActual,
+    targetBoard,
+    targetPosition,
+    lives:gameState.lives
+  };
+
+  finishTurn(actor);
+  broadcastViews();
+}
+
+function selfCutStatusForState(actor,number){
+  const ownBoards=gameState.players[actor].boards;
+  const ownUncut=[];
+  ownBoards.forEach((board,boardIndex)=>{
+    board.forEach(tile=>{
+      if(!tile.cut&&tile.number===number){
+        ownUncut.push({boardIndex,position:tile.position});
+      }
+    });
+  });
+
+  const cutCount=allTiles().filter(t=>t.cut&&t.number===number).length;
+  const valid=
+    (cutCount===0&&ownUncut.length===4) ||
+    (cutCount===2&&ownUncut.length===2);
+
+  return {valid,cutCount,ownUncut};
+}
+
+function processSelfCut(actor,boardIndex,position){
+  if(!gameState||gameState.phase!=="play"){
+    actionError(actor,"現在は切断フェーズではありません。");
+    return;
+  }
+  if(gameState.turn!==actor){
+    actionError(actor,"あなたの手番ではありません。");
+    return;
+  }
+  if(!validBoardIndex(boardIndex)){
+    actionError(actor,"台の指定が正しくありません。");
+    return;
+  }
+
+  const selected=gameState.players[actor].boards[boardIndex][position];
+  if(!selected||selected.cut){
+    actionError(actor,"切断可能な自分のタイルを選んでください。");
+    return;
+  }
+
+  const number=selected.number;
+  const status=selfCutStatusForState(actor,number);
+
+  if(!status.valid){
+    actionError(actor,`「${number}」は自分だけでは切断できません。`);
+    return;
+  }
+
+  for(const p of status.ownUncut){
+    gameState.players[actor].boards[p.boardIndex][p.position].cut=true;
+  }
+
+  gameState.lastEvent={
+    kind:"self",
+    actorRole:gameState.players[actor].role,
+    number,
+    count:status.ownUncut.length
+  };
+
+  finishTurn(actor);
+  broadcastViews();
+}
+
 function startOrRedeal(){
   if(role!=="host")return;
   gameState=createGameState();
   selectedInfoToken=null;
+  actionState=null;
   broadcastViews();
   els.redealBtn.classList.remove("hidden");
   els.startGameBtn.textContent="もう一度最初から配る";
@@ -498,6 +751,8 @@ function startOrRedeal(){
 function renderPlayerView(view){
   currentView=view;
   selectedInfoToken=null;
+  actionState=null;
+
   els.tokenConfirmArea.classList.add("hidden");
   els.gameCard.classList.remove("hidden");
 
@@ -505,13 +760,55 @@ function renderPlayerView(view){
   els.myRoleBadge.textContent=isCaptain?"隊長":"子分";
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
 
+  renderLives(view.lives);
+  renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
   renderBoards(els.myBoards,view.myBoards,false,view);
   renderBoards(els.oppBoards,view.opponentBoards,true,view);
+  updateActionUi();
+}
+
+function renderLives(lives){
+  const hearts="♥".repeat(Math.max(0,lives));
+  const empty="♡".repeat(Math.max(0,2-lives));
+  els.lifeDisplay.textContent=`ライフ ${hearts}${empty}`;
+  els.lifeDisplay.classList.toggle("low",lives<=1);
+}
+
+function roleName(r){
+  return r==="captain"?"隊長":"子分";
+}
+
+function boardName(index){
+  return index===0?"台A":"台B";
+}
+
+function renderLastEvent(event){
+  els.lastEventBox.className="resultBox neutral hidden";
+  if(!event)return;
+
+  let text="";
+  let kind="neutral";
+
+  if(event.kind==="success"){
+    text=`${roleName(event.actorRole)}：${event.number}で切断成功！ 自分の${boardName(event.myBoard)}・${event.myPosition+1}番目と、相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を公開しました。`;
+    kind="success";
+  }else if(event.kind==="failure"){
+    text=`${roleName(event.actorRole)}：${event.guessed}と予想しましたが不正解。相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目は「${event.actual}」でした。情報トークンを置き、ライフは残り${event.lives}です。`;
+    kind="failure";
+  }else if(event.kind==="self"){
+    text=`${roleName(event.actorRole)}：「${event.number}」を自分だけで${event.count}枚同時に切断しました。`;
+    kind="self";
+  }
+
+  els.lastEventBox.textContent=text;
+  els.lastEventBox.className=`resultBox ${kind}`;
 }
 
 function updatePhaseUi(view){
   els.nextPhaseNotice.classList.add("hidden");
+  els.playControls.classList.add("hidden");
+  els.gameEndBox.className="gameEnd hidden";
 
   if(view.phase==="infoTokens"){
     els.phaseTitle.textContent="情報トークン配置";
@@ -533,18 +830,41 @@ function updatePhaseUi(view){
   }
 
   if(view.phase==="play"){
-    els.phaseTitle.textContent="情報トークン配置完了";
+    els.phaseTitle.textContent="切断フェーズ";
     const myTurn=view.turn===view.playerKey;
     els.turnBanner.textContent=myTurn?"あなたの手番です":"相手の手番です";
     els.turnBanner.classList.toggle("mine",myTurn);
-    els.phaseHelp.textContent="4台すべてに情報トークンが置かれました。隊長からゲーム開始です。";
-    els.nextPhaseNotice.textContent="次の版で「相手を指定して切断／自分だけで切断」を追加します。";
-    els.nextPhaseNotice.classList.remove("hidden");
+    els.phaseHelp.textContent=myTurn
+      ?"切断方法を選んでください。1回行動すると、成否に関係なく相手の手番になります。"
+      :"相手の操作を待っています。";
+
+    if(myTurn)els.playControls.classList.remove("hidden");
+    return;
+  }
+
+  if(view.phase==="clear"){
+    els.phaseTitle.textContent="ゲーム終了";
+    els.turnBanner.textContent="全タイル切断！";
+    els.turnBanner.classList.add("mine");
+    els.phaseHelp.textContent="";
+    els.gameEndBox.textContent="🎉 ゲームクリア！";
+    els.gameEndBox.className="gameEnd clear";
+    return;
+  }
+
+  if(view.phase==="gameover"){
+    els.phaseTitle.textContent="ゲーム終了";
+    els.turnBanner.textContent="ライフが0になりました";
+    els.turnBanner.classList.remove("mine");
+    els.phaseHelp.textContent="";
+    els.gameEndBox.textContent="💥 ゲームオーバー";
+    els.gameEndBox.className="gameEnd over";
   }
 }
 
 function renderBoards(container,boards,isOpponent,view){
   container.innerHTML="";
+
   boards.forEach((board,bi)=>{
     const wrap=document.createElement("div");
     wrap.className="board";
@@ -563,23 +883,38 @@ function renderBoards(container,boards,isOpponent,view){
     board.forEach(tile=>{
       const el=document.createElement("div");
       const hidden=isOpponent && tile.number==null;
-      el.className="tile"+(hidden?" hiddenTile":"")+(tile.infoToken?" infoToken":"");
+      el.className=
+        "tile"+
+        (hidden?" hiddenTile":"")+
+        (tile.infoToken?" infoToken":"")+
+        (tile.cut?" cut":"");
+
       el.textContent=hidden?"?":tile.number;
 
+      // 情報トークン配置
       const canPlaceInfo=
         !isOpponent &&
         view.phase==="infoTokens" &&
         view.infoTurn===view.playerKey &&
         !view.infoPlaced[bi] &&
-        !tile.infoToken;
+        !tile.infoToken &&
+        !tile.cut;
 
       if(canPlaceInfo){
         el.classList.add("selectableTile");
         el.onclick=()=>selectInfoTokenTile(bi,tile.position,el,tile.number);
       }
 
+      // 切断フェーズでのタイル選択
+      if(canSelectPlayTile(isOpponent,bi,tile,view)){
+        el.classList.add("selectableTile");
+        if(isSelectedPlayTile(isOpponent,bi,tile.position))el.classList.add("selected");
+        el.onclick=()=>selectPlayTile(isOpponent,bi,tile.position,tile.number);
+      }
+
       tiles.appendChild(el);
     });
+
     wrap.appendChild(tiles);
 
     const pos=document.createElement("div");
@@ -599,8 +934,7 @@ function selectInfoTokenTile(boardIndex,position,el,number){
   el.classList.add("selected");
   selectedInfoToken={boardIndex,position};
 
-  const boardName=boardIndex===0?"台A":"台B";
-  els.tokenSelectionText.textContent=`${boardName}・左から${position+1}番目の「${number}」に情報トークンを置きます。`;
+  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${number}」に情報トークンを置きます。`;
   els.tokenConfirmArea.classList.remove("hidden");
 }
 
@@ -617,6 +951,252 @@ function confirmInfoToken(){
 
   selectedInfoToken=null;
   els.tokenConfirmArea.classList.add("hidden");
+}
+
+function beginAction(mode){
+  if(!currentView||currentView.phase!=="play"||currentView.turn!==currentView.playerKey)return;
+
+  actionState={
+    mode,
+    step:"myBoard",
+    myBoard:null,
+    myPosition:null,
+    number:null,
+    targetBoard:null,
+    targetPosition:null,
+    selfCount:null
+  };
+
+  updateActionUi();
+  rerenderBoardsOnly();
+}
+
+function cancelAction(){
+  actionState=null;
+  updateActionUi();
+  rerenderBoardsOnly();
+}
+
+function chooseActionBoard(boardIndex){
+  if(!actionState)return;
+
+  if(actionState.step==="myBoard"){
+    actionState.myBoard=boardIndex;
+    actionState.step="myTile";
+  }else if(actionState.step==="targetBoard"){
+    actionState.targetBoard=boardIndex;
+    actionState.step="targetTile";
+  }
+
+  updateActionUi();
+  rerenderBoardsOnly();
+}
+
+function canSelectPlayTile(isOpponent,boardIndex,tile,view){
+  if(!actionState||view.phase!=="play"||view.turn!==view.playerKey||tile.cut)return false;
+
+  if(actionState.step==="myTile"){
+    return !isOpponent && boardIndex===actionState.myBoard;
+  }
+
+  if(actionState.step==="targetTile"){
+    return isOpponent && boardIndex===actionState.targetBoard;
+  }
+
+  return false;
+}
+
+function isSelectedPlayTile(isOpponent,boardIndex,position){
+  if(!actionState)return false;
+
+  if(!isOpponent){
+    return actionState.myBoard===boardIndex&&actionState.myPosition===position;
+  }
+  return actionState.targetBoard===boardIndex&&actionState.targetPosition===position;
+}
+
+function selectPlayTile(isOpponent,boardIndex,position,number){
+  if(!actionState)return;
+
+  if(actionState.step==="myTile"&&!isOpponent){
+    actionState.myPosition=position;
+    actionState.number=number;
+
+    if(actionState.mode==="self"){
+      const status=selfCutStatusForView(number);
+      if(!status.valid){
+        els.actionSummary.textContent=`「${number}」は自分だけでは切断できません。別のタイルを選んでください。`;
+        els.actionSummary.classList.remove("hidden");
+        els.confirmActionBtn.classList.add("hidden");
+        actionState.myPosition=null;
+        actionState.number=null;
+        rerenderBoardsOnly();
+        return;
+      }
+
+      actionState.selfCount=status.ownUncutCount;
+      actionState.step="confirm";
+      updateActionUi();
+      rerenderBoardsOnly();
+      return;
+    }
+
+    actionState.step="targetBoard";
+    updateActionUi();
+    rerenderBoardsOnly();
+    return;
+  }
+
+  if(actionState.step==="targetTile"&&isOpponent){
+    actionState.targetPosition=position;
+    actionState.step="confirm";
+    updateActionUi();
+    rerenderBoardsOnly();
+  }
+}
+
+function selfCutStatusForView(number){
+  let ownUncutCount=0;
+  let cutCount=0;
+
+  for(const board of currentView.myBoards){
+    for(const tile of board){
+      if(tile.cut&&tile.number===number)cutCount++;
+      if(!tile.cut&&tile.number===number)ownUncutCount++;
+    }
+  }
+
+  for(const board of currentView.opponentBoards){
+    for(const tile of board){
+      if(tile.cut&&tile.number===number)cutCount++;
+    }
+  }
+
+  const valid=
+    (cutCount===0&&ownUncutCount===4) ||
+    (cutCount===2&&ownUncutCount===2);
+
+  return {valid,cutCount,ownUncutCount};
+}
+
+function updateActionUi(){
+  const usable=
+    currentView &&
+    currentView.phase==="play" &&
+    currentView.turn===currentView.playerKey;
+
+  if(!usable){
+    els.playControls.classList.add("hidden");
+    return;
+  }
+
+  els.playControls.classList.remove("hidden");
+
+  if(!actionState){
+    els.actionChoice.classList.remove("hidden");
+    els.actionProgress.classList.add("hidden");
+    return;
+  }
+
+  els.actionChoice.classList.add("hidden");
+  els.actionProgress.classList.remove("hidden");
+  els.boardChoiceArea.classList.add("hidden");
+  els.actionSummary.classList.add("hidden");
+  els.confirmActionBtn.classList.add("hidden");
+
+  if(actionState.step==="myBoard"){
+    els.actionStepText.textContent="① 自分の台を選ぶ";
+    els.actionHint.textContent=actionState.mode==="normal"
+      ?"相手を切るために使うタイルがある台を選びます。"
+      :"自分だけで切断したい数字がある台を選びます。";
+    els.boardChoiceArea.classList.remove("hidden");
+    return;
+  }
+
+  if(actionState.step==="myTile"){
+    els.actionStepText.textContent="② 自分の具体的なタイルを選ぶ";
+    els.actionHint.textContent=`${boardName(actionState.myBoard)}の未切断タイルを1枚タップしてください。`;
+    return;
+  }
+
+  if(actionState.step==="targetBoard"){
+    els.actionStepText.textContent="③ 相手の台を選ぶ";
+    els.actionHint.textContent=`自分の${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目の「${actionState.number}」を使います。`;
+    els.boardChoiceArea.classList.remove("hidden");
+    return;
+  }
+
+  if(actionState.step==="targetTile"){
+    els.actionStepText.textContent="④ 相手の具体的なタイルを選ぶ";
+    els.actionHint.textContent=`相手の${boardName(actionState.targetBoard)}から「${actionState.number}」だと思う位置をタップしてください。`;
+    return;
+  }
+
+  if(actionState.step==="confirm"){
+    els.actionStepText.textContent="⑤ 確定";
+
+    if(actionState.mode==="normal"){
+      els.actionHint.textContent="";
+      els.actionSummary.textContent=
+        `自分：${boardName(actionState.myBoard)}・左から${actionState.myPosition+1}番目の「${actionState.number}」 → `+
+        `相手：${boardName(actionState.targetBoard)}・左から${actionState.targetPosition+1}番目を「${actionState.number}」と予想します。`;
+      els.confirmActionBtn.textContent="この内容で切断する";
+    }else{
+      els.actionHint.textContent="";
+      els.actionSummary.textContent=
+        `「${actionState.number}」を自分だけで${actionState.selfCount}枚同時に切断できます。選んだ位置を基準に、該当する未切断タイルをすべて切断します。`;
+      els.confirmActionBtn.textContent=`「${actionState.number}」を${actionState.selfCount}枚切断する`;
+    }
+
+    els.actionSummary.classList.remove("hidden");
+    els.confirmActionBtn.classList.remove("hidden");
+  }
+}
+
+function rerenderBoardsOnly(){
+  if(!currentView)return;
+  renderBoards(els.myBoards,currentView.myBoards,false,currentView);
+  renderBoards(els.oppBoards,currentView.opponentBoards,true,currentView);
+}
+
+function confirmPlayAction(){
+  if(!actionState||actionState.step!=="confirm"||!currentView)return;
+
+  const snapshot={...actionState};
+
+  // 二重タップ防止
+  els.confirmActionBtn.disabled=true;
+
+  if(snapshot.mode==="normal"){
+    const payload={
+      type:"normalCut",
+      myBoard:snapshot.myBoard,
+      myPosition:snapshot.myPosition,
+      targetBoard:snapshot.targetBoard,
+      targetPosition:snapshot.targetPosition
+    };
+
+    if(role==="host"){
+      processNormalCut("host",payload.myBoard,payload.myPosition,payload.targetBoard,payload.targetPosition);
+    }else{
+      send(payload);
+    }
+  }else{
+    const payload={
+      type:"selfCut",
+      boardIndex:snapshot.myBoard,
+      position:snapshot.myPosition
+    };
+
+    if(role==="host"){
+      processSelfCut("host",payload.boardIndex,payload.position);
+    }else{
+      send(payload);
+    }
+  }
+
+  actionState=null;
+  setTimeout(()=>{els.confirmActionBtn.disabled=false},250);
 }
 
 function waitIce(peer,maxMs=8000){
@@ -891,6 +1471,12 @@ els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
 els.confirmTokenBtn.onclick=confirmInfoToken;
+els.normalCutBtn.onclick=()=>beginAction("normal");
+els.selfCutBtn.onclick=()=>beginAction("self");
+els.chooseBoardABtn.onclick=()=>chooseActionBoard(0);
+els.chooseBoardBBtn.onclick=()=>chooseActionBoard(1);
+els.cancelActionBtn.onclick=cancelAction;
+els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;
 
 window.addEventListener("beforeunload",()=>{

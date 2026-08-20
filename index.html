@@ -89,22 +89,12 @@ summary{font-weight:750;cursor:pointer}
   box-shadow:0 1px 2px rgba(0,0,0,.06)
 }
 .tile.hiddenTile{background:#e5e7eb;color:#6b7280}
-.positionRow{
-  display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;
-  margin-top:2px;color:#9ca3af;font-size:.58rem;text-align:center
-}
 .playerBlock{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px}
 .setupActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 
 .selectableTile{cursor:pointer;outline:2px solid transparent;transition:.12s}
 .selectableTile:active{transform:scale(.96)}
 .selectableTile.selected{outline:3px solid #2563eb;background:#dbeafe}
-.tile.infoToken{position:relative;background:#fef3c7;border-color:#f59e0b;color:#92400e}
-.tile.infoToken::after{
-  content:"i";position:absolute;right:2px;top:1px;width:13px;height:13px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;background:#f59e0b;color:white;
-  font-size:.58rem;font-weight:900
-}
 .phaseTitle{font-size:1.08rem;font-weight:850;margin-bottom:6px}
 .turnBanner{
   padding:11px 12px;border-radius:12px;background:#eef2ff;color:#3730a3;
@@ -191,13 +181,100 @@ summary{font-weight:750;cursor:pointer}
 .gameEnd.over{background:#fee2e2;color:#991b1b}
 .life.low{color:#b91c1c}
 
+
+.connectionMenu{
+  margin-top:10px;
+  border-top:1px solid #e5e7eb;
+  padding-top:8px
+}
+.connectionMenu summary{
+  color:#6b7280;
+  font-size:.82rem;
+  font-weight:700;
+  cursor:pointer;
+  user-select:none
+}
+.infoTokenRow{
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  gap:3px;
+  margin-top:5px;
+  min-height:22px
+}
+.infoTokenSlot{
+  min-width:0;
+  min-height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center
+}
+.infoTokenBadge{
+  width:100%;
+  min-height:20px;
+  border:1px solid #f59e0b;
+  border-radius:6px;
+  background:#fef3c7;
+  color:#92400e;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:clamp(.55rem,2.4vw,.75rem);
+  font-weight:900;
+  line-height:1;
+  padding:2px 0;
+  white-space:nowrap;
+  overflow:hidden
+}
+.infoTokenBadge.numberToken::before{
+  content:"";
+}
+.infoTokenBadge.evenToken{
+  background:#e0f2fe;
+  border-color:#0284c7;
+  color:#075985
+}
+.infoTokenBadge.countToken{
+  background:#ede9fe;
+  border-color:#7c3aed;
+  color:#5b21b6
+}
+
+
+.boardFacts{
+  margin:5px 0 2px;
+  min-height:20px;
+  display:flex;
+  gap:4px;
+  flex-wrap:wrap;
+  align-items:center
+}
+.boardFactLabel{
+  font-size:.7rem;
+  color:#6b7280;
+  margin-right:2px
+}
+.boardFactBadge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:24px;
+  height:20px;
+  padding:0 6px;
+  border-radius:999px;
+  background:#fee2e2;
+  border:1px solid #ef4444;
+  color:#991b1b;
+  font-size:.72rem;
+  font-weight:900
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（直接選択UI・自動スキップ対応）</p>
+  <p class="sub">2人用ゲーム版（不正解時の台情報を記録）</p>
 
   <section class="card">
     <div class="status">
@@ -205,6 +282,12 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <span id="statusText">役割を選んでください</span>
     </div>
     <div id="roleText" class="small" style="margin-top:6px">2台のスマホで同じURLを開いてください。</div>
+
+    <details id="connectionMenu" class="connectionMenu">
+      <summary>接続設定</summary>
+      <p class="small">通常のゲーム中は開く必要はありません。</p>
+      <button id="disconnectBtn" class="danger" style="width:100%">接続を切る</button>
+    </details>
   </section>
 
   <section id="roleCard" class="card">
@@ -339,12 +422,9 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     <div id="nextPhaseNotice" class="notice info hidden"></div>
   </section>
 
-  <section id="connectionControls" class="card hidden">
-    <button id="disconnectBtn" class="danger" style="width:100%">接続を切る</button>
-  </section>
 
   <footer>
-    2人用：盤面を直接タップして切断。未切断タイル0枚のプレイヤーは手番を自動スキップします。
+    情報トークンは各タイル直下に表示。将来「偶数」「1枚・2枚・3枚」などの種類を追加できる構造です。
   </footer>
 </div>
 
@@ -365,7 +445,7 @@ const els={
   statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
   roleCard:$("roleCard"),hostCard:$("hostCard"),guestCard:$("guestCard"),
   lobbyCard:$("lobbyCard"),hostLobby:$("hostLobby"),guestLobby:$("guestLobby"),
-  gameCard:$("gameCard"),connectionControls:$("connectionControls"),
+  gameCard:$("gameCard"),
   hostBtn:$("hostBtn"),guestBtn:$("guestBtn"),
   createOfferBtn:$("createOfferBtn"),scanAnswerBtn:$("scanAnswerBtn"),scanOfferBtn:$("scanOfferBtn"),
   stopHostScanBtn:$("stopHostScanBtn"),stopGuestScanBtn:$("stopGuestScanBtn"),
@@ -418,7 +498,6 @@ function makePeer(){
       setStatus("相手との接続が切れました","bad");
       els.lobbyCard.classList.add("hidden");
       els.gameCard.classList.add("hidden");
-      els.connectionControls.classList.add("hidden");
     }
   };
   return pc;
@@ -431,7 +510,6 @@ function setupChannel(ch){
     if(connectedOnce){
       setStatus("相手との接続が切れました","bad");
       els.lobbyCard.classList.add("hidden");
-      els.connectionControls.classList.add("hidden");
     }
   };
   channel.onmessage=e=>{
@@ -446,7 +524,6 @@ function onConnected(){
   setStatus("接続しました","ok");
   stopAllScanners();
   els.lobbyCard.classList.remove("hidden");
-  els.connectionControls.classList.remove("hidden");
   els.hostLobby.classList.toggle("hidden",role!=="host");
   els.guestLobby.classList.toggle("hidden",role!=="guest");
 }
@@ -477,7 +554,6 @@ function handleMessage(msg){
     setStatus("相手が接続を切りました","bad");
     els.lobbyCard.classList.add("hidden");
     els.gameCard.classList.add("hidden");
-    els.connectionControls.classList.add("hidden");
     setTimeout(()=>closePeer(false),100);
   }
 }
@@ -500,7 +576,7 @@ function makeBoard(numbers,owner,boardIndex){
   const sorted=[...numbers].sort((a,b)=>a-b);
   return sorted.map((number,position)=>({
     id:`${owner}-${boardIndex}-${position}-${Math.random().toString(36).slice(2,8)}`,
-    number, position, cut:false, infoToken:false
+    number, position, cut:false, infoToken:null
   }));
 }
 
@@ -520,6 +596,10 @@ function createGameState(){
     phase:"infoTokens",
     lives:2,
     lastEvent:null,
+    publicBoardFacts:{
+      host:[[],[]],
+      guest:[[],[]]
+    },
     infoTurn:captainIsHost?"host":"guest",
     infoPlaced:{
       host:[false,false],
@@ -560,12 +640,16 @@ function makeViewFor(playerKey){
     opponentInfoPlaced:[...gameState.infoPlaced[opponentKey]],
     turn:gameState.turn,
     lastEvent:gameState.lastEvent,
+    myBoardFacts:gameState.publicBoardFacts[playerKey].map(x=>[...x]),
+    opponentBoardFacts:gameState.publicBoardFacts[opponentKey].map(x=>[...x]),
     myBoards:me.boards.map(board=>board.map(t=>({
       id:t.id,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
     }))),
     opponentBoards:opp.boards.map(board=>board.map(t=>({
-      position:t.position,cut:t.cut,infoToken:t.infoToken,
-      number:(t.cut||t.infoToken)?t.number:null
+      position:t.position,
+      cut:t.cut,
+      infoToken:t.infoToken,
+      number:t.cut?t.number:null
     })))
   };
 }
@@ -601,7 +685,7 @@ function applyInfoTokenPlacement(playerKey,boardIndex,position){
   const tile=gameState.players[playerKey].boards[boardIndex][position];
   if(!tile)return;
 
-  tile.infoToken=true;
+  tile.infoToken={type:"number",value:tile.number};
   gameState.infoPlaced[playerKey][boardIndex]=true;
   gameState.infoTurn=nextInfoTurnAfter(playerKey);
   broadcastViews();
@@ -722,14 +806,21 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
   }
 
   // 不正解：対象タイルへ必ず情報トークンを置いて真の数字を公開。
-  targetTile.infoToken=true;
+  targetTile.infoToken={type:"number",value:targetTile.number};
   gameState.lives=Math.max(0,gameState.lives-1);
+
+  // 不正解でも、宣言に使った数字がこの台にあることは公開情報になる。
+  const facts=gameState.publicBoardFacts[actor][myBoard];
+  if(!facts.includes(guess))facts.push(guess);
+  facts.sort((a,b)=>a-b);
 
   gameState.lastEvent={
     kind:"failure",
     actorRole:gameState.players[actor].role,
     guessed:guess,
     actual:targetActual,
+    myBoard,
+    myPosition,
     targetBoard,
     targetPosition,
     lives:gameState.lives
@@ -857,7 +948,11 @@ function renderLastEvent(event){
     text=`${roleName(event.actorRole)}：${event.number}で切断成功！ 自分の${boardName(event.myBoard)}・${event.myPosition+1}番目と、相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を公開しました。`;
     kind="success";
   }else if(event.kind==="failure"){
-    text=`${roleName(event.actorRole)}：${event.guessed}と予想しましたが不正解。相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目は「${event.actual}」でした。情報トークンを置き、ライフは残り${event.lives}です。`;
+    text=
+      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の「${event.guessed}」を使い、`+
+      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を「${event.guessed}」と予想しましたが不正解。`+
+      `相手の実際の数字は「${event.actual}」でした。情報トークンを置き、ライフは残り${event.lives}です。`+
+      ` このため、${roleName(event.actorRole)}の${boardName(event.myBoard)}には「${event.guessed}」があることが確定します。`;
     kind="failure";
   }else if(event.kind==="self"){
     text=`${roleName(event.actorRole)}：「${event.number}」を自分だけで${event.count}枚同時に切断しました。`;
@@ -945,6 +1040,27 @@ function renderBoards(container,boards,isOpponent,view){
     title.textContent=`台${bi===0?"A":"B"}`;
     wrap.appendChild(title);
 
+    const facts=isOpponent ? view.opponentBoardFacts?.[bi] : view.myBoardFacts?.[bi];
+    if(facts&&facts.length){
+      const factsRow=document.createElement("div");
+      factsRow.className="boardFacts";
+
+      const label=document.createElement("span");
+      label.className="boardFactLabel";
+      label.textContent="公開情報:";
+      factsRow.appendChild(label);
+
+      facts.forEach(number=>{
+        const badge=document.createElement("span");
+        badge.className="boardFactBadge";
+        badge.textContent=String(number);
+        badge.title=`この台に「${number}」があることが公開済み`;
+        factsRow.appendChild(badge);
+      });
+
+      wrap.appendChild(factsRow);
+    }
+
     const tiles=document.createElement("div");
     tiles.className="tiles";
 
@@ -954,7 +1070,6 @@ function renderBoards(container,boards,isOpponent,view){
       el.className=
         "tile"+
         (hidden?" hiddenTile":"")+
-        (tile.infoToken?" infoToken":"")+
         (tile.cut?" cut":"");
 
       el.textContent=hidden?"?":tile.number;
@@ -997,14 +1112,43 @@ function renderBoards(container,boards,isOpponent,view){
 
     wrap.appendChild(tiles);
 
-    const pos=document.createElement("div");
-    pos.className="positionRow";
-    for(let i=1;i<=12;i++){
-      const p=document.createElement("div");
-      p.textContent=i;
-      pos.appendChild(p);
-    }
-    wrap.appendChild(pos);
+    const tokenRow=document.createElement("div");
+    tokenRow.className="infoTokenRow";
+
+    board.forEach(tile=>{
+      const slot=document.createElement("div");
+      slot.className="infoTokenSlot";
+
+      if(tile.infoToken){
+        const badge=document.createElement("div");
+        const type=typeof tile.infoToken==="object" ? tile.infoToken.type : "number";
+        const value=typeof tile.infoToken==="object" ? tile.infoToken.value : tile.number;
+
+        badge.className="infoTokenBadge";
+
+        if(type==="number"){
+          badge.classList.add("numberToken");
+          badge.textContent=String(value);
+          badge.title=`数字 ${value}`;
+        }else if(type==="even"){
+          badge.classList.add("evenToken");
+          badge.textContent="偶";
+          badge.title="偶数";
+        }else if(type==="count"){
+          badge.classList.add("countToken");
+          badge.textContent=`${value}枚`;
+          badge.title=`この数字はこの台に${value}枚`;
+        }else{
+          badge.textContent="?";
+        }
+
+        slot.appendChild(badge);
+      }
+
+      tokenRow.appendChild(slot);
+    });
+
+    wrap.appendChild(tokenRow);
     container.appendChild(wrap);
   });
 }
@@ -1014,7 +1158,7 @@ function selectInfoTokenTile(boardIndex,position,el,number){
   el.classList.add("selected");
   selectedInfoToken={boardIndex,position};
 
-  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${number}」に情報トークンを置きます。`;
+  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${number}」の下に数字情報トークンを置きます。`;
   els.tokenConfirmArea.classList.remove("hidden");
 }
 
@@ -1531,7 +1675,6 @@ function closePeer(showStatus=true){
     setStatus("接続を切りました","wait");
     els.lobbyCard.classList.add("hidden");
     els.gameCard.classList.add("hidden");
-    els.connectionControls.classList.add("hidden");
   }
 }
 async function disconnect(){await stopAllScanners();closePeer(true);connectedOnce=false}

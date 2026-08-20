@@ -22,7 +22,7 @@ body{
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;
   background:var(--bg); color:var(--ink);
 }
-.wrap{width:min(760px,100%);margin:auto;padding:16px 12px 42px}
+.wrap{width:min(760px,100%);margin:auto;padding:16px 12px 190px}
 h1{font-size:1.45rem;margin:4px 0}
 h2{font-size:1.05rem;margin:0 0 10px}
 .sub{font-size:.92rem;color:var(--muted);line-height:1.55;margin:0 0 12px}
@@ -123,15 +123,61 @@ summary{font-weight:750;cursor:pointer}
   content:"✓";position:absolute;left:2px;top:0;font-size:.65rem;font-weight:900;color:#16a34a
 }
 .actionPanel{
-  margin:12px 0;padding:12px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff
+  position:fixed;
+  left:50%;
+  bottom:max(8px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  z-index:100;
+  width:min(calc(100% - 20px),740px);
+  margin:0;
+  padding:11px;
+  border:1px solid #bfdbfe;
+  border-radius:16px;
+  background:rgba(248,251,255,.97);
+  box-shadow:0 8px 28px rgba(0,0,0,.20);
+  backdrop-filter:blur(8px)
 }
-.actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-.actionButtons button{min-height:56px}
-.boardChoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-.actionStep{font-weight:850;margin-bottom:6px}
-.actionSummary{line-height:1.65}
-.actionControls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.actionControls button{flex:1}
+.actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.actionButtons button{min-height:52px}
+.actionButtons button.modeActive{outline:3px solid #1d4ed8}
+.actionStep{font-weight:850;margin-bottom:4px}
+.actionSummary{line-height:1.45;margin-top:7px!important;padding:8px 10px!important}
+.actionControls{display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-top:8px}
+.actionControls button{width:100%}
+.board{
+  border:2px solid transparent;
+  border-radius:12px;
+  padding:5px;
+  transition:.12s
+}
+.board.boardSelected{
+  border-color:#2563eb;
+  background:#eff6ff;
+  box-shadow:0 0 0 2px rgba(37,99,235,.12)
+}
+.tile.playSelectedOwn{
+  outline:3px solid #2563eb;
+  background:#dbeafe!important;
+  color:#1e3a8a!important;
+  opacity:1
+}
+.tile.playSelectedTarget{
+  outline:3px solid #ea580c;
+  background:#ffedd5!important;
+  color:#9a3412!important;
+  opacity:1
+}
+.tile.selfGroupSelected{
+  outline:3px solid #7c3aed;
+  background:#ede9fe!important;
+  color:#5b21b6!important;
+  opacity:1
+}
+.selectionLegend{
+  font-size:.82rem;
+  color:#4b5563;
+  line-height:1.4
+}
 .resultBox{margin:12px 0;padding:12px;border-radius:12px;font-weight:750;line-height:1.55}
 .resultBox.success{background:#dcfce7;color:#166534}
 .resultBox.failure{background:#fee2e2;color:#991b1b}
@@ -151,7 +197,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（STUN対応・低密度QR）</p>
+  <p class="sub">2人用ゲーム版（直接選択UI・自動スキップ対応）</p>
 
   <section class="card">
     <div class="status">
@@ -265,18 +311,12 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
       <div id="actionProgress" class="hidden">
         <div id="actionStepText" class="actionStep"></div>
-        <div id="actionHint" class="small"></div>
-
-        <div id="boardChoiceArea" class="boardChoice hidden">
-          <button id="chooseBoardABtn" class="secondary">台A</button>
-          <button id="chooseBoardBBtn" class="secondary">台B</button>
-        </div>
-
+        <div id="actionHint" class="selectionLegend"></div>
         <div id="actionSummary" class="notice info hidden"></div>
 
         <div class="actionControls">
-          <button id="confirmActionBtn" class="primary hidden">切断を確定</button>
-          <button id="cancelActionBtn" class="secondary">選択をやり直す</button>
+          <button id="cancelActionBtn" class="secondary">やり直す</button>
+          <button id="confirmActionBtn" class="primary" disabled>切断する</button>
         </div>
       </div>
     </div>
@@ -304,7 +344,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </section>
 
   <footer>
-    2人用：役職・配牌・情報トークン・通常切断・自分だけ切断・ライフ・勝敗判定まで実装。
+    2人用：盤面を直接タップして切断。未切断タイル0枚のプレイヤーは手番を自動スキップします。
   </footer>
 </div>
 
@@ -341,7 +381,6 @@ const els={
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),
   actionStepText:$("actionStepText"),actionHint:$("actionHint"),
-  boardChoiceArea:$("boardChoiceArea"),chooseBoardABtn:$("chooseBoardABtn"),chooseBoardBBtn:$("chooseBoardBBtn"),
   actionSummary:$("actionSummary"),confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   tokenConfirmArea:$("tokenConfirmArea"),tokenSelectionText:$("tokenSelectionText"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
@@ -586,18 +625,42 @@ function allCut(){
   return allTiles().every(t=>t.cut);
 }
 
+function playerHasUncut(playerKey){
+  return gameState.players[playerKey].boards.some(board=>board.some(tile=>!tile.cut));
+}
+
 function finishTurn(actor){
   if(allCut()){
     gameState.phase="clear";
     gameState.turn=null;
     return;
   }
+
   if(gameState.lives<=0){
     gameState.phase="gameover";
     gameState.turn=null;
     return;
   }
-  gameState.turn=otherPlayer(actor);
+
+  const next=otherPlayer(actor);
+
+  if(playerHasUncut(next)){
+    gameState.turn=next;
+    return;
+  }
+
+  // 相手の未切断タイルが0枚なら、その人の手番は自動スキップ。
+  if(playerHasUncut(actor)){
+    gameState.turn=actor;
+    if(gameState.lastEvent){
+      gameState.lastEvent.skippedRole=gameState.players[next].role;
+    }
+    return;
+  }
+
+  // 念のため。ここに来るなら全タイル切断済み。
+  gameState.phase="clear";
+  gameState.turn=null;
 }
 
 function actionError(actor,message){
@@ -801,6 +864,10 @@ function renderLastEvent(event){
     kind="self";
   }
 
+  if(event.skippedRole){
+    text+=` ${roleName(event.skippedRole)}は未切断タイルがないため、手番をスキップします。`;
+  }
+
   els.lastEventBox.textContent=text;
   els.lastEventBox.className=`resultBox ${kind}`;
 }
@@ -871,6 +938,7 @@ function renderBoards(container,boards,isOpponent,view){
 
     const infoDone=isOpponent ? view.opponentInfoPlaced[bi] : view.infoPlaced[bi];
     if(infoDone)wrap.classList.add("done");
+    if(isBoardSelected(isOpponent,bi))wrap.classList.add("boardSelected");
 
     const title=document.createElement("div");
     title.className="boardTitle";
@@ -908,8 +976,20 @@ function renderBoards(container,boards,isOpponent,view){
       // 切断フェーズでのタイル選択
       if(canSelectPlayTile(isOpponent,bi,tile,view)){
         el.classList.add("selectableTile");
-        if(isSelectedPlayTile(isOpponent,bi,tile.position))el.classList.add("selected");
         el.onclick=()=>selectPlayTile(isOpponent,bi,tile.position,tile.number);
+      }
+
+      if(actionState&&actionState.mode==="normal"){
+        if(!isOpponent&&actionState.myBoard===bi&&actionState.myPosition===tile.position){
+          el.classList.add("playSelectedOwn");
+        }
+        if(isOpponent&&actionState.targetBoard===bi&&actionState.targetPosition===tile.position){
+          el.classList.add("playSelectedTarget");
+        }
+      }
+
+      if(selectedSelfPosition(bi,tile.position)&&!isOpponent){
+        el.classList.add("selfGroupSelected");
       }
 
       tiles.appendChild(el);
@@ -958,13 +1038,13 @@ function beginAction(mode){
 
   actionState={
     mode,
-    step:"myBoard",
     myBoard:null,
     myPosition:null,
     number:null,
     targetBoard:null,
     targetPosition:null,
-    selfCount:null
+    selfCount:null,
+    selfPositions:[]
   };
 
   updateActionUi();
@@ -977,79 +1057,95 @@ function cancelAction(){
   rerenderBoardsOnly();
 }
 
-function chooseActionBoard(boardIndex){
-  if(!actionState)return;
-
-  if(actionState.step==="myBoard"){
-    actionState.myBoard=boardIndex;
-    actionState.step="myTile";
-  }else if(actionState.step==="targetBoard"){
-    actionState.targetBoard=boardIndex;
-    actionState.step="targetTile";
-  }
-
-  updateActionUi();
-  rerenderBoardsOnly();
-}
-
 function canSelectPlayTile(isOpponent,boardIndex,tile,view){
   if(!actionState||view.phase!=="play"||view.turn!==view.playerKey||tile.cut)return false;
 
-  if(actionState.step==="myTile"){
-    return !isOpponent && boardIndex===actionState.myBoard;
+  if(actionState.mode==="self"){
+    return !isOpponent;
   }
 
-  if(actionState.step==="targetTile"){
-    return isOpponent && boardIndex===actionState.targetBoard;
+  if(actionState.mode==="normal"){
+    if(!isOpponent)return true;
+    return actionState.myPosition!==null;
   }
 
   return false;
 }
 
-function isSelectedPlayTile(isOpponent,boardIndex,position){
+function selectedSelfPosition(boardIndex,position){
+  if(!actionState||actionState.mode!=="self")return false;
+  return actionState.selfPositions.some(p=>p.boardIndex===boardIndex&&p.position===position);
+}
+
+function isBoardSelected(isOpponent,boardIndex){
   if(!actionState)return false;
 
-  if(!isOpponent){
-    return actionState.myBoard===boardIndex&&actionState.myPosition===position;
+  if(actionState.mode==="self"){
+    return !isOpponent && actionState.selfPositions.some(p=>p.boardIndex===boardIndex);
   }
-  return actionState.targetBoard===boardIndex&&actionState.targetPosition===position;
+
+  if(actionState.mode==="normal"){
+    if(!isOpponent)return actionState.myBoard===boardIndex;
+    return actionState.targetBoard===boardIndex;
+  }
+
+  return false;
 }
 
 function selectPlayTile(isOpponent,boardIndex,position,number){
-  if(!actionState)return;
+  if(!actionState||!currentView)return;
 
-  if(actionState.step==="myTile"&&!isOpponent){
-    actionState.myPosition=position;
-    actionState.number=number;
+  if(actionState.mode==="normal"){
+    if(!isOpponent){
+      actionState.myBoard=boardIndex;
+      actionState.myPosition=position;
+      actionState.number=number;
 
-    if(actionState.mode==="self"){
-      const status=selfCutStatusForView(number);
-      if(!status.valid){
-        els.actionSummary.textContent=`「${number}」は自分だけでは切断できません。別のタイルを選んでください。`;
-        els.actionSummary.classList.remove("hidden");
-        els.confirmActionBtn.classList.add("hidden");
-        actionState.myPosition=null;
-        actionState.number=null;
-        rerenderBoardsOnly();
-        return;
-      }
-
-      actionState.selfCount=status.ownUncutCount;
-      actionState.step="confirm";
-      updateActionUi();
-      rerenderBoardsOnly();
-      return;
+      // 使用する自分のタイルを変えたら、相手側の選択は一度解除。
+      actionState.targetBoard=null;
+      actionState.targetPosition=null;
+    }else{
+      if(actionState.myPosition===null)return;
+      actionState.targetBoard=boardIndex;
+      actionState.targetPosition=position;
     }
 
-    actionState.step="targetBoard";
     updateActionUi();
     rerenderBoardsOnly();
     return;
   }
 
-  if(actionState.step==="targetTile"&&isOpponent){
-    actionState.targetPosition=position;
-    actionState.step="confirm";
+  if(actionState.mode==="self"&&!isOpponent){
+    const status=selfCutStatusForView(number);
+
+    if(!status.valid){
+      actionState.myBoard=null;
+      actionState.myPosition=null;
+      actionState.number=null;
+      actionState.selfCount=null;
+      actionState.selfPositions=[];
+
+      els.actionSummary.textContent=`「${number}」は現在、自分だけでは切断できません。`;
+      els.actionSummary.classList.remove("hidden");
+      els.confirmActionBtn.disabled=true;
+      rerenderBoardsOnly();
+      return;
+    }
+
+    actionState.myBoard=boardIndex;
+    actionState.myPosition=position;
+    actionState.number=number;
+    actionState.selfCount=status.ownUncutCount;
+    actionState.selfPositions=[];
+
+    currentView.myBoards.forEach((board,bi)=>{
+      board.forEach(tile=>{
+        if(!tile.cut&&tile.number===number){
+          actionState.selfPositions.push({boardIndex:bi,position:tile.position});
+        }
+      });
+    });
+
     updateActionUi();
     rerenderBoardsOnly();
   }
@@ -1100,56 +1196,50 @@ function updateActionUi(){
 
   els.actionChoice.classList.add("hidden");
   els.actionProgress.classList.remove("hidden");
-  els.boardChoiceArea.classList.add("hidden");
   els.actionSummary.classList.add("hidden");
-  els.confirmActionBtn.classList.add("hidden");
+  els.confirmActionBtn.disabled=true;
+  els.confirmActionBtn.textContent="切断する";
 
-  if(actionState.step==="myBoard"){
-    els.actionStepText.textContent="① 自分の台を選ぶ";
-    els.actionHint.textContent=actionState.mode==="normal"
-      ?"相手を切るために使うタイルがある台を選びます。"
-      :"自分だけで切断したい数字がある台を選びます。";
-    els.boardChoiceArea.classList.remove("hidden");
-    return;
-  }
+  if(actionState.mode==="normal"){
+    els.actionStepText.textContent="相手を指定して切断";
+    els.actionHint.textContent=
+      actionState.myPosition===null
+        ?"① 自分の未切断タイルをタップしてください。台も同時に選択されます。"
+        : actionState.targetPosition===null
+          ?`② 「${actionState.number}」で切る相手のタイルをタップしてください。`
+          :"自分と相手の選択中タイルを確認して「切断する」を押してください。";
 
-  if(actionState.step==="myTile"){
-    els.actionStepText.textContent="② 自分の具体的なタイルを選ぶ";
-    els.actionHint.textContent=`${boardName(actionState.myBoard)}の未切断タイルを1枚タップしてください。`;
-    return;
-  }
+    if(actionState.myPosition!==null){
+      let summary=
+        `自分：${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目「${actionState.number}」`;
 
-  if(actionState.step==="targetBoard"){
-    els.actionStepText.textContent="③ 相手の台を選ぶ";
-    els.actionHint.textContent=`自分の${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目の「${actionState.number}」を使います。`;
-    els.boardChoiceArea.classList.remove("hidden");
-    return;
-  }
+      if(actionState.targetPosition!==null){
+        summary+=` ／ 相手：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を「${actionState.number}」と予想`;
+        els.confirmActionBtn.disabled=false;
+      }else{
+        summary+=" ／ 相手：未選択";
+      }
 
-  if(actionState.step==="targetTile"){
-    els.actionStepText.textContent="④ 相手の具体的なタイルを選ぶ";
-    els.actionHint.textContent=`相手の${boardName(actionState.targetBoard)}から「${actionState.number}」だと思う位置をタップしてください。`;
-    return;
-  }
-
-  if(actionState.step==="confirm"){
-    els.actionStepText.textContent="⑤ 確定";
-
-    if(actionState.mode==="normal"){
-      els.actionHint.textContent="";
-      els.actionSummary.textContent=
-        `自分：${boardName(actionState.myBoard)}・左から${actionState.myPosition+1}番目の「${actionState.number}」 → `+
-        `相手：${boardName(actionState.targetBoard)}・左から${actionState.targetPosition+1}番目を「${actionState.number}」と予想します。`;
-      els.confirmActionBtn.textContent="この内容で切断する";
-    }else{
-      els.actionHint.textContent="";
-      els.actionSummary.textContent=
-        `「${actionState.number}」を自分だけで${actionState.selfCount}枚同時に切断できます。選んだ位置を基準に、該当する未切断タイルをすべて切断します。`;
-      els.confirmActionBtn.textContent=`「${actionState.number}」を${actionState.selfCount}枚切断する`;
+      els.actionSummary.textContent=summary;
+      els.actionSummary.classList.remove("hidden");
     }
+    return;
+  }
 
-    els.actionSummary.classList.remove("hidden");
-    els.confirmActionBtn.classList.remove("hidden");
+  if(actionState.mode==="self"){
+    els.actionStepText.textContent="自分だけで切断";
+    els.actionHint.textContent=
+      actionState.number===null
+        ?"切断したい自分の未切断タイルを1枚タップしてください。切断可能なら対象全部がハイライトされます。"
+        :"ハイライトされたタイルをまとめて切断します。";
+
+    if(actionState.number!==null&&actionState.selfCount){
+      els.actionSummary.textContent=
+        `「${actionState.number}」を${actionState.selfCount}枚同時に切断します。`;
+      els.actionSummary.classList.remove("hidden");
+      els.confirmActionBtn.disabled=false;
+      els.confirmActionBtn.textContent=`${actionState.selfCount}枚を切断する`;
+    }
   }
 }
 
@@ -1160,7 +1250,10 @@ function rerenderBoardsOnly(){
 }
 
 function confirmPlayAction(){
-  if(!actionState||actionState.step!=="confirm"||!currentView)return;
+  if(!actionState||!currentView)return;
+
+  if(actionState.mode==="normal"&&(actionState.myPosition===null||actionState.targetPosition===null))return;
+  if(actionState.mode==="self"&&(actionState.number===null||!actionState.selfCount))return;
 
   const snapshot={...actionState};
 
@@ -1473,8 +1566,6 @@ els.redealBtn.onclick=startOrRedeal;
 els.confirmTokenBtn.onclick=confirmInfoToken;
 els.normalCutBtn.onclick=()=>beginAction("normal");
 els.selfCutBtn.onclick=()=>beginAction("self");
-els.chooseBoardABtn.onclick=()=>chooseActionBoard(0);
-els.chooseBoardBBtn.onclick=()=>chooseActionBoard(1);
 els.cancelActionBtn.onclick=cancelAction;
 els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;

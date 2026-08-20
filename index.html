@@ -95,6 +95,25 @@ summary{font-weight:750;cursor:pointer}
 }
 .playerBlock{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px}
 .setupActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+.selectableTile{cursor:pointer;outline:2px solid transparent;transition:.12s}
+.selectableTile:active{transform:scale(.96)}
+.selectableTile.selected{outline:3px solid #2563eb;background:#dbeafe}
+.tile.infoToken{position:relative;background:#fef3c7;border-color:#f59e0b;color:#92400e}
+.tile.infoToken::after{
+  content:"i";position:absolute;right:2px;top:1px;width:13px;height:13px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:#f59e0b;color:white;
+  font-size:.58rem;font-weight:900
+}
+.phaseTitle{font-size:1.08rem;font-weight:850;margin-bottom:6px}
+.turnBanner{
+  padding:11px 12px;border-radius:12px;background:#eef2ff;color:#3730a3;
+  font-weight:800;margin:12px 0
+}
+.turnBanner.mine{background:#dcfce7;color:#166534}
+.board.done .boardTitle::after{content:"  ✓";color:#16a34a}
+.tokenHelp{font-size:.88rem;line-height:1.55;color:#4b5563;margin:8px 0}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
@@ -175,10 +194,10 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   <section id="lobbyCard" class="card hidden">
     <h2>ゲーム準備</h2>
     <div id="hostLobby" class="hidden">
-      <p class="small">通信確認済みです。親機がタイルを配布します。</p>
+      <p class="small">通信確認済みです。親機が役職決定とタイル配布を行います。</p>
       <div class="setupActions">
         <button id="startGameBtn" class="primary">ゲーム準備を開始</button>
-        <button id="redealBtn" class="secondary hidden">配り直す</button>
+        <button id="redealBtn" class="secondary hidden">最初から配り直す</button>
       </div>
     </div>
     <div id="guestLobby" class="hidden">
@@ -195,6 +214,12 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <div class="life">ライフ ♥♥</div>
     </div>
 
+    <div id="phaseBox">
+      <div id="phaseTitle" class="phaseTitle">情報トークン配置</div>
+      <div id="turnBanner" class="turnBanner">準備中</div>
+      <div id="phaseHelp" class="tokenHelp"></div>
+    </div>
+
     <div class="playerBlock">
       <h2>あなたのタイル</h2>
       <div id="myBoards"></div>
@@ -205,9 +230,12 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <div id="oppBoards"></div>
     </div>
 
-    <div id="nextPhaseNotice" class="notice info">
-      配布テスト完了。次の版で情報トークン配置を追加します。
+    <div id="tokenConfirmArea" class="hidden">
+      <div id="tokenSelectionText" class="notice info"></div>
+      <button id="confirmTokenBtn" class="primary" style="width:100%;margin-top:10px">このタイルに情報トークンを置く</button>
     </div>
+
+    <div id="nextPhaseNotice" class="notice info hidden"></div>
   </section>
 
   <section id="connectionControls" class="card hidden">
@@ -215,7 +243,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </section>
 
   <footer>
-    STUN対応：Wi-Fiとモバイル回線など別ネットワーク間でも直接接続を試みます。1～12を各4枚、合計48枚使用。
+    STUN対応。役職決定・48枚配布・情報トークン配置まで実装済み。
   </footer>
 </div>
 
@@ -227,6 +255,8 @@ let role=null, pc=null, channel=null;
 let hostScanner=null, guestScanner=null;
 let connectedOnce=false;
 let gameState=null;
+let currentView=null;
+let selectedInfoToken=null;
 
 const $=id=>document.getElementById(id);
 const els={
@@ -244,6 +274,9 @@ const els={
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
   myRoleBadge:$("myRoleBadge"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
+  tokenConfirmArea:$("tokenConfirmArea"),tokenSelectionText:$("tokenSelectionText"),
+  confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
   disconnectBtn:$("disconnectBtn")
 };
 
@@ -312,10 +345,15 @@ function onConnected(){
 }
 
 function handleMessage(msg){
-  if(msg.type==="setupState"&&role==="guest"){
+  if(msg.type==="state"&&role==="guest"){
     renderPlayerView(msg.view);
     els.guestLobby.innerHTML='<div class="notice good">ゲーム準備が完了しました。</div>';
   }
+
+  if(msg.type==="placeInfoToken"&&role==="host"){
+    applyInfoTokenPlacement("guest",msg.boardIndex,msg.position);
+  }
+
   if(msg.type==="disconnect"){
     setStatus("相手が接続を切りました","bad");
     els.lobbyCard.classList.add("hidden");
@@ -359,9 +397,15 @@ function createGameState(){
   const guestRole=captainIsHost?"minion":"captain";
 
   return {
-    version:1,
-    phase:"setupComplete",
+    version:2,
+    phase:"infoTokens",
     lives:2,
+    infoTurn:captainIsHost?"host":"guest",
+    infoPlaced:{
+      host:[false,false],
+      guest:[false,false]
+    },
+    turn:null,
     players:{
       host:{
         role:hostRole,
@@ -390,6 +434,11 @@ function makeViewFor(playerKey){
     phase:gameState.phase,
     lives:gameState.lives,
     role:me.role,
+    playerKey,
+    infoTurn:gameState.infoTurn,
+    infoPlaced:[...gameState.infoPlaced[playerKey]],
+    opponentInfoPlaced:[...gameState.infoPlaced[opponentKey]],
+    turn:gameState.turn,
     myBoards:me.boards.map(board=>board.map(t=>({
       id:t.id,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
     }))),
@@ -400,31 +449,108 @@ function makeViewFor(playerKey){
   };
 }
 
+function broadcastViews(){
+  if(role!=="host"||!gameState)return;
+  renderPlayerView(makeViewFor("host"));
+  send({type:"state",view:makeViewFor("guest")});
+}
+
+function nextInfoTurnAfter(playerKey){
+  const player=gameState.players[playerKey];
+  const bothDone=gameState.infoPlaced[playerKey].every(Boolean);
+  if(!bothDone)return playerKey;
+
+  if(player.role==="captain"){
+    return playerKey==="host"?"guest":"host";
+  }
+
+  // 子分も2台置き終えたので、情報トークンフェーズ終了。
+  gameState.phase="play";
+  gameState.infoTurn=null;
+  gameState.turn=gameState.players.host.role==="captain"?"host":"guest";
+  return null;
+}
+
+function applyInfoTokenPlacement(playerKey,boardIndex,position){
+  if(!gameState||gameState.phase!=="infoTokens")return;
+  if(gameState.infoTurn!==playerKey)return;
+  if(boardIndex!==0&&boardIndex!==1)return;
+  if(gameState.infoPlaced[playerKey][boardIndex])return;
+
+  const tile=gameState.players[playerKey].boards[boardIndex][position];
+  if(!tile)return;
+
+  tile.infoToken=true;
+  gameState.infoPlaced[playerKey][boardIndex]=true;
+  gameState.infoTurn=nextInfoTurnAfter(playerKey);
+  broadcastViews();
+}
+
 function startOrRedeal(){
   if(role!=="host")return;
   gameState=createGameState();
-  renderPlayerView(makeViewFor("host"));
-  send({type:"setupState",view:makeViewFor("guest")});
+  selectedInfoToken=null;
+  broadcastViews();
   els.redealBtn.classList.remove("hidden");
   els.startGameBtn.textContent="もう一度最初から配る";
 }
 
 function renderPlayerView(view){
+  currentView=view;
+  selectedInfoToken=null;
+  els.tokenConfirmArea.classList.add("hidden");
   els.gameCard.classList.remove("hidden");
 
   const isCaptain=view.role==="captain";
   els.myRoleBadge.textContent=isCaptain?"隊長":"子分";
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
 
-  renderBoards(els.myBoards,view.myBoards,false);
-  renderBoards(els.oppBoards,view.opponentBoards,true);
+  updatePhaseUi(view);
+  renderBoards(els.myBoards,view.myBoards,false,view);
+  renderBoards(els.oppBoards,view.opponentBoards,true,view);
 }
 
-function renderBoards(container,boards,isOpponent){
+function updatePhaseUi(view){
+  els.nextPhaseNotice.classList.add("hidden");
+
+  if(view.phase==="infoTokens"){
+    els.phaseTitle.textContent="情報トークン配置";
+    const myTurn=view.infoTurn===view.playerKey;
+    const whoseTurn=myTurn?"あなた":(view.role==="captain"?"子分":"隊長");
+
+    els.turnBanner.textContent=`${whoseTurn}が情報トークンを配置する番です`;
+    els.turnBanner.classList.toggle("mine",myTurn);
+
+    if(myTurn){
+      const remaining=[];
+      if(!view.infoPlaced[0])remaining.push("台A");
+      if(!view.infoPlaced[1])remaining.push("台B");
+      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。置きたい自分のタイルをタップしてください。`;
+    }else{
+      els.phaseHelp.textContent="相手が自分の2台へ情報トークンを置くのを待っています。";
+    }
+    return;
+  }
+
+  if(view.phase==="play"){
+    els.phaseTitle.textContent="情報トークン配置完了";
+    const myTurn=view.turn===view.playerKey;
+    els.turnBanner.textContent=myTurn?"あなたの手番です":"相手の手番です";
+    els.turnBanner.classList.toggle("mine",myTurn);
+    els.phaseHelp.textContent="4台すべてに情報トークンが置かれました。隊長からゲーム開始です。";
+    els.nextPhaseNotice.textContent="次の版で「相手を指定して切断／自分だけで切断」を追加します。";
+    els.nextPhaseNotice.classList.remove("hidden");
+  }
+}
+
+function renderBoards(container,boards,isOpponent,view){
   container.innerHTML="";
   boards.forEach((board,bi)=>{
     const wrap=document.createElement("div");
     wrap.className="board";
+
+    const infoDone=isOpponent ? view.opponentInfoPlaced[bi] : view.infoPlaced[bi];
+    if(infoDone)wrap.classList.add("done");
 
     const title=document.createElement("div");
     title.className="boardTitle";
@@ -437,8 +563,21 @@ function renderBoards(container,boards,isOpponent){
     board.forEach(tile=>{
       const el=document.createElement("div");
       const hidden=isOpponent && tile.number==null;
-      el.className="tile"+(hidden?" hiddenTile":"");
+      el.className="tile"+(hidden?" hiddenTile":"")+(tile.infoToken?" infoToken":"");
       el.textContent=hidden?"?":tile.number;
+
+      const canPlaceInfo=
+        !isOpponent &&
+        view.phase==="infoTokens" &&
+        view.infoTurn===view.playerKey &&
+        !view.infoPlaced[bi] &&
+        !tile.infoToken;
+
+      if(canPlaceInfo){
+        el.classList.add("selectableTile");
+        el.onclick=()=>selectInfoTokenTile(bi,tile.position,el,tile.number);
+      }
+
       tiles.appendChild(el);
     });
     wrap.appendChild(tiles);
@@ -453,6 +592,31 @@ function renderBoards(container,boards,isOpponent){
     wrap.appendChild(pos);
     container.appendChild(wrap);
   });
+}
+
+function selectInfoTokenTile(boardIndex,position,el,number){
+  document.querySelectorAll(".selectableTile.selected").forEach(x=>x.classList.remove("selected"));
+  el.classList.add("selected");
+  selectedInfoToken={boardIndex,position};
+
+  const boardName=boardIndex===0?"台A":"台B";
+  els.tokenSelectionText.textContent=`${boardName}・左から${position+1}番目の「${number}」に情報トークンを置きます。`;
+  els.tokenConfirmArea.classList.remove("hidden");
+}
+
+function confirmInfoToken(){
+  if(!selectedInfoToken||!currentView)return;
+
+  const {boardIndex,position}=selectedInfoToken;
+
+  if(role==="host"){
+    applyInfoTokenPlacement("host",boardIndex,position);
+  }else{
+    send({type:"placeInfoToken",boardIndex,position});
+  }
+
+  selectedInfoToken=null;
+  els.tokenConfirmArea.classList.add("hidden");
 }
 
 function waitIce(peer,maxMs=8000){
@@ -726,6 +890,7 @@ els.copyOfferBtn.onclick=()=>copyText(els.offerOut);
 els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
+els.confirmTokenBtn.onclick=confirmInfoToken;
 els.disconnectBtn.onclick=disconnect;
 
 window.addEventListener("beforeunload",()=>{

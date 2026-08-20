@@ -6,44 +6,33 @@
 <meta name="theme-color" content="#111827">
 <title>Bomb Busters</title>
 
-<!-- QR生成（無料のクライアントサイドライブラリ） -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- QR読み取り（カメラ処理は端末内） -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <style>
 :root{
-  --bg:#f3f4f6;
-  --card:#fff;
-  --ink:#111827;
-  --muted:#6b7280;
-  --line:#d1d5db;
-  --accent:#2563eb;
-  --accent2:#1d4ed8;
+  --bg:#f3f4f6; --card:#fff; --ink:#111827; --muted:#6b7280;
+  --line:#d1d5db; --accent:#2563eb; --accent2:#1d4ed8;
+  --captain:#7c3aed; --minion:#475569;
 }
 *{box-sizing:border-box}
 body{
   margin:0;
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;
-  background:var(--bg);
-  color:var(--ink);
+  background:var(--bg); color:var(--ink);
 }
-.wrap{width:min(720px,100%);margin:auto;padding:16px 14px 42px}
+.wrap{width:min(760px,100%);margin:auto;padding:16px 12px 42px}
 h1{font-size:1.45rem;margin:4px 0}
+h2{font-size:1.05rem;margin:0 0 10px}
 .sub{font-size:.92rem;color:var(--muted);line-height:1.55;margin:0 0 12px}
 .card{
-  background:var(--card);
-  border:1px solid #e5e7eb;
-  border-radius:16px;
-  padding:16px;
-  margin:12px 0;
-  box-shadow:0 2px 10px rgba(0,0,0,.04)
+  background:var(--card); border:1px solid #e5e7eb; border-radius:16px;
+  padding:15px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.04)
 }
 .row{display:flex;gap:10px;flex-wrap:wrap}
 button{
-  appearance:none;border:0;border-radius:12px;
-  padding:13px 15px;min-height:48px;
-  font-size:1rem;font-weight:700;cursor:pointer
+  appearance:none;border:0;border-radius:12px;padding:13px 15px;min-height:48px;
+  font-size:1rem;font-weight:750;cursor:pointer
 }
 button.primary{background:var(--accent);color:#fff}
 button.secondary{background:#e5e7eb;color:#111827}
@@ -57,165 +46,175 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .hidden{display:none!important}
 .step{border-left:4px solid #dbeafe;padding-left:12px;margin:15px 0}
 textarea{
-  width:100%;min-height:92px;resize:vertical;
-  border:1px solid var(--line);border-radius:10px;
-  padding:10px;font:.78rem ui-monospace,SFMono-Regular,Menlo,monospace;
-  background:#f9fafb
+  width:100%;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:10px;
+  padding:10px;font:.78rem ui-monospace,SFMono-Regular,Menlo,monospace;background:#f9fafb
 }
 label{display:block;font-weight:750;margin:10px 0 6px}
 .qrWrap{
-  background:#fff;border:1px solid #e5e7eb;border-radius:14px;
-  margin:10px auto;padding:12px;width:fit-content;max-width:100%;
-  overflow:auto
+  background:#fff;border:1px solid #e5e7eb;border-radius:14px;margin:10px auto;padding:12px;
+  width:fit-content;max-width:100%;overflow:auto
 }
 .qrWrap img,.qrWrap canvas{display:block;max-width:100%;height:auto}
-.scanBox{
-  width:100%;
-  border-radius:14px;
-  overflow:hidden;
-  background:#111827;
-  margin-top:10px
-}
+.scanBox{width:100%;border-radius:14px;overflow:hidden;background:#111827;margin-top:10px}
 .scanActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
 .notice{border-radius:10px;padding:10px 12px;margin-top:10px;font-size:.9rem;line-height:1.5}
 .notice.good{background:#dcfce7;color:#166534}
 .notice.warn{background:#fef3c7;color:#92400e}
-.notice.bad{background:#fee2e2;color:#991b1b}
-.counter{font-size:4.2rem;font-weight:850;text-align:center;padding:22px 0;line-height:1}
-.counterBtns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.counterBtns button{font-size:1.6rem;min-height:62px}
+.notice.info{background:#dbeafe;color:#1e3a8a}
 details{margin-top:12px}
 summary{font-weight:750;cursor:pointer}
-ol{padding-left:1.4rem;line-height:1.7}
+.roleBadge{
+  display:inline-flex;align-items:center;border-radius:999px;padding:7px 12px;color:white;
+  font-weight:850;font-size:1rem
+}
+.roleBadge.captain{background:var(--captain)}
+.roleBadge.minion{background:var(--minion)}
+.meta{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.life{font-weight:800}
+.board{margin:14px 0}
+.boardTitle{font-weight:800;margin:0 0 7px}
+.tiles{
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  gap:3px;
+  width:100%;
+}
+.tile{
+  aspect-ratio:.72;
+  min-width:0;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid #9ca3af;border-radius:6px;background:#fff;
+  font-weight:850;font-size:clamp(.72rem,3vw,1.05rem);
+  box-shadow:0 1px 2px rgba(0,0,0,.06)
+}
+.tile.hiddenTile{background:#e5e7eb;color:#6b7280}
+.positionRow{
+  display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;
+  margin-top:2px;color:#9ca3af;font-size:.58rem;text-align:center
+}
+.playerBlock{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px}
+.setupActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Bomb Busters QR通信テスト</h1>
-  <p class="sub">2台のスマホをWebRTCで直接接続します。今回は接続コードをQRで受け渡せます。</p>
+  <h1>Bomb Busters</h1>
+  <p class="sub">2人用・通信＆ゲーム準備テスト</p>
 
   <section class="card">
     <div class="status">
       <span id="statusDot" class="dot"></span>
       <span id="statusText">役割を選んでください</span>
     </div>
-    <div id="roleText" class="small" style="margin-top:6px">2台のスマホで同じページを開いてください。</div>
+    <div id="roleText" class="small" style="margin-top:6px">2台のスマホで同じURLを開いてください。</div>
   </section>
 
   <section id="roleCard" class="card">
-    <strong>1. 役割を選択</strong>
-    <div class="row" style="margin-top:12px">
+    <h2>接続</h2>
+    <div class="row">
       <button id="hostBtn" class="primary rolebtn">親機になる</button>
       <button id="guestBtn" class="secondary rolebtn">子機になる</button>
     </div>
   </section>
 
   <section id="hostCard" class="card hidden">
-    <strong>親機</strong>
-
+    <h2>親機</h2>
     <div class="step">
       <b>① 接続用QRを作成</b>
-      <p class="small">「親機QRを作る」を押し、子機に読み取ってもらいます。</p>
+      <p class="small">QRを子機に読み取ってもらいます。</p>
       <button id="createOfferBtn" class="primary">親機QRを作る</button>
       <div id="offerQrArea" class="hidden">
         <div id="offerQr" class="qrWrap"></div>
-        <p class="small" style="text-align:center">このQRを子機で読み取ってください。</p>
       </div>
     </div>
-
     <div class="step">
       <b>② 子機の返答QRを読む</b>
-      <p class="small">子機側に返答QRが表示されたら、こちらのカメラで読み取ります。</p>
       <button id="scanAnswerBtn" class="primary">子機QRを読み取る</button>
       <div id="hostScannerWrap" class="hidden">
         <div id="hostReader" class="scanBox"></div>
-        <div class="scanActions">
-          <button id="stopHostScanBtn" class="secondary">カメラを閉じる</button>
-        </div>
+        <div class="scanActions"><button id="stopHostScanBtn" class="secondary">カメラを閉じる</button></div>
       </div>
     </div>
-
     <details>
-      <summary>QRが使えない場合：コードをコピー</summary>
-      <label for="offerOut">親機コード</label>
-      <textarea id="offerOut" readonly></textarea>
-      <button id="copyOfferBtn" class="secondary">親機コードをコピー</button>
-
-      <label for="answerIn">子機コードを貼り付け</label>
-      <textarea id="answerIn"></textarea>
-      <button id="applyAnswerBtn" class="primary">子機コードを適用</button>
+      <summary>QRが使えない場合</summary>
+      <label>親機コード</label><textarea id="offerOut" readonly></textarea>
+      <button id="copyOfferBtn" class="secondary">コピー</button>
+      <label>子機コード</label><textarea id="answerIn"></textarea>
+      <button id="applyAnswerBtn" class="primary">適用</button>
     </details>
   </section>
 
   <section id="guestCard" class="card hidden">
-    <strong>子機</strong>
-
+    <h2>子機</h2>
     <div class="step">
-      <b>① 親機のQRを読む</b>
-      <p class="small">親機が表示しているQRをカメラで読み取ります。</p>
+      <b>① 親機QRを読む</b>
       <button id="scanOfferBtn" class="primary">親機QRを読み取る</button>
       <div id="guestScannerWrap" class="hidden">
         <div id="guestReader" class="scanBox"></div>
-        <div class="scanActions">
-          <button id="stopGuestScanBtn" class="secondary">カメラを閉じる</button>
-        </div>
+        <div class="scanActions"><button id="stopGuestScanBtn" class="secondary">カメラを閉じる</button></div>
       </div>
     </div>
-
     <div class="step">
       <b>② 返答QRを親機に見せる</b>
       <div id="answerQrArea" class="hidden">
         <div id="answerQr" class="qrWrap"></div>
-        <p class="small" style="text-align:center">このQRを親機で読み取ってください。</p>
       </div>
-      <div id="answerWait" class="small">親機QRを読み取ると、ここに返答QRが表示されます。</div>
+      <div id="answerWait" class="small">親機QRを読むと返答QRが表示されます。</div>
     </div>
-
     <details>
-      <summary>QRが使えない場合：コードを貼り付け</summary>
-      <label for="offerIn">親機コード</label>
-      <textarea id="offerIn"></textarea>
+      <summary>QRが使えない場合</summary>
+      <label>親機コード</label><textarea id="offerIn"></textarea>
       <button id="createAnswerBtn" class="primary">子機コードを作成</button>
-
-      <label for="answerOut">子機コード</label>
-      <textarea id="answerOut" readonly></textarea>
-      <button id="copyAnswerBtn" class="secondary">子機コードをコピー</button>
+      <label>子機コード</label><textarea id="answerOut" readonly></textarea>
+      <button id="copyAnswerBtn" class="secondary">コピー</button>
     </details>
   </section>
 
+  <section id="lobbyCard" class="card hidden">
+    <h2>ゲーム準備</h2>
+    <div id="hostLobby" class="hidden">
+      <p class="small">通信確認済みです。親機がタイルを配布します。</p>
+      <div class="setupActions">
+        <button id="startGameBtn" class="primary">ゲーム準備を開始</button>
+        <button id="redealBtn" class="secondary hidden">配り直す</button>
+      </div>
+    </div>
+    <div id="guestLobby" class="hidden">
+      <div class="notice info">親機がゲーム準備を開始するのを待っています。</div>
+    </div>
+  </section>
+
   <section id="gameCard" class="card hidden">
-    <strong>2. 通信テスト</strong>
-    <p class="small">どちらから押しても、両方の数字が同期すれば成功です。</p>
-    <div id="counter" class="counter">0</div>
-    <div class="counterBtns">
-      <button id="minusBtn" class="secondary">−</button>
-      <button id="plusBtn" class="primary">＋</button>
+    <div class="meta">
+      <div>
+        <div class="small">あなたの役職</div>
+        <span id="myRoleBadge" class="roleBadge">―</span>
+      </div>
+      <div class="life">ライフ ♥♥</div>
     </div>
-    <div class="notice good">WebRTC接続中</div>
-    <button id="disconnectBtn" class="danger" style="width:100%;margin-top:14px">接続を切る</button>
-  </section>
 
-  <section class="card">
-    <strong>QR接続の流れ</strong>
-    <ol>
-      <li>親機で「親機QRを作る」</li>
-      <li>子機で「親機QRを読み取る」</li>
-      <li>子機に返答QRが表示される</li>
-      <li>親機で「子機QRを読み取る」</li>
-      <li>両方に「接続しました」と表示される</li>
-    </ol>
-    <div class="notice warn">
-      QR読み取りにはカメラ権限とHTTPSが必要です。QRがうまく読めない場合は、下のコピー＆貼り付け方式を使えます。
+    <div class="playerBlock">
+      <h2>あなたのタイル</h2>
+      <div id="myBoards"></div>
+    </div>
+
+    <div class="playerBlock">
+      <h2>相手のタイル</h2>
+      <div id="oppBoards"></div>
+    </div>
+
+    <div id="nextPhaseNotice" class="notice info">
+      配布テスト完了。次の版で情報トークン配置を追加します。
     </div>
   </section>
 
-  <section class="card">
-    <button id="resetBtn" class="secondary" style="width:100%">最初からやり直す</button>
+  <section id="connectionControls" class="card hidden">
+    <button id="disconnectBtn" class="danger" style="width:100%">接続を切る</button>
   </section>
 
   <footer>
-    QR生成・読み取りはブラウザ上で行います。ゲーム状態を保存するサーバーやデータベースは使用していません。
+    1～12を各4枚、合計48枚使用。4台へ12枚ずつランダム配布し、各台の中で昇順に並べています。
   </footer>
 </div>
 
@@ -223,36 +222,36 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 (() => {
 "use strict";
 
-let role = null;
-let pc = null;
-let channel = null;
-let counter = 0;
-let hostScanner = null;
-let guestScanner = null;
-let connectedOnce = false;
+let role=null, pc=null, channel=null;
+let hostScanner=null, guestScanner=null;
+let connectedOnce=false;
+let gameState=null;
 
-const $ = id => document.getElementById(id);
-const els = {
-  statusDot:$("statusDot"), statusText:$("statusText"), roleText:$("roleText"),
-  roleCard:$("roleCard"), hostCard:$("hostCard"), guestCard:$("guestCard"), gameCard:$("gameCard"),
-  hostBtn:$("hostBtn"), guestBtn:$("guestBtn"),
-  createOfferBtn:$("createOfferBtn"), scanAnswerBtn:$("scanAnswerBtn"),
-  scanOfferBtn:$("scanOfferBtn"), stopHostScanBtn:$("stopHostScanBtn"), stopGuestScanBtn:$("stopGuestScanBtn"),
-  offerQrArea:$("offerQrArea"), offerQr:$("offerQr"), answerQrArea:$("answerQrArea"), answerQr:$("answerQr"),
-  answerWait:$("answerWait"), hostScannerWrap:$("hostScannerWrap"), guestScannerWrap:$("guestScannerWrap"),
-  offerOut:$("offerOut"), offerIn:$("offerIn"), answerOut:$("answerOut"), answerIn:$("answerIn"),
-  copyOfferBtn:$("copyOfferBtn"), copyAnswerBtn:$("copyAnswerBtn"),
-  createAnswerBtn:$("createAnswerBtn"), applyAnswerBtn:$("applyAnswerBtn"),
-  counter:$("counter"), plusBtn:$("plusBtn"), minusBtn:$("minusBtn"),
-  disconnectBtn:$("disconnectBtn"), resetBtn:$("resetBtn")
+const $=id=>document.getElementById(id);
+const els={
+  statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
+  roleCard:$("roleCard"),hostCard:$("hostCard"),guestCard:$("guestCard"),
+  lobbyCard:$("lobbyCard"),hostLobby:$("hostLobby"),guestLobby:$("guestLobby"),
+  gameCard:$("gameCard"),connectionControls:$("connectionControls"),
+  hostBtn:$("hostBtn"),guestBtn:$("guestBtn"),
+  createOfferBtn:$("createOfferBtn"),scanAnswerBtn:$("scanAnswerBtn"),scanOfferBtn:$("scanOfferBtn"),
+  stopHostScanBtn:$("stopHostScanBtn"),stopGuestScanBtn:$("stopGuestScanBtn"),
+  offerQrArea:$("offerQrArea"),offerQr:$("offerQr"),answerQrArea:$("answerQrArea"),answerQr:$("answerQr"),
+  answerWait:$("answerWait"),hostScannerWrap:$("hostScannerWrap"),guestScannerWrap:$("guestScannerWrap"),
+  offerOut:$("offerOut"),offerIn:$("offerIn"),answerOut:$("answerOut"),answerIn:$("answerIn"),
+  copyOfferBtn:$("copyOfferBtn"),copyAnswerBtn:$("copyAnswerBtn"),
+  createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
+  startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
+  myRoleBadge:$("myRoleBadge"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  disconnectBtn:$("disconnectBtn")
 };
 
 function setStatus(text,type="normal"){
   els.statusText.textContent=text;
   els.statusDot.className="dot";
-  if(type==="ok") els.statusDot.classList.add("ok");
-  if(type==="wait") els.statusDot.classList.add("wait");
-  if(type==="bad") els.statusDot.classList.add("bad");
+  if(type==="ok")els.statusDot.classList.add("ok");
+  if(type==="wait")els.statusDot.classList.add("wait");
+  if(type==="bad")els.statusDot.classList.add("bad");
 }
 
 function showRole(which){
@@ -260,155 +259,236 @@ function showRole(which){
   els.roleCard.classList.add("hidden");
   els.hostCard.classList.toggle("hidden",which!=="host");
   els.guestCard.classList.toggle("hidden",which!=="guest");
-  els.roleText.textContent=which==="host"
-    ?"この端末は親機です。ゲーム状態を管理します。"
-    :"この端末は子機です。操作を親機へ送ります。";
+  els.roleText.textContent=which==="host"?"この端末は親機です。":"この端末は子機です。";
   setStatus(which==="host"?"親機：接続待ち":"子機：接続待ち","wait");
 }
 
 function makePeer(){
   closePeer(false);
   pc=new RTCPeerConnection({iceServers:[]});
-
   pc.onconnectionstatechange=()=>{
     const s=pc.connectionState;
-    if(s==="connected") onConnected();
-    if((s==="disconnected"||s==="failed") && connectedOnce){
+    if(s==="connected")onConnected();
+    if((s==="disconnected"||s==="failed")&&connectedOnce){
       setStatus("相手との接続が切れました","bad");
+      els.lobbyCard.classList.add("hidden");
       els.gameCard.classList.add("hidden");
+      els.connectionControls.classList.add("hidden");
     }
-  };
-
-  pc.oniceconnectionstatechange=()=>{
-    if(pc.iceConnectionState==="checking") setStatus("接続を確認中…","wait");
-    if(pc.iceConnectionState==="failed") setStatus("接続に失敗しました","bad");
   };
   return pc;
 }
 
 function setupChannel(ch){
   channel=ch;
-
-  channel.onopen=()=>{
-    onConnected();
-    if(role==="host") sendState();
-  };
-
+  channel.onopen=()=>onConnected();
   channel.onclose=()=>{
     if(connectedOnce){
       setStatus("相手との接続が切れました","bad");
-      els.gameCard.classList.add("hidden");
+      els.lobbyCard.classList.add("hidden");
+      els.connectionControls.classList.add("hidden");
     }
   };
-
-  channel.onerror=()=>setStatus("データ通信エラー","bad");
-
   channel.onmessage=e=>{
     let msg;
     try{msg=JSON.parse(e.data)}catch(_){return}
-
-    if(msg.type==="command" && role==="host"){
-      if(msg.action==="plus") counter++;
-      if(msg.action==="minus") counter--;
-      renderCounter();
-      sendState();
-    }
-    if(msg.type==="state" && role==="guest"){
-      counter=Number(msg.counter)||0;
-      renderCounter();
-    }
-    if(msg.type==="disconnect"){
-      setStatus("相手が接続を切りました","bad");
-      els.gameCard.classList.add("hidden");
-      setTimeout(()=>closePeer(false),100);
-    }
+    handleMessage(msg);
   };
 }
 
 function onConnected(){
   connectedOnce=true;
   setStatus("接続しました","ok");
-  els.gameCard.classList.remove("hidden");
   stopAllScanners();
-  if(role==="host") sendState();
+  els.lobbyCard.classList.remove("hidden");
+  els.connectionControls.classList.remove("hidden");
+  els.hostLobby.classList.toggle("hidden",role!=="host");
+  els.guestLobby.classList.toggle("hidden",role!=="guest");
 }
 
-function renderCounter(){els.counter.textContent=String(counter)}
+function handleMessage(msg){
+  if(msg.type==="setupState"&&role==="guest"){
+    renderPlayerView(msg.view);
+    els.guestLobby.innerHTML='<div class="notice good">ゲーム準備が完了しました。</div>';
+  }
+  if(msg.type==="disconnect"){
+    setStatus("相手が接続を切りました","bad");
+    els.lobbyCard.classList.add("hidden");
+    els.gameCard.classList.add("hidden");
+    els.connectionControls.classList.add("hidden");
+    setTimeout(()=>closePeer(false),100);
+  }
+}
+
 function send(obj){
-  if(!channel||channel.readyState!=="open") return false;
-  channel.send(JSON.stringify(obj)); return true;
+  if(!channel||channel.readyState!=="open")return false;
+  channel.send(JSON.stringify(obj));
+  return true;
 }
-function sendState(){if(role==="host") send({type:"state",counter})}
 
-function act(action){
-  if(!channel||channel.readyState!=="open"){
-    alert("まだ接続されていません。"); return;
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
   }
-  if(role==="host"){
-    counter += action==="plus" ? 1 : -1;
-    renderCounter(); sendState();
-  }else{
-    send({type:"command",action});
+  return arr;
+}
+
+function makeBoard(numbers,owner,boardIndex){
+  const sorted=[...numbers].sort((a,b)=>a-b);
+  return sorted.map((number,position)=>({
+    id:`${owner}-${boardIndex}-${position}-${Math.random().toString(36).slice(2,8)}`,
+    number, position, cut:false, infoToken:false
+  }));
+}
+
+function createGameState(){
+  const deck=[];
+  for(let n=1;n<=12;n++){
+    for(let k=0;k<4;k++)deck.push(n);
   }
+  shuffle(deck);
+
+  const captainIsHost=Math.random()<0.5;
+  const hostRole=captainIsHost?"captain":"minion";
+  const guestRole=captainIsHost?"minion":"captain";
+
+  return {
+    version:1,
+    phase:"setupComplete",
+    lives:2,
+    players:{
+      host:{
+        role:hostRole,
+        boards:[
+          makeBoard(deck.slice(0,12),"host",0),
+          makeBoard(deck.slice(12,24),"host",1)
+        ]
+      },
+      guest:{
+        role:guestRole,
+        boards:[
+          makeBoard(deck.slice(24,36),"guest",0),
+          makeBoard(deck.slice(36,48),"guest",1)
+        ]
+      }
+    }
+  };
+}
+
+function makeViewFor(playerKey){
+  const opponentKey=playerKey==="host"?"guest":"host";
+  const me=gameState.players[playerKey];
+  const opp=gameState.players[opponentKey];
+
+  return {
+    phase:gameState.phase,
+    lives:gameState.lives,
+    role:me.role,
+    myBoards:me.boards.map(board=>board.map(t=>({
+      id:t.id,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
+    }))),
+    opponentBoards:opp.boards.map(board=>board.map(t=>({
+      position:t.position,cut:t.cut,infoToken:t.infoToken,
+      number:(t.cut||t.infoToken)?t.number:null
+    })))
+  };
+}
+
+function startOrRedeal(){
+  if(role!=="host")return;
+  gameState=createGameState();
+  renderPlayerView(makeViewFor("host"));
+  send({type:"setupState",view:makeViewFor("guest")});
+  els.redealBtn.classList.remove("hidden");
+  els.startGameBtn.textContent="もう一度最初から配る";
+}
+
+function renderPlayerView(view){
+  els.gameCard.classList.remove("hidden");
+
+  const isCaptain=view.role==="captain";
+  els.myRoleBadge.textContent=isCaptain?"隊長":"子分";
+  els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
+
+  renderBoards(els.myBoards,view.myBoards,false);
+  renderBoards(els.oppBoards,view.opponentBoards,true);
+}
+
+function renderBoards(container,boards,isOpponent){
+  container.innerHTML="";
+  boards.forEach((board,bi)=>{
+    const wrap=document.createElement("div");
+    wrap.className="board";
+
+    const title=document.createElement("div");
+    title.className="boardTitle";
+    title.textContent=`台${bi===0?"A":"B"}`;
+    wrap.appendChild(title);
+
+    const tiles=document.createElement("div");
+    tiles.className="tiles";
+
+    board.forEach(tile=>{
+      const el=document.createElement("div");
+      const hidden=isOpponent && tile.number==null;
+      el.className="tile"+(hidden?" hiddenTile":"");
+      el.textContent=hidden?"?":tile.number;
+      tiles.appendChild(el);
+    });
+    wrap.appendChild(tiles);
+
+    const pos=document.createElement("div");
+    pos.className="positionRow";
+    for(let i=1;i<=12;i++){
+      const p=document.createElement("div");
+      p.textContent=i;
+      pos.appendChild(p);
+    }
+    wrap.appendChild(pos);
+    container.appendChild(wrap);
+  });
 }
 
 function waitIce(peer,maxMs=5000){
-  if(peer.iceGatheringState==="complete") return Promise.resolve();
+  if(peer.iceGatheringState==="complete")return Promise.resolve();
   return new Promise(resolve=>{
     let done=false;
     const finish=()=>{
-      if(done)return; done=true;
-      clearTimeout(timer);
-      peer.removeEventListener("icegatheringstatechange",check);
-      resolve();
+      if(done)return;done=true;clearTimeout(timer);
+      peer.removeEventListener("icegatheringstatechange",check);resolve();
     };
-    const check=()=>{if(peer.iceGatheringState==="complete") finish()};
+    const check=()=>{if(peer.iceGatheringState==="complete")finish()};
     const timer=setTimeout(finish,maxMs);
     peer.addEventListener("icegatheringstatechange",check);
   });
 }
 
-function encodeDesc(desc){
-  return "BB1:"+JSON.stringify({type:desc.type,sdp:desc.sdp});
-}
+function encodeDesc(desc){return "BB1:"+JSON.stringify({type:desc.type,sdp:desc.sdp})}
 function decodeDesc(text){
   const t=text.trim();
-  if(!t.startsWith("BB1:")) throw new Error("Bomb Busters用の接続コードではありません。");
+  if(!t.startsWith("BB1:"))throw new Error("Bomb Busters用の接続コードではありません。");
   const obj=JSON.parse(t.slice(4));
-  if(!obj.type||!obj.sdp) throw new Error("接続コードの内容が不正です。");
+  if(!obj.type||!obj.sdp)throw new Error("接続コードが不正です。");
   return obj;
 }
-
 function renderQr(target,text){
   target.innerHTML="";
-  if(typeof QRCode==="undefined"){
-    throw new Error("QR生成ライブラリを読み込めませんでした。ネット接続を確認してください。");
-  }
-  new QRCode(target,{
-    text,
-    width:280,
-    height:280,
-    correctLevel:QRCode.CorrectLevel.L
-  });
+  new QRCode(target,{text,width:280,height:280,correctLevel:QRCode.CorrectLevel.L});
 }
 
 async function createOffer(){
   try{
     setStatus("親機QRを作成中…","wait");
     const peer=makePeer();
-    setupChannel(peer.createDataChannel("bomb-test",{ordered:true}));
+    setupChannel(peer.createDataChannel("bomb-game",{ordered:true}));
     await peer.setLocalDescription(await peer.createOffer());
     await waitIce(peer);
     const code=encodeDesc(peer.localDescription);
-    els.offerOut.value=code;
-    renderQr(els.offerQr,code);
+    els.offerOut.value=code;renderQr(els.offerQr,code);
     els.offerQrArea.classList.remove("hidden");
     setStatus("親機QRを子機に読ませてください","wait");
-  }catch(e){
-    console.error(e);
-    setStatus("親機QRの作成に失敗しました","bad");
-    alert(e.message);
-  }
+  }catch(e){console.error(e);setStatus("親機QR作成失敗","bad");alert(e.message)}
 }
 
 async function buildAnswerFromCode(code){
@@ -418,74 +498,40 @@ async function buildAnswerFromCode(code){
   await peer.setLocalDescription(await peer.createAnswer());
   await waitIce(peer);
   const answerCode=encodeDesc(peer.localDescription);
-  els.answerOut.value=answerCode;
-  renderQr(els.answerQr,answerCode);
+  els.answerOut.value=answerCode;renderQr(els.answerQr,answerCode);
   els.answerQrArea.classList.remove("hidden");
   els.answerWait.classList.add("hidden");
   setStatus("返答QRを親機に読ませてください","wait");
 }
 
-async function createAnswerManual(){
-  try{
-    if(!els.offerIn.value.trim()) return alert("親機コードを貼り付けてください。");
-    await buildAnswerFromCode(els.offerIn.value);
-  }catch(e){
-    console.error(e); setStatus("子機コードの作成に失敗しました","bad"); alert(e.message);
-  }
-}
-
 async function applyAnswerCode(code){
-  if(!pc||!pc.localDescription) throw new Error("先に親機QRを作成してください。");
+  if(!pc||!pc.localDescription)throw new Error("先に親機QRを作成してください。");
   await pc.setRemoteDescription(decodeDesc(code));
   setStatus("接続処理中…","wait");
 }
 
-async function applyAnswerManual(){
-  try{
-    if(!els.answerIn.value.trim()) return alert("子機コードを貼り付けてください。");
-    await applyAnswerCode(els.answerIn.value);
-  }catch(e){
-    console.error(e); setStatus("子機コードを適用できませんでした","bad"); alert(e.message);
-  }
-}
-
 async function startScanner(kind,onDecoded){
-  if(typeof Html5Qrcode==="undefined"){
-    alert("QR読み取りライブラリを読み込めませんでした。ネット接続を確認してください。");
-    return;
-  }
-
   await stopAllScanners();
-
   const isHost=kind==="host";
   const readerId=isHost?"hostReader":"guestReader";
   const wrap=isHost?els.hostScannerWrap:els.guestScannerWrap;
   wrap.classList.remove("hidden");
-
   const scanner=new Html5Qrcode(readerId);
-  if(isHost) hostScanner=scanner; else guestScanner=scanner;
-
+  if(isHost)hostScanner=scanner;else guestScanner=scanner;
   try{
     await scanner.start(
       {facingMode:"environment"},
       {fps:10,qrbox:{width:250,height:250}},
-      async decodedText=>{
-        try{
-          await stopScanner(kind);
-          await onDecoded(decodedText);
-        }catch(e){
-          console.error(e);
-          setStatus("QRの処理に失敗しました","bad");
-          alert(e.message);
-        }
+      async decoded=>{
+        try{await stopScanner(kind);await onDecoded(decoded)}
+        catch(e){console.error(e);setStatus("QR処理失敗","bad");alert(e.message)}
       },
       ()=>{}
     );
   }catch(e){
-    console.error(e);
-    wrap.classList.add("hidden");
-    if(isHost) hostScanner=null; else guestScanner=null;
-    alert("カメラを開始できませんでした。カメラ権限とHTTPS接続を確認してください。");
+    console.error(e);wrap.classList.add("hidden");
+    if(isHost)hostScanner=null;else guestScanner=null;
+    alert("カメラを開始できませんでした。");
   }
 }
 
@@ -494,96 +540,66 @@ async function stopScanner(kind){
   const scanner=isHost?hostScanner:guestScanner;
   const wrap=isHost?els.hostScannerWrap:els.guestScannerWrap;
   if(scanner){
-    try{
-      const state=scanner.getState ? scanner.getState() : null;
-      if(scanner.isScanning || state===2 || state===3) await scanner.stop();
-    }catch(_){}
+    try{await scanner.stop()}catch(_){}
     try{scanner.clear()}catch(_){}
   }
-  if(isHost) hostScanner=null; else guestScanner=null;
+  if(isHost)hostScanner=null;else guestScanner=null;
   wrap.classList.add("hidden");
 }
-
-async function stopAllScanners(){
-  await Promise.allSettled([stopScanner("host"),stopScanner("guest")]);
-}
+async function stopAllScanners(){await Promise.allSettled([stopScanner("host"),stopScanner("guest")])}
 
 async function copyText(el){
-  if(!el.value) return alert("まだコードがありません。");
-  try{
-    await navigator.clipboard.writeText(el.value);
-    alert("コピーしました。");
-  }catch(_){
-    el.focus();el.select();
-    const ok=document.execCommand("copy");
-    alert(ok?"コピーしました。":"長押しでコピーしてください。");
-  }
+  if(!el.value)return alert("まだコードがありません。");
+  try{await navigator.clipboard.writeText(el.value);alert("コピーしました。")}
+  catch(_){el.focus();el.select();document.execCommand("copy");alert("コピーしました。")}
 }
 
 function closePeer(showStatus=true){
-  try{
-    if(channel && channel.readyState==="open") channel.send(JSON.stringify({type:"disconnect"}));
-  }catch(_){}
+  try{if(channel&&channel.readyState==="open")channel.send(JSON.stringify({type:"disconnect"}))}catch(_){}
   try{if(channel)channel.close()}catch(_){}
   try{if(pc)pc.close()}catch(_){}
-  channel=null; pc=null;
+  channel=null;pc=null;
   if(showStatus){
     setStatus("接続を切りました","wait");
+    els.lobbyCard.classList.add("hidden");
     els.gameCard.classList.add("hidden");
+    els.connectionControls.classList.add("hidden");
   }
 }
-
-async function disconnect(){
-  await stopAllScanners();
-  closePeer(true);
-  connectedOnce=false;
-}
-
-async function resetAll(){
-  await stopAllScanners();
-  closePeer(false);
-  role=null; counter=0; connectedOnce=false; renderCounter();
-  els.offerOut.value="";els.offerIn.value="";
-  els.answerOut.value="";els.answerIn.value="";
-  els.offerQr.innerHTML="";els.answerQr.innerHTML="";
-  els.offerQrArea.classList.add("hidden");
-  els.answerQrArea.classList.add("hidden");
-  els.answerWait.classList.remove("hidden");
-  els.roleCard.classList.remove("hidden");
-  els.hostCard.classList.add("hidden");
-  els.guestCard.classList.add("hidden");
-  els.gameCard.classList.add("hidden");
-  els.roleText.textContent="2台のスマホで同じページを開いてください。";
-  setStatus("役割を選んでください");
-}
+async function disconnect(){await stopAllScanners();closePeer(true);connectedOnce=false}
 
 els.hostBtn.onclick=()=>showRole("host");
 els.guestBtn.onclick=()=>showRole("guest");
 els.createOfferBtn.onclick=createOffer;
 els.scanOfferBtn.onclick=()=>startScanner("guest",async code=>{
-  els.offerIn.value=code;
-  await buildAnswerFromCode(code);
+  els.offerIn.value=code;await buildAnswerFromCode(code);
 });
 els.scanAnswerBtn.onclick=()=>startScanner("host",async code=>{
-  els.answerIn.value=code;
-  await applyAnswerCode(code);
+  els.answerIn.value=code;await applyAnswerCode(code);
 });
 els.stopHostScanBtn.onclick=()=>stopScanner("host");
 els.stopGuestScanBtn.onclick=()=>stopScanner("guest");
-els.createAnswerBtn.onclick=createAnswerManual;
-els.applyAnswerBtn.onclick=applyAnswerManual;
+els.createAnswerBtn.onclick=async()=>{
+  try{
+    if(!els.offerIn.value.trim())return alert("親機コードを貼ってください。");
+    await buildAnswerFromCode(els.offerIn.value);
+  }catch(e){alert(e.message)}
+};
+els.applyAnswerBtn.onclick=async()=>{
+  try{
+    if(!els.answerIn.value.trim())return alert("子機コードを貼ってください。");
+    await applyAnswerCode(els.answerIn.value);
+  }catch(e){alert(e.message)}
+};
 els.copyOfferBtn.onclick=()=>copyText(els.offerOut);
 els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
-els.plusBtn.onclick=()=>act("plus");
-els.minusBtn.onclick=()=>act("minus");
+els.startGameBtn.onclick=startOrRedeal;
+els.redealBtn.onclick=startOrRedeal;
 els.disconnectBtn.onclick=disconnect;
-els.resetBtn.onclick=resetAll;
 
 window.addEventListener("beforeunload",()=>{
   try{if(channel&&channel.readyState==="open")channel.send(JSON.stringify({type:"disconnect"}))}catch(_){}
 });
-
-renderCounter();
 })();
 </script>
 </body>

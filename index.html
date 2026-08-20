@@ -8,6 +8,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 
 <style>
 :root{
@@ -54,7 +55,7 @@ label{display:block;font-weight:750;margin:10px 0 6px}
   background:#fff;border:1px solid #e5e7eb;border-radius:14px;margin:10px auto;padding:12px;
   width:fit-content;max-width:100%;overflow:auto
 }
-.qrWrap img,.qrWrap canvas{display:block;max-width:100%;height:auto}
+.qrWrap img,.qrWrap canvas{display:block;width:min(88vw,520px)!important;height:auto!important;image-rendering:pixelated}
 .scanBox{width:100%;border-radius:14px;overflow:hidden;background:#111827;margin-top:10px}
 .scanActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
 .notice{border-radius:10px;padding:10px 12px;margin-top:10px;font-size:.9rem;line-height:1.5}
@@ -100,7 +101,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用・通信＆ゲーム準備テスト</p>
+  <p class="sub">2人用・通信＆ゲーム準備テスト（QR圧縮版）</p>
 
   <section class="card">
     <div class="status">
@@ -122,7 +123,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     <h2>親機</h2>
     <div class="step">
       <b>① 接続用QRを作成</b>
-      <p class="small">QRを子機に読み取ってもらいます。</p>
+      <p class="small">接続情報を圧縮してQR化します。以前よりマス目が粗く、読み取りやすくなっています。</p>
       <button id="createOfferBtn" class="primary">親機QRを作る</button>
       <div id="offerQrArea" class="hidden">
         <div id="offerQr" class="qrWrap"></div>
@@ -464,17 +465,51 @@ function waitIce(peer,maxMs=5000){
   });
 }
 
-function encodeDesc(desc){return "BB1:"+JSON.stringify({type:desc.type,sdp:desc.sdp})}
+function bytesToBase64Url(bytes){
+  let binary="";
+  const chunk=0x8000;
+  for(let i=0;i<bytes.length;i+=chunk){
+    binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));
+  }
+  return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function base64UrlToBytes(text){
+  let b64=text.replace(/-/g,"+").replace(/_/g,"/");
+  while(b64.length%4)b64+="=";
+  const binary=atob(b64);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return bytes;
+}
+function encodeDesc(desc){
+  if(typeof pako==="undefined")throw new Error("圧縮ライブラリを読み込めませんでした。");
+  const json=JSON.stringify({t:desc.type,s:desc.sdp});
+  const utf8=new TextEncoder().encode(json);
+  const compressed=pako.deflate(utf8,{level:9});
+  return "BB2:"+bytesToBase64Url(compressed);
+}
 function decodeDesc(text){
   const t=text.trim();
-  if(!t.startsWith("BB1:"))throw new Error("Bomb Busters用の接続コードではありません。");
-  const obj=JSON.parse(t.slice(4));
-  if(!obj.type||!obj.sdp)throw new Error("接続コードが不正です。");
-  return obj;
+  if(t.startsWith("BB2:")){
+    if(typeof pako==="undefined")throw new Error("圧縮ライブラリを読み込めませんでした。");
+    const compressed=base64UrlToBytes(t.slice(4));
+    const utf8=pako.inflate(compressed);
+    const json=new TextDecoder().decode(utf8);
+    const obj=JSON.parse(json);
+    if(!obj.t||!obj.s)throw new Error("接続コードが不正です。");
+    return {type:obj.t,sdp:obj.s};
+  }
+  // 旧BB1形式も読めるように残す
+  if(t.startsWith("BB1:")){
+    const obj=JSON.parse(t.slice(4));
+    if(!obj.type||!obj.sdp)throw new Error("接続コードが不正です。");
+    return obj;
+  }
+  throw new Error("Bomb Busters用の接続コードではありません。");
 }
 function renderQr(target,text){
   target.innerHTML="";
-  new QRCode(target,{text,width:280,height:280,correctLevel:QRCode.CorrectLevel.L});
+  new QRCode(target,{text,width:520,height:520,correctLevel:QRCode.CorrectLevel.L});
 }
 
 async function createOffer(){

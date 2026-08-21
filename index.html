@@ -268,13 +268,27 @@ summary{font-weight:750;cursor:pointer}
   font-weight:900
 }
 
+
+.setupGrid{display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0}
+.setupField{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:10px}
+.setupField label{margin:0 0 6px;font-size:.88rem}
+.setupField select{width:100%;min-height:44px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:8px 10px;font-size:1rem}
+.gameConfigBox{margin:10px 0 14px;padding:10px 12px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#78350f;line-height:1.5}
+.yellowCandidateList{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.yellowCandidateBadge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 7px;border-radius:8px;background:#fef08a;border:1px solid #eab308;color:#854d0e;font-weight:900;font-size:.82rem}
+.tile.yellowTile{background:#fef08a;border-color:#eab308;color:#854d0e}
+.tile.yellowTile.cut{background:#fef9c3;border-color:#ca8a04;color:#713f12;opacity:.82}
+.infoTokenBadge.yellowNumberToken{background:#fef08a;border-color:#eab308;color:#854d0e}
+.board{overflow-x:auto}
+.tiles,.infoTokenRow{width:100%}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（不正解時の台情報を記録）</p>
+  <p class="sub">2人用ゲーム版（最大数字・黄タイル対応）</p>
 
   <section class="card">
     <div class="status">
@@ -354,14 +368,35 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   <section id="lobbyCard" class="card hidden">
     <h2>ゲーム準備</h2>
     <div id="hostLobby" class="hidden">
-      <p class="small">通信確認済みです。親機が役職決定とタイル配布を行います。</p>
+      <p class="small">親機でゲーム内容を設定してから開始します。</p>
+
+      <div class="setupGrid">
+        <div class="setupField">
+          <label for="maxNumberSelect">最大の数字</label>
+          <select id="maxNumberSelect"></select>
+          <div class="small">8～16。通常数字は1～最大値を各4枚使用します。</div>
+        </div>
+        <div class="setupField">
+          <label for="yellowCandidateSelect">黄タイル候補数</label>
+          <select id="yellowCandidateSelect"></select>
+          <div class="small">1.1～(最大値-1).1からランダムに候補を公開します。</div>
+        </div>
+        <div class="setupField">
+          <label for="yellowUsedSelect">実際に使用する黄タイル数</label>
+          <select id="yellowUsedSelect"></select>
+          <div class="small">候補の中から秘密で抽選。通常ルールは偶数枚ですが、奇数も選択できます。</div>
+        </div>
+      </div>
+
+      <div id="setupPreview" class="notice info"></div>
+
       <div class="setupActions">
         <button id="startGameBtn" class="primary">ゲーム準備を開始</button>
-        <button id="redealBtn" class="secondary hidden">最初から配り直す</button>
+        <button id="redealBtn" class="secondary hidden">同じ設定で配り直す</button>
       </div>
     </div>
     <div id="guestLobby" class="hidden">
-      <div class="notice info">親機がゲーム準備を開始するのを待っています。</div>
+      <div class="notice info">親機が最大数字と黄タイル枚数を設定しています。</div>
     </div>
   </section>
 
@@ -373,6 +408,8 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       </div>
       <div id="lifeDisplay" class="life">ライフ ♥♥</div>
     </div>
+
+    <div id="gameConfigBox" class="gameConfigBox hidden"></div>
 
     <div id="phaseBox">
       <div id="phaseTitle" class="phaseTitle">情報トークン配置</div>
@@ -424,7 +461,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    情報トークンは各タイル直下に表示。将来「偶数」「1枚・2枚・3枚」などの種類を追加できる構造です。
+    最大数字8～16、黄タイル候補・実使用枚数を設定可能。黄タイル同士は数字に関係なく切断できます。
   </footer>
 </div>
 
@@ -455,7 +492,9 @@ const els={
   copyOfferBtn:$("copyOfferBtn"),copyAnswerBtn:$("copyAnswerBtn"),
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
-  myRoleBadge:$("myRoleBadge"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  maxNumberSelect:$("maxNumberSelect"),yellowCandidateSelect:$("yellowCandidateSelect"),
+  yellowUsedSelect:$("yellowUsedSelect"),setupPreview:$("setupPreview"),
+  myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
@@ -572,53 +611,104 @@ function shuffle(arr){
   return arr;
 }
 
-function makeBoard(numbers,owner,boardIndex){
-  const sorted=[...numbers].sort((a,b)=>a-b);
-  return sorted.map((number,position)=>({
+function formatTileNumber(value){
+  return Number.isInteger(value) ? String(value) : Number(value).toFixed(1);
+}
+
+function makeBoard(tileSpecs,owner,boardIndex){
+  const sorted=[...tileSpecs].sort((a,b)=>a.number-b.number);
+  return sorted.map((spec,position)=>({
     id:`${owner}-${boardIndex}-${position}-${Math.random().toString(36).slice(2,8)}`,
-    number, position, cut:false, infoToken:null
+    kind:spec.kind,
+    number:spec.number,
+    position,
+    cut:false,
+    infoToken:null
   }));
 }
 
-function createGameState(){
-  const deck=[];
-  for(let n=1;n<=12;n++){
-    for(let k=0;k<4;k++)deck.push(n);
-  }
-  shuffle(deck);
+function sampleWithoutReplacement(values,count){
+  const copy=[...values];
+  shuffle(copy);
+  return copy.slice(0,count);
+}
+
+function createGameState(settings){
+  const maxNumber=settings.maxNumber;
+  const yellowCandidateCount=Math.max(0,Math.min(settings.yellowCandidateCount,maxNumber-1));
+  const yellowUsedCount=Math.max(0,Math.min(settings.yellowUsedCount,yellowCandidateCount));
 
   const captainIsHost=Math.random()<0.5;
   const hostRole=captainIsHost?"captain":"minion";
   const guestRole=captainIsHost?"minion":"captain";
+  const captainKey=captainIsHost?"host":"guest";
+  const minionKey=captainIsHost?"guest":"host";
+
+  const allYellowValues=[];
+  for(let n=1;n<maxNumber;n++)allYellowValues.push(Number((n+0.1).toFixed(1)));
+
+  const yellowCandidates=sampleWithoutReplacement(allYellowValues,yellowCandidateCount).sort((a,b)=>a-b);
+  const yellowUsedValues=sampleWithoutReplacement(yellowCandidates,yellowUsedCount).sort((a,b)=>a-b);
+
+  const deck=[];
+  for(let n=1;n<=maxNumber;n++){
+    for(let k=0;k<4;k++)deck.push({kind:"normal",number:n});
+  }
+  for(const value of yellowUsedValues)deck.push({kind:"yellow",number:value});
+  shuffle(deck);
+
+  const totalTiles=deck.length;
+  const base=Math.floor(totalTiles/4);
+  const remainder=totalTiles%4;
+  const boardSizes=[base,base,base,base];
+  for(let i=0;i<remainder;i++)boardSizes[i]++;
+
+  // 余りは必ず 隊長A → 隊長B → 子分A → 子分B の順。
+  const rackOrder=[
+    {playerKey:captainKey,boardIndex:0},
+    {playerKey:captainKey,boardIndex:1},
+    {playerKey:minionKey,boardIndex:0},
+    {playerKey:minionKey,boardIndex:1}
+  ];
+
+  const rawBoards={host:[[],[]],guest:[[],[]]};
+  let cursor=0;
+  rackOrder.forEach((rack,index)=>{
+    const size=boardSizes[index];
+    rawBoards[rack.playerKey][rack.boardIndex]=deck.slice(cursor,cursor+size);
+    cursor+=size;
+  });
 
   return {
-    version:3,
+    version:4,
     phase:"infoTokens",
     lives:2,
     lastEvent:null,
-    publicBoardFacts:{
-      host:[[],[]],
-      guest:[[],[]]
+    config:{
+      maxNumber,
+      yellowCandidateCount,
+      yellowUsedCount,
+      yellowCandidates,
+      totalTiles
     },
-    infoTurn:captainIsHost?"host":"guest",
-    infoPlaced:{
-      host:[false,false],
-      guest:[false,false]
-    },
+    secretYellowUsedValues:yellowUsedValues,
+    publicBoardFacts:{host:[[],[]],guest:[[],[]]},
+    infoTurn:captainKey,
+    infoPlaced:{host:[false,false],guest:[false,false]},
     turn:null,
     players:{
       host:{
         role:hostRole,
         boards:[
-          makeBoard(deck.slice(0,12),"host",0),
-          makeBoard(deck.slice(12,24),"host",1)
+          makeBoard(rawBoards.host[0],"host",0),
+          makeBoard(rawBoards.host[1],"host",1)
         ]
       },
       guest:{
         role:guestRole,
         boards:[
-          makeBoard(deck.slice(24,36),"guest",0),
-          makeBoard(deck.slice(36,48),"guest",1)
+          makeBoard(rawBoards.guest[0],"guest",0),
+          makeBoard(rawBoards.guest[1],"guest",1)
         ]
       }
     }
@@ -640,15 +730,23 @@ function makeViewFor(playerKey){
     opponentInfoPlaced:[...gameState.infoPlaced[opponentKey]],
     turn:gameState.turn,
     lastEvent:gameState.lastEvent,
+    config:{
+      maxNumber:gameState.config.maxNumber,
+      yellowCandidateCount:gameState.config.yellowCandidateCount,
+      yellowUsedCount:gameState.config.yellowUsedCount,
+      yellowCandidates:[...gameState.config.yellowCandidates],
+      totalTiles:gameState.config.totalTiles
+    },
     myBoardFacts:gameState.publicBoardFacts[playerKey].map(x=>[...x]),
     opponentBoardFacts:gameState.publicBoardFacts[opponentKey].map(x=>[...x]),
     myBoards:me.boards.map(board=>board.map(t=>({
-      id:t.id,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
+      id:t.id,kind:t.kind,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
     }))),
     opponentBoards:opp.boards.map(board=>board.map(t=>({
       position:t.position,
       cut:t.cut,
       infoToken:t.infoToken,
+      kind:t.cut?t.kind:null,
       number:t.cut?t.number:null
     })))
   };
@@ -685,7 +783,7 @@ function applyInfoTokenPlacement(playerKey,boardIndex,position){
   const tile=gameState.players[playerKey].boards[boardIndex][position];
   if(!tile)return;
 
-  tile.infoToken={type:"number",value:tile.number};
+  tile.infoToken={type:"number",value:tile.number,tileKind:tile.kind};
   gameState.infoPlaced[playerKey][boardIndex]=true;
   gameState.infoTurn=nextInfoTurnAfter(playerKey);
   broadcastViews();
@@ -756,73 +854,69 @@ function validBoardIndex(v){
   return v===0||v===1;
 }
 
+function tileExactLabel(kind,number){
+  return kind==="yellow" ? `黄${formatTileNumber(number)}` : formatTileNumber(number);
+}
+
+function publicBoardFactForTile(tile){
+  return tile.kind==="yellow" ? "黄" : formatTileNumber(tile.number);
+}
+
+function sortPublicFacts(facts){
+  facts.sort((a,b)=>{
+    if(a==="黄"&&b!=="黄")return 1;
+    if(b==="黄"&&a!=="黄")return -1;
+    return Number(a)-Number(b);
+  });
+}
+
+function tilesMatch(a,b){
+  if(a.kind==="yellow"&&b.kind==="yellow")return true;
+  if(a.kind!=="normal"||b.kind!=="normal")return false;
+  return a.number===b.number;
+}
+
 function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
-  if(!gameState||gameState.phase!=="play"){
-    actionError(actor,"現在は切断フェーズではありません。");
-    return;
-  }
-  if(gameState.turn!==actor){
-    actionError(actor,"あなたの手番ではありません。");
-    return;
-  }
-  if(!validBoardIndex(myBoard)||!validBoardIndex(targetBoard)){
-    actionError(actor,"台の指定が正しくありません。");
-    return;
-  }
+  if(!gameState||gameState.phase!=="play"){actionError(actor,"現在は切断フェーズではありません。");return;}
+  if(gameState.turn!==actor){actionError(actor,"あなたの手番ではありません。");return;}
+  if(!validBoardIndex(myBoard)||!validBoardIndex(targetBoard)){actionError(actor,"台の指定が正しくありません。");return;}
 
   const targetPlayer=otherPlayer(actor);
   const myTile=gameState.players[actor].boards[myBoard][myPosition];
   const targetTile=gameState.players[targetPlayer].boards[targetBoard][targetPosition];
 
-  if(!myTile||!targetTile){
-    actionError(actor,"タイルの指定が正しくありません。");
-    return;
-  }
-  if(myTile.cut||targetTile.cut){
-    actionError(actor,"すでに切断済みのタイルは選べません。");
-    return;
-  }
+  if(!myTile||!targetTile){actionError(actor,"タイルの指定が正しくありません。");return;}
+  if(myTile.cut||targetTile.cut){actionError(actor,"すでに切断済みのタイルは選べません。");return;}
 
-  const guess=myTile.number;
-  const targetActual=targetTile.number;
-
-  if(guess===targetActual){
+  if(tilesMatch(myTile,targetTile)){
     myTile.cut=true;
     targetTile.cut=true;
-
     gameState.lastEvent={
       kind:"success",
       actorRole:gameState.players[actor].role,
-      number:guess,
-      myBoard,
-      myPosition,
-      targetBoard,
-      targetPosition
+      myKind:myTile.kind,myNumber:myTile.number,
+      targetKind:targetTile.kind,targetNumber:targetTile.number,
+      myBoard,myPosition,targetBoard,targetPosition
     };
-
     finishTurn(actor);
     broadcastViews();
     return;
   }
 
-  // 不正解：対象タイルへ必ず情報トークンを置いて真の数字を公開。
-  targetTile.infoToken={type:"number",value:targetTile.number};
+  targetTile.infoToken={type:"number",value:targetTile.number,tileKind:targetTile.kind};
   gameState.lives=Math.max(0,gameState.lives-1);
 
-  // 不正解でも、宣言に使った数字がこの台にあることは公開情報になる。
   const facts=gameState.publicBoardFacts[actor][myBoard];
-  if(!facts.includes(guess))facts.push(guess);
-  facts.sort((a,b)=>a-b);
+  const fact=publicBoardFactForTile(myTile);
+  if(!facts.includes(fact))facts.push(fact);
+  sortPublicFacts(facts);
 
   gameState.lastEvent={
     kind:"failure",
     actorRole:gameState.players[actor].role,
-    guessed:guess,
-    actual:targetActual,
-    myBoard,
-    myPosition,
-    targetBoard,
-    targetPosition,
+    myKind:myTile.kind,myNumber:myTile.number,
+    targetKind:targetTile.kind,targetNumber:targetTile.number,
+    myBoard,myPosition,targetBoard,targetPosition,
     lives:gameState.lives
   };
 
@@ -830,50 +924,57 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
   broadcastViews();
 }
 
-function selfCutStatusForState(actor,number){
-  const ownBoards=gameState.players[actor].boards;
+function selfCutStatusForState(actor,selectedTile){
   const ownUncut=[];
-  ownBoards.forEach((board,boardIndex)=>{
+
+  if(selectedTile.kind==="yellow"){
+    gameState.players[actor].boards.forEach((board,boardIndex)=>{
+      board.forEach(tile=>{
+        if(!tile.cut&&tile.kind==="yellow")ownUncut.push({boardIndex,position:tile.position});
+      });
+    });
+
+    const globalUncutYellow=allTiles().filter(t=>!t.cut&&t.kind==="yellow").length;
+    return {
+      valid:ownUncut.length>0&&ownUncut.length===globalUncutYellow,
+      kind:"yellow",
+      number:selectedTile.number,
+      ownUncut
+    };
+  }
+
+  gameState.players[actor].boards.forEach((board,boardIndex)=>{
     board.forEach(tile=>{
-      if(!tile.cut&&tile.number===number){
+      if(!tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number){
         ownUncut.push({boardIndex,position:tile.position});
       }
     });
   });
 
-  const cutCount=allTiles().filter(t=>t.cut&&t.number===number).length;
-  const valid=
-    (cutCount===0&&ownUncut.length===4) ||
-    (cutCount===2&&ownUncut.length===2);
+  const cutCount=allTiles().filter(
+    t=>t.cut&&t.kind==="normal"&&t.number===selectedTile.number
+  ).length;
 
-  return {valid,cutCount,ownUncut};
+  return {
+    valid:(cutCount===0&&ownUncut.length===4)||(cutCount===2&&ownUncut.length===2),
+    kind:"normal",
+    number:selectedTile.number,
+    ownUncut
+  };
 }
 
 function processSelfCut(actor,boardIndex,position){
-  if(!gameState||gameState.phase!=="play"){
-    actionError(actor,"現在は切断フェーズではありません。");
-    return;
-  }
-  if(gameState.turn!==actor){
-    actionError(actor,"あなたの手番ではありません。");
-    return;
-  }
-  if(!validBoardIndex(boardIndex)){
-    actionError(actor,"台の指定が正しくありません。");
-    return;
-  }
+  if(!gameState||gameState.phase!=="play"){actionError(actor,"現在は切断フェーズではありません。");return;}
+  if(gameState.turn!==actor){actionError(actor,"あなたの手番ではありません。");return;}
+  if(!validBoardIndex(boardIndex)){actionError(actor,"台の指定が正しくありません。");return;}
 
   const selected=gameState.players[actor].boards[boardIndex][position];
-  if(!selected||selected.cut){
-    actionError(actor,"切断可能な自分のタイルを選んでください。");
-    return;
-  }
+  if(!selected||selected.cut){actionError(actor,"切断可能な自分のタイルを選んでください。");return;}
 
-  const number=selected.number;
-  const status=selfCutStatusForState(actor,number);
-
+  const status=selfCutStatusForState(actor,selected);
   if(!status.valid){
-    actionError(actor,`「${number}」は自分だけでは切断できません。`);
+    const label=selected.kind==="yellow"?"黄タイル":`「${formatTileNumber(selected.number)}」`;
+    actionError(actor,`${label}は自分だけでは切断できません。`);
     return;
   }
 
@@ -884,7 +985,8 @@ function processSelfCut(actor,boardIndex,position){
   gameState.lastEvent={
     kind:"self",
     actorRole:gameState.players[actor].role,
-    number,
+    tileKind:selected.kind,
+    number:selected.number,
     count:status.ownUncut.length
   };
 
@@ -892,14 +994,85 @@ function processSelfCut(actor,boardIndex,position){
   broadcastViews();
 }
 
+function fillSelect(select,values,currentValue){
+  select.innerHTML="";
+  values.forEach(value=>{
+    const option=document.createElement("option");
+    option.value=String(value);
+    option.textContent=String(value);
+    select.appendChild(option);
+  });
+  if(values.includes(currentValue))select.value=String(currentValue);
+}
+
+function updateSetupSelectors(){
+  const oldCandidate=Number(els.yellowCandidateSelect.value);
+  const oldUsed=Number(els.yellowUsedSelect.value);
+
+  if(!els.maxNumberSelect.options.length){
+    fillSelect(els.maxNumberSelect,Array.from({length:9},(_,i)=>i+8),12);
+  }
+
+  const maxNumber=Number(els.maxNumberSelect.value)||12;
+  const maxCandidate=maxNumber-1;
+  const candidates=Array.from({length:maxCandidate+1},(_,i)=>i);
+  const candidateValue=Number.isFinite(oldCandidate)?Math.min(oldCandidate,maxCandidate):Math.min(3,maxCandidate);
+  fillSelect(els.yellowCandidateSelect,candidates,candidateValue);
+
+  const candidateCount=Number(els.yellowCandidateSelect.value)||0;
+  const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
+  const usedValue=Number.isFinite(oldUsed)?Math.min(oldUsed,candidateCount):Math.min(2,candidateCount);
+  fillSelect(els.yellowUsedSelect,usedValues,usedValue);
+
+  updateSetupPreview();
+}
+
+function updateUsedSelector(){
+  const oldUsed=Number(els.yellowUsedSelect.value);
+  const candidateCount=Number(els.yellowCandidateSelect.value)||0;
+  const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
+  fillSelect(els.yellowUsedSelect,usedValues,Math.min(Number.isFinite(oldUsed)?oldUsed:2,candidateCount));
+  updateSetupPreview();
+}
+
+function previewBoardSizes(totalTiles){
+  const base=Math.floor(totalTiles/4);
+  const rem=totalTiles%4;
+  const sizes=[base,base,base,base];
+  for(let i=0;i<rem;i++)sizes[i]++;
+  return sizes;
+}
+
+function updateSetupPreview(){
+  if(!els.maxNumberSelect.options.length)return;
+  const maxNumber=Number(els.maxNumberSelect.value);
+  const candidateCount=Number(els.yellowCandidateSelect.value)||0;
+  const usedCount=Number(els.yellowUsedSelect.value)||0;
+  const total=maxNumber*4+usedCount;
+  const sizes=previewBoardSizes(total);
+
+  els.setupPreview.textContent=
+    `通常${maxNumber*4}枚＋黄${usedCount}枚＝合計${total}枚。 `+
+    `隊長A ${sizes[0]}枚 / 隊長B ${sizes[1]}枚 / 子分A ${sizes[2]}枚 / 子分B ${sizes[3]}枚。 `+
+    `黄候補${candidateCount}枚のうち${usedCount}枚を秘密で採用します。`;
+}
+
+function readSetupSettings(){
+  return {
+    maxNumber:Number(els.maxNumberSelect.value),
+    yellowCandidateCount:Number(els.yellowCandidateSelect.value),
+    yellowUsedCount:Number(els.yellowUsedSelect.value)
+  };
+}
+
 function startOrRedeal(){
   if(role!=="host")return;
-  gameState=createGameState();
+  gameState=createGameState(readSetupSettings());
   selectedInfoToken=null;
   actionState=null;
   broadcastViews();
   els.redealBtn.classList.remove("hidden");
-  els.startGameBtn.textContent="もう一度最初から配る";
+  els.startGameBtn.textContent="この設定で新しいゲーム";
 }
 
 function renderPlayerView(view){
@@ -915,11 +1088,51 @@ function renderPlayerView(view){
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
 
   renderLives(view.lives);
+  renderGameConfig(view.config);
   renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
   renderBoards(els.myBoards,view.myBoards,false,view);
   renderBoards(els.oppBoards,view.opponentBoards,true,view);
   updateActionUi();
+}
+
+function renderGameConfig(config){
+  if(!config){els.gameConfigBox.classList.add("hidden");return;}
+
+  els.gameConfigBox.innerHTML="";
+
+  const top=document.createElement("div");
+  top.innerHTML=
+    `<b>最大数字：</b>${config.maxNumber}　`+
+    `<b>黄タイル：</b>${config.yellowCandidateCount}候補のうち${config.yellowUsedCount}枚使用`;
+  els.gameConfigBox.appendChild(top);
+
+  const label=document.createElement("div");
+  label.className="small";
+  label.style.color="#92400e";
+  label.style.marginTop="5px";
+  label.textContent="公開されている黄タイル候補";
+  els.gameConfigBox.appendChild(label);
+
+  const list=document.createElement("div");
+  list.className="yellowCandidateList";
+
+  if(config.yellowCandidates.length){
+    config.yellowCandidates.forEach(value=>{
+      const badge=document.createElement("span");
+      badge.className="yellowCandidateBadge";
+      badge.textContent=formatTileNumber(value);
+      list.appendChild(badge);
+    });
+  }else{
+    const none=document.createElement("span");
+    none.className="small";
+    none.textContent="なし";
+    list.appendChild(none);
+  }
+
+  els.gameConfigBox.appendChild(list);
+  els.gameConfigBox.classList.remove("hidden");
 }
 
 function renderLives(lives){
@@ -945,23 +1158,31 @@ function renderLastEvent(event){
   let kind="neutral";
 
   if(event.kind==="success"){
-    text=`${roleName(event.actorRole)}：${event.number}で切断成功！ 自分の${boardName(event.myBoard)}・${event.myPosition+1}番目と、相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を公開しました。`;
-    kind="success";
-  }else if(event.kind==="failure"){
+    const call=event.myKind==="yellow"?"黄タイル":formatTileNumber(event.myNumber);
     text=
-      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の「${event.guessed}」を使い、`+
-      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を「${event.guessed}」と予想しましたが不正解。`+
-      `相手の実際の数字は「${event.actual}」でした。情報トークンを置き、ライフは残り${event.lives}です。`+
-      ` このため、${roleName(event.actorRole)}の${boardName(event.myBoard)}には「${event.guessed}」があることが確定します。`;
+      `${roleName(event.actorRole)}：${call}で切断成功！ `+
+      `自分の${boardName(event.myBoard)}・${event.myPosition+1}番目「${tileExactLabel(event.myKind,event.myNumber)}」と、`+
+      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目「${tileExactLabel(event.targetKind,event.targetNumber)}」を公開しました。`;
+    kind="success";
+
+  }else if(event.kind==="failure"){
+    const call=event.myKind==="yellow"?"黄タイル":`「${formatTileNumber(event.myNumber)}」`;
+    const fact=event.myKind==="yellow"?"黄タイル":`「${formatTileNumber(event.myNumber)}」`;
+    text=
+      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${fact}を使い、`+
+      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を${call}と予想しましたが不正解。`+
+      `相手の実際のタイルは「${tileExactLabel(event.targetKind,event.targetNumber)}」でした。`+
+      `情報トークンを置き、ライフは残り${event.lives}です。`+
+      ` このため、${roleName(event.actorRole)}の${boardName(event.myBoard)}には${fact}があることが確定します。`;
     kind="failure";
+
   }else if(event.kind==="self"){
-    text=`${roleName(event.actorRole)}：「${event.number}」を自分だけで${event.count}枚同時に切断しました。`;
+    const label=event.tileKind==="yellow"?"黄タイル":`「${formatTileNumber(event.number)}」`;
+    text=`${roleName(event.actorRole)}：${label}を自分だけで${event.count}枚同時に切断しました。`;
     kind="self";
   }
 
-  if(event.skippedRole){
-    text+=` ${roleName(event.skippedRole)}は未切断タイルがないため、手番をスキップします。`;
-  }
+  if(event.skippedRole)text+=` ${roleName(event.skippedRole)}は未切断タイルがないため、手番をスキップします。`;
 
   els.lastEventBox.textContent=text;
   els.lastEventBox.className=`resultBox ${kind}`;
@@ -1037,7 +1258,7 @@ function renderBoards(container,boards,isOpponent,view){
 
     const title=document.createElement("div");
     title.className="boardTitle";
-    title.textContent=`台${bi===0?"A":"B"}`;
+    title.textContent=`台${bi===0?"A":"B"}（${board.length}枚）`;
     wrap.appendChild(title);
 
     const facts=isOpponent ? view.opponentBoardFacts?.[bi] : view.myBoardFacts?.[bi];
@@ -1054,7 +1275,7 @@ function renderBoards(container,boards,isOpponent,view){
         const badge=document.createElement("span");
         badge.className="boardFactBadge";
         badge.textContent=String(number);
-        badge.title=`この台に「${number}」があることが公開済み`;
+        badge.title=number==="黄"?"この台に黄タイルがあることが公開済み":`この台に「${number}」があることが公開済み`;
         factsRow.appendChild(badge);
       });
 
@@ -1063,16 +1284,20 @@ function renderBoards(container,boards,isOpponent,view){
 
     const tiles=document.createElement("div");
     tiles.className="tiles";
+    tiles.style.gridTemplateColumns=`repeat(${board.length},minmax(28px,1fr))`;
+    tiles.style.minWidth=`${board.length*30}px`;
 
     board.forEach(tile=>{
       const el=document.createElement("div");
       const hidden=isOpponent && tile.number==null;
+      const visibleYellow=!hidden&&tile.kind==="yellow";
       el.className=
         "tile"+
         (hidden?" hiddenTile":"")+
+        (visibleYellow?" yellowTile":"")+
         (tile.cut?" cut":"");
 
-      el.textContent=hidden?"?":tile.number;
+      el.textContent=hidden?"?":formatTileNumber(tile.number);
 
       // 情報トークン配置
       const canPlaceInfo=
@@ -1091,7 +1316,7 @@ function renderBoards(container,boards,isOpponent,view){
       // 切断フェーズでのタイル選択
       if(canSelectPlayTile(isOpponent,bi,tile,view)){
         el.classList.add("selectableTile");
-        el.onclick=()=>selectPlayTile(isOpponent,bi,tile.position,tile.number);
+        el.onclick=()=>selectPlayTile(isOpponent,bi,tile.position,tile.number,tile.kind);
       }
 
       if(actionState&&actionState.mode==="normal"){
@@ -1114,6 +1339,8 @@ function renderBoards(container,boards,isOpponent,view){
 
     const tokenRow=document.createElement("div");
     tokenRow.className="infoTokenRow";
+    tokenRow.style.gridTemplateColumns=`repeat(${board.length},minmax(28px,1fr))`;
+    tokenRow.style.minWidth=`${board.length*30}px`;
 
     board.forEach(tile=>{
       const slot=document.createElement("div");
@@ -1128,8 +1355,11 @@ function renderBoards(container,boards,isOpponent,view){
 
         if(type==="number"){
           badge.classList.add("numberToken");
-          badge.textContent=String(value);
-          badge.title=`数字 ${value}`;
+          if(typeof tile.infoToken==="object"&&tile.infoToken.tileKind==="yellow"){
+            badge.classList.add("yellowNumberToken");
+          }
+          badge.textContent=formatTileNumber(value);
+          badge.title=`数字 ${formatTileNumber(value)}`;
         }else if(type==="even"){
           badge.classList.add("evenToken");
           badge.textContent="偶";
@@ -1158,7 +1388,9 @@ function selectInfoTokenTile(boardIndex,position,el,number){
   el.classList.add("selected");
   selectedInfoToken={boardIndex,position};
 
-  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${number}」の下に数字情報トークンを置きます。`;
+  const selected=currentView.myBoards[boardIndex][position];
+  const label=selected.kind==="yellow"?`黄${formatTileNumber(selected.number)}`:formatTileNumber(selected.number);
+  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${label}」の下に数字情報トークンを置きます。`;
   els.tokenConfirmArea.classList.remove("hidden");
 }
 
@@ -1184,6 +1416,7 @@ function beginAction(mode){
     mode,
     myBoard:null,
     myPosition:null,
+    myKind:null,
     number:null,
     targetBoard:null,
     targetPosition:null,
@@ -1236,13 +1469,14 @@ function isBoardSelected(isOpponent,boardIndex){
   return false;
 }
 
-function selectPlayTile(isOpponent,boardIndex,position,number){
+function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
   if(!actionState||!currentView)return;
 
   if(actionState.mode==="normal"){
     if(!isOpponent){
       actionState.myBoard=boardIndex;
       actionState.myPosition=position;
+      actionState.myKind=tileKind;
       actionState.number=number;
 
       // 使用する自分のタイルを変えたら、相手側の選択は一度解除。
@@ -1260,16 +1494,19 @@ function selectPlayTile(isOpponent,boardIndex,position,number){
   }
 
   if(actionState.mode==="self"&&!isOpponent){
-    const status=selfCutStatusForView(number);
+    const selectedTile=currentView.myBoards[boardIndex][position];
+    const status=selfCutStatusForView(selectedTile);
 
     if(!status.valid){
       actionState.myBoard=null;
       actionState.myPosition=null;
+      actionState.myKind=null;
       actionState.number=null;
       actionState.selfCount=null;
       actionState.selfPositions=[];
 
-      els.actionSummary.textContent=`「${number}」は現在、自分だけでは切断できません。`;
+      const label=selectedTile.kind==="yellow"?"黄タイル":`「${formatTileNumber(selectedTile.number)}」`;
+      els.actionSummary.textContent=`${label}は現在、自分だけでは切断できません。`;
       els.actionSummary.classList.remove("hidden");
       els.confirmActionBtn.disabled=true;
       rerenderBoardsOnly();
@@ -1278,13 +1515,17 @@ function selectPlayTile(isOpponent,boardIndex,position,number){
 
     actionState.myBoard=boardIndex;
     actionState.myPosition=position;
-    actionState.number=number;
+    actionState.myKind=selectedTile.kind;
+    actionState.number=selectedTile.number;
     actionState.selfCount=status.ownUncutCount;
     actionState.selfPositions=[];
 
     currentView.myBoards.forEach((board,bi)=>{
       board.forEach(tile=>{
-        if(!tile.cut&&tile.number===number){
+        const sameGroup=selectedTile.kind==="yellow"
+          ? tile.kind==="yellow"
+          : tile.kind==="normal"&&tile.number===selectedTile.number;
+        if(!tile.cut&&sameGroup){
           actionState.selfPositions.push({boardIndex:bi,position:tile.position});
         }
       });
@@ -1295,28 +1536,53 @@ function selectPlayTile(isOpponent,boardIndex,position,number){
   }
 }
 
-function selfCutStatusForView(number){
+function selfCutStatusForView(selectedTile){
+  if(selectedTile.kind==="yellow"){
+    let ownUncutCount=0;
+    let cutCount=0;
+
+    for(const board of currentView.myBoards){
+      for(const tile of board){
+        if(!tile.cut&&tile.kind==="yellow")ownUncutCount++;
+        if(tile.cut&&tile.kind==="yellow")cutCount++;
+      }
+    }
+
+    for(const board of currentView.opponentBoards){
+      for(const tile of board){
+        if(tile.cut&&tile.kind==="yellow")cutCount++;
+      }
+    }
+
+    const globalUncut=Math.max(0,currentView.config.yellowUsedCount-cutCount);
+    return {
+      valid:ownUncutCount>0&&ownUncutCount===globalUncut,
+      ownUncutCount,
+      cutCount
+    };
+  }
+
   let ownUncutCount=0;
   let cutCount=0;
 
   for(const board of currentView.myBoards){
     for(const tile of board){
-      if(tile.cut&&tile.number===number)cutCount++;
-      if(!tile.cut&&tile.number===number)ownUncutCount++;
+      if(tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number)cutCount++;
+      if(!tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number)ownUncutCount++;
     }
   }
 
   for(const board of currentView.opponentBoards){
     for(const tile of board){
-      if(tile.cut&&tile.number===number)cutCount++;
+      if(tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number)cutCount++;
     }
   }
 
-  const valid=
-    (cutCount===0&&ownUncutCount===4) ||
-    (cutCount===2&&ownUncutCount===2);
-
-  return {valid,cutCount,ownUncutCount};
+  return {
+    valid:(cutCount===0&&ownUncutCount===4)||(cutCount===2&&ownUncutCount===2),
+    ownUncutCount,
+    cutCount
+  };
 }
 
 function updateActionUi(){
@@ -1350,15 +1616,18 @@ function updateActionUi(){
       actionState.myPosition===null
         ?"① 自分の未切断タイルをタップしてください。台も同時に選択されます。"
         : actionState.targetPosition===null
-          ?`② 「${actionState.number}」で切る相手のタイルをタップしてください。`
+          ?`② ${actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`}で切る相手のタイルをタップしてください。`
           :"自分と相手の選択中タイルを確認して「切断する」を押してください。";
 
     if(actionState.myPosition!==null){
+      const ownLabel=actionState.myKind==="yellow"?`黄${formatTileNumber(actionState.number)}`:formatTileNumber(actionState.number);
+      const callLabel=actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`;
+
       let summary=
-        `自分：${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目「${actionState.number}」`;
+        `自分：${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目「${ownLabel}」`;
 
       if(actionState.targetPosition!==null){
-        summary+=` ／ 相手：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を「${actionState.number}」と予想`;
+        summary+=` ／ 相手：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を${callLabel}と予想`;
         els.confirmActionBtn.disabled=false;
       }else{
         summary+=" ／ 相手：未選択";
@@ -1378,8 +1647,8 @@ function updateActionUi(){
         :"ハイライトされたタイルをまとめて切断します。";
 
     if(actionState.number!==null&&actionState.selfCount){
-      els.actionSummary.textContent=
-        `「${actionState.number}」を${actionState.selfCount}枚同時に切断します。`;
+      const label=actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`;
+      els.actionSummary.textContent=`${label}を${actionState.selfCount}枚同時に切断します。`;
       els.actionSummary.classList.remove("hidden");
       els.confirmActionBtn.disabled=false;
       els.confirmActionBtn.textContent=`${actionState.selfCount}枚を切断する`;
@@ -1706,6 +1975,9 @@ els.copyOfferBtn.onclick=()=>copyText(els.offerOut);
 els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
+els.maxNumberSelect.onchange=updateSetupSelectors;
+els.yellowCandidateSelect.onchange=updateUsedSelector;
+els.yellowUsedSelect.onchange=updateSetupPreview;
 els.confirmTokenBtn.onclick=confirmInfoToken;
 els.normalCutBtn.onclick=()=>beginAction("normal");
 els.selfCutBtn.onclick=()=>beginAction("self");
@@ -1716,6 +1988,8 @@ els.disconnectBtn.onclick=disconnect;
 window.addEventListener("beforeunload",()=>{
   try{if(channel&&channel.readyState==="open")channel.send(JSON.stringify({type:"disconnect"}))}catch(_){}
 });
+
+updateSetupSelectors();
 })();
 </script>
 </body>

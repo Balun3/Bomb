@@ -279,8 +279,27 @@ summary{font-weight:750;cursor:pointer}
 .tile.yellowTile{background:#fef08a;border-color:#eab308;color:#854d0e}
 .tile.yellowTile.cut{background:#fef9c3;border-color:#ca8a04;color:#713f12;opacity:.82}
 .infoTokenBadge.yellowNumberToken{background:#fef08a;border-color:#eab308;color:#854d0e}
-.board{overflow-x:auto}
-.tiles,.infoTokenRow{width:100%}
+.board{overflow-x:hidden}
+.tiles,.infoTokenRow{width:100%;min-width:0}
+
+
+.board .tiles{gap:2px}
+.board .tile{
+  min-width:0;
+  width:100%;
+  padding:0;
+  border-radius:4px;
+  font-size:clamp(.52rem,2.2vw,.92rem);
+  overflow:hidden
+}
+.board .infoTokenRow{gap:2px}
+.board .infoTokenBadge{
+  min-width:0;
+  width:100%;
+  padding:1px 0;
+  border-radius:4px;
+  font-size:clamp(.45rem,1.9vw,.68rem)
+}
 
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
@@ -288,7 +307,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（最大数字・黄タイル対応）</p>
+  <p class="sub">2人用ゲーム版（スマホ幅最適化・黄タイル初期情報禁止）</p>
 
   <section class="card">
     <div class="status">
@@ -783,6 +802,8 @@ function applyInfoTokenPlacement(playerKey,boardIndex,position){
   const tile=gameState.players[playerKey].boards[boardIndex][position];
   if(!tile)return;
 
+  if(tile.kind==="yellow")return;
+
   tile.infoToken={type:"number",value:tile.number,tileKind:tile.kind};
   gameState.infoPlaced[playerKey][boardIndex]=true;
   gameState.infoTurn=nextInfoTurnAfter(playerKey);
@@ -1205,7 +1226,7 @@ function updatePhaseUi(view){
       const remaining=[];
       if(!view.infoPlaced[0])remaining.push("台A");
       if(!view.infoPlaced[1])remaining.push("台B");
-      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。置きたい自分のタイルをタップしてください。`;
+      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。通常数字タイルから選んでください。黄タイルには初期配置できません。`;
     }else{
       els.phaseHelp.textContent="相手が自分の2台へ情報トークンを置くのを待っています。";
     }
@@ -1284,8 +1305,7 @@ function renderBoards(container,boards,isOpponent,view){
 
     const tiles=document.createElement("div");
     tiles.className="tiles";
-    tiles.style.gridTemplateColumns=`repeat(${board.length},minmax(28px,1fr))`;
-    tiles.style.minWidth=`${board.length*30}px`;
+    tiles.style.gridTemplateColumns=`repeat(${board.length},minmax(0,1fr))`;
 
     board.forEach(tile=>{
       const el=document.createElement("div");
@@ -1306,7 +1326,8 @@ function renderBoards(container,boards,isOpponent,view){
         view.infoTurn===view.playerKey &&
         !view.infoPlaced[bi] &&
         !tile.infoToken &&
-        !tile.cut;
+        !tile.cut &&
+        tile.kind!=="yellow";
 
       if(canPlaceInfo){
         el.classList.add("selectableTile");
@@ -1339,8 +1360,7 @@ function renderBoards(container,boards,isOpponent,view){
 
     const tokenRow=document.createElement("div");
     tokenRow.className="infoTokenRow";
-    tokenRow.style.gridTemplateColumns=`repeat(${board.length},minmax(28px,1fr))`;
-    tokenRow.style.minWidth=`${board.length*30}px`;
+    tokenRow.style.gridTemplateColumns=`repeat(${board.length},minmax(0,1fr))`;
 
     board.forEach(tile=>{
       const slot=document.createElement("div");

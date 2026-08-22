@@ -273,7 +273,7 @@ summary{font-weight:750;cursor:pointer}
 .setupField{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:10px}
 .setupField label{margin:0 0 6px;font-size:.88rem}
 .setupField select{width:100%;min-height:44px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:8px 10px;font-size:1rem}
-.gameConfigBox{margin:10px 0 14px;padding:10px 12px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#78350f;line-height:1.5}
+.gameConfigBox{margin:6px 0 8px;padding:6px 9px;border-radius:9px;background:#f8fafc;border:1px solid #e5e7eb;color:#475569;line-height:1.3;font-size:.78rem}
 .yellowCandidateList{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .yellowCandidateBadge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 7px;border-radius:8px;background:#fef08a;border:1px solid #eab308;color:#854d0e;font-weight:900;font-size:.82rem}
 .tile.yellowTile{background:#fef08a;border-color:#eab308;color:#854d0e}
@@ -430,6 +430,40 @@ body.infoTurnNow{
 }
 
 
+
+.specialTileTracker{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  margin:1px 0 5px
+}
+.specialTileLine{
+  min-width:0;
+  padding:4px 7px;
+  border-radius:6px;
+  font-size:clamp(.67rem,2.6vw,.82rem);
+  font-weight:850;
+  line-height:1.25;
+  overflow-wrap:anywhere
+}
+.specialTileLine.yellow{
+  background:#fefce8;
+  border:1px solid #fde047;
+  color:#854d0e
+}
+.specialTileLine.red{
+  background:#fef2f2;
+  border:1px solid #fca5a5;
+  color:#b91c1c
+}
+.specialTileLabel{
+  font-weight:1000
+}
+.specialTileCount{
+  white-space:nowrap;
+  font-weight:1000
+}
+
 .numberTracker{
   display:grid;
   gap:2px;
@@ -475,7 +509,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（残数3色表示）</p>
+  <p class="sub">2〜6人対応版（黄タイル偶数枚限定）</p>
 
   <section class="card">
     <div class="status">
@@ -598,7 +632,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
         <div class="setupField">
           <label for="yellowUsedSelect">実際に使用する黄タイル数</label>
           <select id="yellowUsedSelect"></select>
-          <div class="small">候補の中から秘密で抽選。通常ルールは偶数枚ですが、奇数も選択できます。</div>
+          <div class="small">候補の中から秘密で抽選します。使用枚数は0・2・4…の偶数のみ選択できます。</div>
         </div>
         <div class="setupField">
           <label for="redCandidateSelect">赤タイル候補数</label>
@@ -667,6 +701,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
     <div class="playerBlock">
       <h2>あなたのタイル</h2>
+      <div id="specialTileTracker" class="specialTileTracker"></div>
       <div id="numberTracker" class="numberTracker"></div>
       <div id="myBoards"></div>
     </div>
@@ -740,7 +775,8 @@ const els={
   yellowUsedSelect:$("yellowUsedSelect"),redCandidateSelect:$("redCandidateSelect"),
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
   myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),
-  numberTracker:$("numberTracker"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
+  myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
@@ -1911,14 +1947,25 @@ function updateSetupSelectors(){
 function updateYellowUsedSelector(refreshPreview=true){
   const oldUsed=Number(els.yellowUsedSelect.value);
   const candidateCount=Number(els.yellowCandidateSelect.value)||0;
-  const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
+
+  // 黄タイルの実使用枚数は 0,2,4,... の偶数のみ。
+  const usedValues=[];
+  for(let i=0;i<=candidateCount;i+=2){
+    usedValues.push(i);
+  }
+
+  let selected=0;
+
+  if(Number.isFinite(oldUsed)){
+    // 以前の値が使えなくなった場合は、それ以下で最大の偶数へ寄せる。
+    const validOld=usedValues.filter(v=>v<=oldUsed);
+    selected=validOld.length ? validOld[validOld.length-1] : 0;
+  }
 
   fillSelect(
     els.yellowUsedSelect,
     usedValues,
-    Number.isFinite(oldUsed)
-      ? Math.min(oldUsed,candidateCount)
-      : 0
+    selected
   );
 
   if(refreshPreview)updateSetupPreview();
@@ -2057,6 +2104,7 @@ function renderPlayerView(view){
 
   renderLives(view.lives,view.config.playerCount);
   renderGameConfig(view.config);
+  renderSpecialTileTracker(view.config);
   renderNumberTracker(view);
   renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
@@ -2078,69 +2126,65 @@ function renderPlayerView(view){
   updateActionUi();
 }
 
-function appendCandidateSection(container,title,values,type){
-  const label=document.createElement("div");
-  label.className="small";
-  label.style.marginTop="7px";
-  label.style.color=type==="red" ? "#991b1b" : "#92400e";
-  label.textContent=title;
-  container.appendChild(label);
-
-  const list=document.createElement("div");
-  list.className=type==="red" ? "redCandidateList" : "yellowCandidateList";
-
-  if(values.length){
-    values.forEach(value=>{
-      const badge=document.createElement("span");
-      badge.className=
-        type==="red"
-          ? "redCandidateBadge"
-          : "yellowCandidateBadge";
-      badge.textContent=formatTileNumber(value);
-      list.appendChild(badge);
-    });
-  }else{
-    const none=document.createElement("span");
-    none.className="small";
-    none.textContent="なし";
-    list.appendChild(none);
-  }
-
-  container.appendChild(list);
-}
-
 function renderGameConfig(config){
   if(!config){
     els.gameConfigBox.classList.add("hidden");
     return;
   }
 
-  els.gameConfigBox.innerHTML="";
-
-  const top=document.createElement("div");
-  top.innerHTML=
-    `<b>参加人数：</b>${config.playerCount}人　<b>台数：</b>${config.rackCount}<br>`+
-    `<b>最大数字：</b>${config.maxNumber}<br>`+
-    `<b>黄：</b>${config.yellowCandidateCount}候補中${config.yellowUsedCount}枚使用　`+
-    `<b>赤：</b>${config.redCandidateCount}候補中${config.redUsedCount}枚使用`;
-
-  els.gameConfigBox.appendChild(top);
-
-  appendCandidateSection(
-    els.gameConfigBox,
-    "公開されている黄タイル候補",
-    config.yellowCandidates,
-    "yellow"
-  );
-
-  appendCandidateSection(
-    els.gameConfigBox,
-    "公開されている赤タイル候補",
-    config.redCandidates,
-    "red"
-  );
+  els.gameConfigBox.innerHTML=
+    `<b>${config.playerCount}人</b>　`+
+    `<b>最大数字：</b>${config.maxNumber}　`+
+    `<b>全${config.totalTiles}枚</b>`;
 
   els.gameConfigBox.classList.remove("hidden");
+}
+
+function renderSpecialTileTracker(config){
+  if(!config){
+    els.specialTileTracker.innerHTML="";
+    return;
+  }
+
+  els.specialTileTracker.innerHTML="";
+
+  const makeLine=(type,values,usedCount)=>{
+    const line=document.createElement("div");
+    line.className=`specialTileLine ${type}`;
+
+    const label=
+      type==="yellow"
+        ? "黄"
+        : "赤";
+
+    const valuesText=
+      values&&values.length
+        ? values.map(formatTileNumber).join(", ")
+        : "なし";
+
+    line.innerHTML=
+      `<span class="specialTileLabel">${label}：</span>`+
+      `${valuesText} `+
+      `<span class="specialTileCount">（${usedCount}枚）</span>`;
+
+    return line;
+  };
+
+  els.specialTileTracker.appendChild(
+    makeLine(
+      "yellow",
+      config.yellowCandidates||[],
+      config.yellowUsedCount||0
+    )
+  );
+
+  els.specialTileTracker.appendChild(
+    makeLine(
+      "red",
+      config.redCandidates||[],
+      config.redUsedCount||0
+    )
+  );
 }
 
 function renderNumberTracker(view){

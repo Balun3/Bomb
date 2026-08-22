@@ -429,13 +429,53 @@ body.infoTurnNow{
   font-size:1.1rem
 }
 
+
+.numberTracker{
+  display:grid;
+  gap:2px;
+  width:100%;
+  margin:2px 0 7px
+}
+.numberTrackCell{
+  min-width:0;
+  height:24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  overflow:hidden
+}
+.numberTrackNum{
+  font-size:clamp(.64rem,2.7vw,.92rem);
+  font-weight:900;
+  transition:color .15s
+}
+.numberTrackCell.remaining4 .numberTrackNum{
+  color:#111827
+}
+.numberTrackCell.remaining2 .numberTrackNum{
+  color:#9ca3af
+}
+.numberTrackCell.remaining0 .numberTrackNum{
+  color:#e5e7eb
+}
+
+/* 台タイトルを消して縦方向を圧縮 */
+.boardTitle{
+  display:none!important
+}
+.board{
+  margin-top:4px!important;
+  margin-bottom:7px!important
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（名前・手番表示対応）</p>
+  <p class="sub">2〜6人対応版（残数3色表示）</p>
 
   <section class="card">
     <div class="status">
@@ -464,7 +504,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
     <div class="nameField">
       <label for="hostNameInput">あなたの名前</label>
-      <input id="hostNameInput" maxlength="16" placeholder="例：たくや">
+      <input id="hostNameInput" maxlength="16">
     </div>
 
     <div class="setupField" style="margin-bottom:12px">
@@ -511,7 +551,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
     <div class="nameField">
       <label for="guestNameInput">あなたの名前</label>
-      <input id="guestNameInput" maxlength="16" placeholder="例：ゆうき">
+      <input id="guestNameInput" maxlength="16">
     </div>
 
     <div id="guestSeatStatus" class="notice info">名前を入力してから親機のQRを読み取ってください。</div>
@@ -627,6 +667,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
     <div class="playerBlock">
       <h2>あなたのタイル</h2>
+      <div id="numberTracker" class="numberTracker"></div>
       <div id="myBoards"></div>
     </div>
 
@@ -698,7 +739,8 @@ const els={
   maxNumberSelect:$("maxNumberSelect"),yellowCandidateSelect:$("yellowCandidateSelect"),
   yellowUsedSelect:$("yellowUsedSelect"),redCandidateSelect:$("redCandidateSelect"),
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
-  myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),
+  numberTracker:$("numberTracker"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
@@ -2015,6 +2057,7 @@ function renderPlayerView(view){
 
   renderLives(view.lives,view.config.playerCount);
   renderGameConfig(view.config);
+  renderNumberTracker(view);
   renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
 
@@ -2098,6 +2141,78 @@ function renderGameConfig(config){
   );
 
   els.gameConfigBox.classList.remove("hidden");
+}
+
+function renderNumberTracker(view){
+  if(!view?.config?.maxNumber){
+    els.numberTracker.innerHTML="";
+    return;
+  }
+
+  const maxNumber=view.config.maxNumber;
+  const cutCounts=Array(maxNumber+1).fill(0);
+
+  // 自分の切断済み通常タイル
+  for(const board of view.myBoards){
+    for(const tile of board){
+      if(
+        tile.cut &&
+        tile.kind==="normal" &&
+        Number.isInteger(tile.number) &&
+        tile.number>=1 &&
+        tile.number<=maxNumber
+      ){
+        cutCounts[tile.number]++;
+      }
+    }
+  }
+
+  // 他プレイヤーの切断済み通常タイル
+  for(const opponent of view.opponents){
+    for(const board of opponent.boards){
+      for(const tile of board){
+        if(
+          tile.cut &&
+          tile.kind==="normal" &&
+          Number.isInteger(tile.number) &&
+          tile.number>=1 &&
+          tile.number<=maxNumber
+        ){
+          cutCounts[tile.number]++;
+        }
+      }
+    }
+  }
+
+  els.numberTracker.innerHTML="";
+  els.numberTracker.style.gridTemplateColumns=
+    `repeat(${maxNumber},minmax(0,1fr))`;
+
+  for(let number=1;number<=maxNumber;number++){
+    const cut=Math.min(4,cutCounts[number]);
+    const remaining=4-cut;
+
+    const cell=document.createElement("div");
+    cell.className="numberTrackCell";
+
+    // 通常ルールでは残り枚数は4 / 2 / 0のみ。
+    if(remaining===4){
+      cell.classList.add("remaining4");
+    }else if(remaining===2){
+      cell.classList.add("remaining2");
+    }else{
+      cell.classList.add("remaining0");
+    }
+
+    cell.title=`${number}：残り${remaining}枚`;
+
+    const num=document.createElement("div");
+    num.className="numberTrackNum";
+    num.textContent=String(number);
+
+    cell.appendChild(num);
+    els.numberTracker.appendChild(cell);
+  }
 }
 
 function renderLives(lives,maxLives){
@@ -2370,11 +2485,6 @@ function renderBoards(container,boards,isOpponent,view,owner){
     const infoDone=owner.infoPlaced?.[bi];
     if(infoDone)wrap.classList.add("done");
     if(isBoardSelected(isOpponent,owner.playerKey,bi))wrap.classList.add("boardSelected");
-
-    const title=document.createElement("div");
-    title.className="boardTitle";
-    title.textContent=`台${bi===0?"A":"B"}（${board.length}枚）`;
-    wrap.appendChild(title);
 
     const facts=owner.boardFacts?.[bi];
     if(facts&&facts.length){

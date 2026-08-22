@@ -369,13 +369,73 @@ summary{font-weight:750;cursor:pointer}
   color:#166534
 }
 
+
+.nameField{
+  margin:10px 0;
+  padding:10px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  border-radius:12px
+}
+.nameField label{
+  margin:0 0 6px;
+  font-size:.88rem;
+  font-weight:800
+}
+.nameField input{
+  width:100%;
+  box-sizing:border-box;
+  min-height:44px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:1rem
+}
+body.myTurnNow{
+  background:#f0fdf4
+}
+body.infoTurnNow{
+  background:#fffbeb
+}
+.opponentGroup.activeTurn{
+  border:2px solid #16a34a;
+  border-radius:14px;
+  padding:10px;
+  background:#f0fdf4;
+  box-shadow:0 0 0 3px rgba(22,163,74,.10)
+}
+.opponentGroup.activeInfoTurn{
+  border:2px solid #d97706;
+  border-radius:14px;
+  padding:10px;
+  background:#fffbeb;
+  box-shadow:0 0 0 3px rgba(217,119,6,.10)
+}
+.opponentName.activeLabel{
+  font-size:1rem;
+  color:#166534
+}
+.opponentName.activeInfoLabel{
+  font-size:1rem;
+  color:#92400e
+}
+.turnWho{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-weight:900
+}
+.turnArrow{
+  font-size:1.1rem
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（親機中心WebRTC・特殊タイル対応）</p>
+  <p class="sub">2〜6人対応版（名前・手番表示対応）</p>
 
   <section class="card">
     <div class="status">
@@ -401,6 +461,11 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
   <section id="hostCard" class="card hidden">
     <h2>親機</h2>
+
+    <div class="nameField">
+      <label for="hostNameInput">あなたの名前</label>
+      <input id="hostNameInput" maxlength="16" placeholder="例：たくや">
+    </div>
 
     <div class="setupField" style="margin-bottom:12px">
       <label for="playerCountSelect">参加人数</label>
@@ -442,7 +507,14 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </section>
 
   <section id="guestCard" class="card hidden">
-    <h2>子機</h2><div id="guestSeatStatus" class="notice info">親機のQRを読み取って参加してください。</div>
+    <h2>子機</h2>
+
+    <div class="nameField">
+      <label for="guestNameInput">あなたの名前</label>
+      <input id="guestNameInput" maxlength="16" placeholder="例：ゆうき">
+    </div>
+
+    <div id="guestSeatStatus" class="notice info">名前を入力してから親機のQRを読み取ってください。</div>
     <div class="step">
       <b>① 親機QRを読む</b>
       <button id="scanOfferBtn" class="primary">親機QRを読み取る</button>
@@ -573,7 +645,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。親機が各子機と直接接続し、ゲーム状態を一括管理します。
+    2〜6人対応。ライフ＝参加人数。表示は「名前（役職）」で、手番順に並びます。
   </footer>
 </div>
 
@@ -593,6 +665,11 @@ let pc=null, channel=null;
 let expectedPlayerCount=2;
 let localPlayerKey="p0";
 
+// 親機が全プレイヤー名を管理する。
+let playerNames={
+  p0:""
+};
+
 let hostScanner=null, guestScanner=null;
 let connectedOnce=false;
 let gameState=null;
@@ -605,6 +682,7 @@ const els={
   statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
   roleCard:$("roleCard"),hostCard:$("hostCard"),guestCard:$("guestCard"),
   playerCountSelect:$("playerCountSelect"),hostConnectionStatus:$("hostConnectionStatus"),
+  hostNameInput:$("hostNameInput"),guestNameInput:$("guestNameInput"),
   guestSeatStatus:$("guestSeatStatus"),
   lobbyCard:$("lobbyCard"),hostLobby:$("hostLobby"),guestLobby:$("guestLobby"),
   gameCard:$("gameCard"),
@@ -649,6 +727,7 @@ function showRole(which){
   els.guestCard.classList.toggle("hidden",which!=="guest");
 
   if(which==="host"){
+    playerNames.p0=cleanPlayerName(els.hostNameInput.value);
     expectedPlayerCount=Number(els.playerCountSelect.value)||2;
     els.roleText.textContent="この端末は親機（プレイヤー1）です。";
     setStatus("親機：子機の接続待ち","wait");
@@ -665,6 +744,44 @@ function createRtcPeer(){
       {urls:"stun:stun.cloudflare.com:3478"}
     ]
   });
+}
+
+function cleanPlayerName(value){
+  return String(value||"")
+    .trim()
+    .replace(/\s+/g," ")
+    .slice(0,16);
+}
+
+function allNamesReady(){
+  for(let i=0;i<expectedPlayerCount;i++){
+    const key=`p${i}`;
+    if(!cleanPlayerName(playerNames[key])){
+      return false;
+    }
+  }
+  return true;
+}
+
+function updateHostName(){
+  const name=cleanPlayerName(els.hostNameInput.value);
+  playerNames.p0=name;
+  refreshHostConnectionUi();
+}
+
+function sendGuestName(){
+  if(role!=="guest")return;
+
+  const name=cleanPlayerName(els.guestNameInput.value);
+
+  if(!name)return;
+
+  if(channel&&channel.readyState==="open"){
+    send({
+      type:"setName",
+      name
+    });
+  }
 }
 
 function connectedGuestKeys(){
@@ -701,18 +818,34 @@ function refreshHostConnectionUi(){
 
   for(let i=0;i<expectedPlayerCount;i++){
     const key=`p${i}`;
-    const ok=i===0 || (
-      hostConnections.get(key)?.connected &&
-      hostConnections.get(key)?.channel?.readyState==="open"
-    );
+
+    const ok=
+      i===0 ||
+      (
+        hostConnections.get(key)?.connected &&
+        hostConnections.get(key)?.channel?.readyState==="open"
+      );
+
+    const name=cleanPlayerName(playerNames[key]);
+    const text=name
+      ? `${name} ${ok?"接続済み":"待機"}`
+      : `P${i+1} ${ok?"名前未入力":"待機"}`;
+
     pills.push(
-      `<span class="connectionPill ${ok?"ok":""}">P${i+1} ${ok?"接続済み":"待機"}</span>`
+      `<span class="connectionPill ${ok&&name?"ok":""}">${text}</span>`
     );
   }
 
+  const namesReady=allNamesReady();
+
   els.hostConnectionStatus.innerHTML=
     `<b>${connected} / ${expectedPlayerCount}人 接続済み</b>`+
-    `<div class="connectionPills">${pills.join("")}</div>`;
+    `<div class="connectionPills">${pills.join("")}</div>`+
+    (
+      connected===expectedPlayerCount&&!namesReady
+        ? `<div class="small" style="margin-top:7px">全員の名前入力を待っています。</div>`
+        : ""
+    );
 
   const next=nextMissingPlayerKey();
 
@@ -725,12 +858,16 @@ function refreshHostConnectionUi(){
     els.createOfferBtn.textContent="全員接続済み";
   }
 
-  els.startGameBtn.disabled=!allExpectedPlayersConnected();
+  els.startGameBtn.disabled=
+    !allExpectedPlayersConnected() ||
+    !namesReady;
 
-  if(allExpectedPlayersConnected()){
-    setStatus(`${expectedPlayerCount}人全員接続しました`,"ok");
+  if(allExpectedPlayersConnected()&&namesReady){
+    setStatus(`${expectedPlayerCount}人全員準備完了`,"ok");
     els.lobbyCard.classList.remove("hidden");
     els.hostLobby.classList.remove("hidden");
+  }else if(allExpectedPlayersConnected()){
+    setStatus("全員接続済み・名前入力待ち","wait");
   }
 }
 
@@ -820,6 +957,16 @@ function setupGuestChannel(ch){
 }
 
 function handleHostMessage(actorKey,msg){
+  if(msg.type==="setName"){
+    const name=cleanPlayerName(msg.name);
+
+    if(name){
+      playerNames[actorKey]=name;
+      refreshHostConnectionUi();
+    }
+    return;
+  }
+
   if(msg.type==="placeInfoToken"){
     applyInfoTokenPlacement(actorKey,msg.boardIndex,msg.position);
   }
@@ -860,6 +1007,15 @@ function handleGuestMessage(msg){
 
     els.roleText.textContent=
       `この端末は子機（プレイヤー${msg.playerNumber}）です。`;
+
+    const myName=cleanPlayerName(els.guestNameInput.value);
+
+    if(myName){
+      send({
+        type:"setName",
+        name:myName
+      });
+    }
 
     setStatus("親機と接続しました","ok");
     els.lobbyCard.classList.remove("hidden");
@@ -969,12 +1125,27 @@ function createGameState(settings){
   const captainKey=seatOrder[captainSeat];
   const turnOrder=circularOrder(seatOrder,captainSeat);
 
-  const labels={};
-  labels[captainKey]="隊長";
+  const roleLabels={};
+  roleLabels[captainKey]="隊長";
 
   let minionNo=1;
+
   for(const key of turnOrder.slice(1)){
-    labels[key]=playerCount===2 ? "子分" : `子分${minionNo++}`;
+    roleLabels[key]=
+      playerCount===2
+        ? "子分"
+        : `子分${minionNo++}`;
+  }
+
+  const labels={};
+
+  for(const key of seatOrder){
+    const name=
+      cleanPlayerName(playerNames[key]) ||
+      `P${Number(key.slice(1))+1}`;
+
+    labels[key]=
+      `${name}（${roleLabels[key]}）`;
   }
 
   const allYellowValues=[];
@@ -1121,7 +1292,7 @@ function createGameState(settings){
   return {
     version:6,
     phase:"infoTokens",
-    lives:2,
+    lives:playerCount,
     lastEvent:null,
 
     config:{
@@ -1165,20 +1336,30 @@ function publicBoardView(board){
 function makeViewFor(playerKey){
   const me=gameState.players[playerKey];
 
-  const opponents=gameState.seatOrder
-    .filter(key=>key!==playerKey)
-    .map(key=>{
-      const p=gameState.players[key];
+  const myTurnIndex=
+    gameState.turnOrder.indexOf(playerKey);
 
-      return {
-        playerKey:key,
-        role:p.role,
-        label:p.label,
-        infoPlaced:[...gameState.infoPlaced[key]],
-        boardFacts:gameState.publicBoardFacts[key].map(x=>[...x]),
-        boards:p.boards.map(publicBoardView)
-      };
-    });
+  const perspectiveOrder=
+    circularOrder(
+      gameState.turnOrder,
+      myTurnIndex
+    );
+
+  const opponents=
+    perspectiveOrder
+      .slice(1)
+      .map(key=>{
+        const p=gameState.players[key];
+
+        return {
+          playerKey:key,
+          role:p.role,
+          label:p.label,
+          infoPlaced:[...gameState.infoPlaced[key]],
+          boardFacts:gameState.publicBoardFacts[key].map(x=>[...x]),
+          boards:p.boards.map(publicBoardView)
+        };
+      });
 
   return {
     phase:gameState.phase,
@@ -1792,6 +1973,13 @@ function startOrRedeal(){
     return;
   }
 
+  playerNames.p0=cleanPlayerName(els.hostNameInput.value);
+
+  if(!allNamesReady()){
+    alert("全員が名前を入力してから開始してください。");
+    return;
+  }
+
   gameState=createGameState(readSetupSettings());
   selectedInfoToken=null;
   actionState=null;
@@ -1805,6 +1993,19 @@ function renderPlayerView(view){
   selectedInfoToken=null;
   actionState=null;
 
+  document.body.classList.remove(
+    "myTurnNow",
+    "infoTurnNow"
+  );
+
+  if(view.phase==="play"&&view.turn===view.playerKey){
+    document.body.classList.add("myTurnNow");
+  }
+
+  if(view.phase==="infoTokens"&&view.infoTurn===view.playerKey){
+    document.body.classList.add("infoTurnNow");
+  }
+
   els.tokenConfirmArea.classList.add("hidden");
   els.gameCard.classList.remove("hidden");
 
@@ -1812,7 +2013,7 @@ function renderPlayerView(view){
   els.myRoleBadge.textContent=view.label;
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
 
-  renderLives(view.lives);
+  renderLives(view.lives,view.config.playerCount);
   renderGameConfig(view.config);
   renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
@@ -1899,11 +2100,18 @@ function renderGameConfig(config){
   els.gameConfigBox.classList.remove("hidden");
 }
 
-function renderLives(lives){
+function renderLives(lives,maxLives){
+  const total=Math.max(1,maxLives||2);
   const hearts="♥".repeat(Math.max(0,lives));
-  const empty="♡".repeat(Math.max(0,2-lives));
-  els.lifeDisplay.textContent=`ライフ ${hearts}${empty}`;
-  els.lifeDisplay.classList.toggle("low",lives<=1);
+  const empty="♡".repeat(Math.max(0,total-lives));
+
+  els.lifeDisplay.textContent=
+    `ライフ ${hearts}${empty}`;
+
+  els.lifeDisplay.classList.toggle(
+    "low",
+    lives<=1
+  );
 }
 
 function roleName(r){
@@ -2010,7 +2218,7 @@ function updatePhaseUi(view){
 
     els.turnBanner.textContent=
       myTurn
-        ? "あなたが情報トークンを配置する番です"
+        ? `あなた（${view.label}）が情報トークンを配置する番です`
         : `${view.infoTurnLabel}が情報トークンを配置する番です`;
 
     els.turnBanner.classList.toggle("mine",myTurn);
@@ -2042,7 +2250,7 @@ function updatePhaseUi(view){
 
     els.turnBanner.textContent=
       myTurn
-        ? "あなたの手番です"
+        ? `あなた（${view.label}）の手番です`
         : `${view.turnLabel}の手番です`;
 
     els.turnBanner.classList.toggle("mine",myTurn);
@@ -2099,9 +2307,37 @@ function renderOpponents(view){
     const group=document.createElement("div");
     group.className="opponentGroup";
 
+    const isPlayTurn=
+      view.phase==="play" &&
+      view.turn===opponent.playerKey;
+
+    const isInfoTurn=
+      view.phase==="infoTokens" &&
+      view.infoTurn===opponent.playerKey;
+
+    if(isPlayTurn){
+      group.classList.add("activeTurn");
+    }
+
+    if(isInfoTurn){
+      group.classList.add("activeInfoTurn");
+    }
+
     const heading=document.createElement("div");
     heading.className="opponentName";
-    heading.textContent=opponent.label;
+
+    if(isPlayTurn){
+      heading.classList.add("activeLabel");
+      heading.innerHTML=
+        `<span class="turnWho"><span class="turnArrow">▶</span>${opponent.label}【手番】</span>`;
+    }else if(isInfoTurn){
+      heading.classList.add("activeInfoLabel");
+      heading.innerHTML=
+        `<span class="turnWho"><span class="turnArrow">▶</span>${opponent.label}【情報トークン配置】</span>`;
+    }else{
+      heading.textContent=opponent.label;
+    }
+
     group.appendChild(heading);
 
     const boards=document.createElement("div");
@@ -2829,6 +3065,14 @@ async function createOffer(){
   try{
     if(role!=="host")return;
 
+    const hostName=cleanPlayerName(els.hostNameInput.value);
+
+    if(!hostName){
+      throw new Error("先に親機プレイヤーの名前を入力してください。");
+    }
+
+    playerNames.p0=hostName;
+
     const playerKey=nextMissingPlayerKey();
 
     if(!playerKey){
@@ -2923,6 +3167,12 @@ function closeGuestPeer(showStatus=false){
 }
 
 async function buildAnswerFromCode(code){
+  const guestName=cleanPlayerName(els.guestNameInput.value);
+
+  if(!guestName){
+    throw new Error("先にあなたの名前を入力してください。");
+  }
+
   closeGuestPeer(false);
 
   const peer=createRtcPeer();
@@ -3042,6 +3292,11 @@ function closeAllHostPeers(showStatus=true){
   pendingHostPlayerKey=null;
   gameState=null;
   connectedOnce=false;
+
+  playerNames={
+    p0:cleanPlayerName(els.hostNameInput.value)
+  };
+
   els.playerCountSelect.disabled=false;
 
   if(showStatus){
@@ -3067,6 +3322,8 @@ async function disconnect(){
 
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;
+els.hostNameInput.oninput=updateHostName;
+els.guestNameInput.onchange=sendGuestName;
 els.guestBtn.onclick=()=>showRole("guest");
 els.createOfferBtn.onclick=createOffer;
 els.scanOfferBtn.onclick=()=>startScanner("guest",async code=>{

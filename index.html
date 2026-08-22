@@ -334,20 +334,55 @@ summary{font-weight:750;cursor:pointer}
   opacity:.84
 }
 
+
+.opponentGroup{
+  margin:14px 0 18px;
+  padding-top:10px;
+  border-top:2px solid #e5e7eb
+}
+.opponentGroup:first-child{
+  border-top:0;
+  padding-top:0
+}
+.opponentName{
+  margin:0 0 7px;
+  font-size:.92rem;
+  font-weight:900;
+  color:#334155
+}
+.connectionPills{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:7px
+}
+.connectionPill{
+  font-size:.73rem;
+  padding:4px 7px;
+  border-radius:999px;
+  background:#e5e7eb;
+  color:#374151;
+  font-weight:800
+}
+.connectionPill.ok{
+  background:#dcfce7;
+  color:#166534
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（赤タイル情報トークン禁止）</p>
+  <p class="sub">2〜6人対応版（親機中心WebRTC・特殊タイル対応）</p>
 
   <section class="card">
     <div class="status">
       <span id="statusDot" class="dot"></span>
       <span id="statusText">役割を選んでください</span>
     </div>
-    <div id="roleText" class="small" style="margin-top:6px">2台のスマホで同じURLを開いてください。</div>
+    <div id="roleText" class="small" style="margin-top:6px">参加する全員のスマホで同じURLを開いてください。</div>
 
     <details id="connectionMenu" class="connectionMenu">
       <summary>接続設定</summary>
@@ -366,16 +401,31 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
   <section id="hostCard" class="card hidden">
     <h2>親機</h2>
+
+    <div class="setupField" style="margin-bottom:12px">
+      <label for="playerCountSelect">参加人数</label>
+      <select id="playerCountSelect">
+        <option value="2">2人</option>
+        <option value="3">3人</option>
+        <option value="4">4人</option>
+        <option value="5">5人</option>
+        <option value="6">6人</option>
+      </select>
+      <div class="small">人数は子機との接続を始める前に決めます。</div>
+    </div>
+
+    <div id="hostConnectionStatus" class="notice info">親機のみ接続済み：1 / 2人</div>
+
     <div class="step">
-      <b>① 接続用QRを作成</b>
-      <p class="small">STUNで取得した外部接続候補を含め、接続に必要な情報だけを圧縮してQR化します。</p>
-      <button id="createOfferBtn" class="primary">親機QRを作る</button>
+      <b>① 次の子機用QRを作成</b>
+      <p class="small">子機を1台ずつ追加します。接続済みの子機はそのまま維持されます。</p>
+      <button id="createOfferBtn" class="primary">2人目の接続QRを作る</button>
       <div id="offerQrArea" class="hidden">
         <div id="offerQr" class="qrWrap"></div>
       </div>
     </div>
     <div class="step">
-      <b>② 子機の返答QRを読む</b>
+      <b>② その子機の返答QRを読む</b>
       <button id="scanAnswerBtn" class="primary">子機QRを読み取る</button>
       <div id="hostScannerWrap" class="hidden">
         <div id="hostReader" class="scanBox"></div>
@@ -392,7 +442,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </section>
 
   <section id="guestCard" class="card hidden">
-    <h2>子機</h2>
+    <h2>子機</h2><div id="guestSeatStatus" class="notice info">親機のQRを読み取って参加してください。</div>
     <div class="step">
       <b>① 親機QRを読む</b>
       <button id="scanOfferBtn" class="primary">親機QRを読み取る</button>
@@ -509,7 +559,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     </div>
 
     <div class="playerBlock">
-      <h2>相手のタイル</h2>
+      <h2>ほかのプレイヤーのタイル</h2>
       <div id="oppBoards"></div>
     </div>
 
@@ -523,7 +573,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    最大数字8～16、黄・赤タイルの候補数と使用数を設定可能。赤タイルを指定すると即ゲームオーバーです。
+    2〜6人対応。親機が各子機と直接接続し、ゲーム状態を一括管理します。
   </footer>
 </div>
 
@@ -531,7 +581,18 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 (() => {
 "use strict";
 
-let role=null, pc=null, channel=null;
+let role=null;
+
+// 親機は最大5本のWebRTC接続を保持する。
+let hostConnections=new Map();
+let pendingHostPlayerKey=null;
+
+// 子機側は親機との1本のみ。
+let pc=null, channel=null;
+
+let expectedPlayerCount=2;
+let localPlayerKey="p0";
+
 let hostScanner=null, guestScanner=null;
 let connectedOnce=false;
 let gameState=null;
@@ -543,6 +604,8 @@ const $=id=>document.getElementById(id);
 const els={
   statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
   roleCard:$("roleCard"),hostCard:$("hostCard"),guestCard:$("guestCard"),
+  playerCountSelect:$("playerCountSelect"),hostConnectionStatus:$("hostConnectionStatus"),
+  guestSeatStatus:$("guestSeatStatus"),
   lobbyCard:$("lobbyCard"),hostLobby:$("hostLobby"),guestLobby:$("guestLobby"),
   gameCard:$("gameCard"),
   hostBtn:$("hostBtn"),guestBtn:$("guestBtn"),
@@ -579,88 +642,260 @@ function setStatus(text,type="normal"){
 
 function showRole(which){
   role=which;
+  localPlayerKey=which==="host" ? "p0" : null;
+
   els.roleCard.classList.add("hidden");
   els.hostCard.classList.toggle("hidden",which!=="host");
   els.guestCard.classList.toggle("hidden",which!=="guest");
-  els.roleText.textContent=which==="host"?"この端末は親機です。":"この端末は子機です。";
-  setStatus(which==="host"?"親機：接続待ち":"子機：接続待ち","wait");
+
+  if(which==="host"){
+    expectedPlayerCount=Number(els.playerCountSelect.value)||2;
+    els.roleText.textContent="この端末は親機（プレイヤー1）です。";
+    setStatus("親機：子機の接続待ち","wait");
+    refreshHostConnectionUi();
+  }else{
+    els.roleText.textContent="この端末は子機です。";
+    setStatus("子機：親機QR待ち","wait");
+  }
 }
 
-function makePeer(){
-  closePeer(false);
-  pc=new RTCPeerConnection({
+function createRtcPeer(){
+  return new RTCPeerConnection({
     iceServers:[
       {urls:"stun:stun.cloudflare.com:3478"}
     ]
   });
-  pc.onconnectionstatechange=()=>{
-    const s=pc.connectionState;
-    if(s==="connected")onConnected();
-    if((s==="disconnected"||s==="failed")&&connectedOnce){
-      setStatus("相手との接続が切れました","bad");
-      els.lobbyCard.classList.add("hidden");
-      els.gameCard.classList.add("hidden");
-    }
-  };
-  return pc;
 }
 
-function setupChannel(ch){
+function connectedGuestKeys(){
+  return [...hostConnections.entries()]
+    .filter(([,c])=>c.connected&&c.channel&&c.channel.readyState==="open")
+    .map(([key])=>key)
+    .sort((a,b)=>Number(a.slice(1))-Number(b.slice(1)));
+}
+
+function connectedPlayerCount(){
+  return 1+connectedGuestKeys().length;
+}
+
+function allExpectedPlayersConnected(){
+  return connectedPlayerCount()===expectedPlayerCount;
+}
+
+function nextMissingPlayerKey(){
+  for(let i=1;i<expectedPlayerCount;i++){
+    const key=`p${i}`;
+    const c=hostConnections.get(key);
+    if(!c||!c.connected||!c.channel||c.channel.readyState!=="open"){
+      return key;
+    }
+  }
+  return null;
+}
+
+function refreshHostConnectionUi(){
+  if(role!=="host")return;
+
+  const connected=connectedPlayerCount();
+  const pills=[];
+
+  for(let i=0;i<expectedPlayerCount;i++){
+    const key=`p${i}`;
+    const ok=i===0 || (
+      hostConnections.get(key)?.connected &&
+      hostConnections.get(key)?.channel?.readyState==="open"
+    );
+    pills.push(
+      `<span class="connectionPill ${ok?"ok":""}">P${i+1} ${ok?"接続済み":"待機"}</span>`
+    );
+  }
+
+  els.hostConnectionStatus.innerHTML=
+    `<b>${connected} / ${expectedPlayerCount}人 接続済み</b>`+
+    `<div class="connectionPills">${pills.join("")}</div>`;
+
+  const next=nextMissingPlayerKey();
+
+  if(next){
+    els.createOfferBtn.disabled=false;
+    els.createOfferBtn.textContent=
+      `${Number(next.slice(1))+1}人目の接続QRを作る`;
+  }else{
+    els.createOfferBtn.disabled=true;
+    els.createOfferBtn.textContent="全員接続済み";
+  }
+
+  els.startGameBtn.disabled=!allExpectedPlayersConnected();
+
+  if(allExpectedPlayersConnected()){
+    setStatus(`${expectedPlayerCount}人全員接続しました`,"ok");
+    els.lobbyCard.classList.remove("hidden");
+    els.hostLobby.classList.remove("hidden");
+  }
+}
+
+function updateExpectedPlayerCount(){
+  if(hostConnections.size||pendingHostPlayerKey){
+    els.playerCountSelect.value=String(expectedPlayerCount);
+    alert("人数は接続開始後には変更できません。変更する場合は一度「接続を切る」を押してください。");
+    return;
+  }
+
+  expectedPlayerCount=Number(els.playerCountSelect.value)||2;
+  refreshHostConnectionUi();
+  updateSetupPreview();
+}
+
+function setupHostChannel(playerKey,ch,peer){
+  const entry=hostConnections.get(playerKey)||{pc:peer};
+  entry.pc=peer;
+  entry.channel=ch;
+  entry.connected=false;
+  hostConnections.set(playerKey,entry);
+
+  ch.onopen=()=>{
+    entry.connected=true;
+    hostConnections.set(playerKey,entry);
+
+    try{
+      ch.send(JSON.stringify({
+        type:"hello",
+        playerKey,
+        playerNumber:Number(playerKey.slice(1))+1,
+        expectedPlayers:expectedPlayerCount
+      }));
+    }catch(_){}
+
+    if(pendingHostPlayerKey===playerKey){
+      pendingHostPlayerKey=null;
+    }
+
+    els.offerQrArea.classList.add("hidden");
+    els.answerIn.value="";
+    connectedOnce=true;
+    refreshHostConnectionUi();
+  };
+
+  ch.onmessage=e=>{
+    let msg;
+    try{msg=JSON.parse(e.data)}catch(_){return}
+    handleHostMessage(playerKey,msg);
+  };
+
+  ch.onclose=()=>{
+    entry.connected=false;
+    hostConnections.set(playerKey,entry);
+
+    if(gameState){
+      setStatus(`P${Number(playerKey.slice(1))+1}との接続が切れました`,"bad");
+    }else{
+      setStatus("子機との接続が切れました","bad");
+    }
+
+    refreshHostConnectionUi();
+  };
+}
+
+function setupGuestChannel(ch){
   channel=ch;
-  channel.onopen=()=>onConnected();
+
+  channel.onopen=()=>{
+    connectedOnce=true;
+    setStatus("親機と接続しました","ok");
+    stopAllScanners();
+  };
+
   channel.onclose=()=>{
     if(connectedOnce){
-      setStatus("相手との接続が切れました","bad");
+      setStatus("親機との接続が切れました","bad");
       els.lobbyCard.classList.add("hidden");
     }
   };
+
   channel.onmessage=e=>{
     let msg;
     try{msg=JSON.parse(e.data)}catch(_){return}
-    handleMessage(msg);
+    handleGuestMessage(msg);
   };
 }
 
-function onConnected(){
-  connectedOnce=true;
-  setStatus("接続しました","ok");
-  stopAllScanners();
-  els.lobbyCard.classList.remove("hidden");
-  els.hostLobby.classList.toggle("hidden",role!=="host");
-  els.guestLobby.classList.toggle("hidden",role!=="guest");
-}
-
-function handleMessage(msg){
-  if(msg.type==="state"&&role==="guest"){
-    renderPlayerView(msg.view);
-    els.guestLobby.innerHTML='<div class="notice good">ゲーム開始済み</div>';
+function handleHostMessage(actorKey,msg){
+  if(msg.type==="placeInfoToken"){
+    applyInfoTokenPlacement(actorKey,msg.boardIndex,msg.position);
   }
 
-  if(msg.type==="placeInfoToken"&&role==="host"){
-    applyInfoTokenPlacement("guest",msg.boardIndex,msg.position);
+  if(msg.type==="normalCut"){
+    processNormalCut(
+      actorKey,
+      msg.myBoard,
+      msg.myPosition,
+      msg.targetPlayer,
+      msg.targetBoard,
+      msg.targetPosition
+    );
   }
 
-  if(msg.type==="normalCut"&&role==="host"){
-    processNormalCut("guest",msg.myBoard,msg.myPosition,msg.targetBoard,msg.targetPosition);
-  }
-
-  if(msg.type==="selfCut"&&role==="host"){
-    processSelfCut("guest",msg.boardIndex,msg.position);
-  }
-
-  if(msg.type==="actionError"&&role==="guest"){
-    alert(msg.message||"操作を実行できませんでした。");
+  if(msg.type==="selfCut"){
+    processSelfCut(actorKey,msg.boardIndex,msg.position);
   }
 
   if(msg.type==="disconnect"){
-    setStatus("相手が接続を切りました","bad");
-    els.lobbyCard.classList.add("hidden");
-    els.gameCard.classList.add("hidden");
-    setTimeout(()=>closePeer(false),100);
+    const entry=hostConnections.get(actorKey);
+    if(entry){
+      entry.connected=false;
+      try{entry.channel?.close()}catch(_){}
+      try{entry.pc?.close()}catch(_){}
+    }
+    refreshHostConnectionUi();
   }
 }
 
+function handleGuestMessage(msg){
+  if(msg.type==="hello"){
+    localPlayerKey=msg.playerKey;
+    expectedPlayerCount=msg.expectedPlayers;
+
+    els.guestSeatStatus.textContent=
+      `プレイヤー${msg.playerNumber}として接続しました。参加人数：${msg.expectedPlayers}人`;
+
+    els.roleText.textContent=
+      `この端末は子機（プレイヤー${msg.playerNumber}）です。`;
+
+    setStatus("親機と接続しました","ok");
+    els.lobbyCard.classList.remove("hidden");
+    els.guestLobby.classList.remove("hidden");
+    return;
+  }
+
+  if(msg.type==="state"){
+    renderPlayerView(msg.view);
+    els.guestLobby.innerHTML='<div class="notice good">ゲーム開始済み</div>';
+    return;
+  }
+
+  if(msg.type==="actionError"){
+    alert(msg.message||"操作を実行できませんでした。");
+    return;
+  }
+
+  if(msg.type==="disconnect"){
+    setStatus("親機が接続を切りました","bad");
+    els.lobbyCard.classList.add("hidden");
+    els.gameCard.classList.add("hidden");
+    setTimeout(()=>closeGuestPeer(false),100);
+  }
+}
+
+function sendTo(playerKey,obj){
+  if(role!=="host")return false;
+  const c=hostConnections.get(playerKey);
+  if(!c?.channel||c.channel.readyState!=="open")return false;
+  c.channel.send(JSON.stringify(obj));
+  return true;
+}
+
 function send(obj){
+  if(role==="host")return false;
   if(!channel||channel.readyState!=="open")return false;
   channel.send(JSON.stringify(obj));
   return true;
@@ -696,8 +931,20 @@ function sampleWithoutReplacement(values,count){
   return copy.slice(0,count);
 }
 
+function playerKeysForCount(count){
+  return Array.from({length:count},(_,i)=>`p${i}`);
+}
+
+function circularOrder(keys,startIndex){
+  return [
+    ...keys.slice(startIndex),
+    ...keys.slice(0,startIndex)
+  ];
+}
+
 function createGameState(settings){
   const maxNumber=settings.maxNumber;
+  const playerCount=settings.playerCount;
 
   const yellowCandidateCount=Math.max(
     0,
@@ -717,11 +964,18 @@ function createGameState(settings){
     Math.min(settings.redUsedCount,redCandidateCount)
   );
 
-  const captainIsHost=Math.random()<0.5;
-  const hostRole=captainIsHost?"captain":"minion";
-  const guestRole=captainIsHost?"minion":"captain";
-  const captainKey=captainIsHost?"host":"guest";
-  const minionKey=captainIsHost?"guest":"host";
+  const seatOrder=playerKeysForCount(playerCount);
+  const captainSeat=Math.floor(Math.random()*playerCount);
+  const captainKey=seatOrder[captainSeat];
+  const turnOrder=circularOrder(seatOrder,captainSeat);
+
+  const labels={};
+  labels[captainKey]="隊長";
+
+  let minionNo=1;
+  for(const key of turnOrder.slice(1)){
+    labels[key]=playerCount===2 ? "子分" : `子分${minionNo++}`;
+  }
 
   const allYellowValues=[];
   const allRedValues=[];
@@ -765,43 +1019,113 @@ function createGameState(settings){
 
   shuffle(deck);
 
-  const totalTiles=deck.length;
-  const base=Math.floor(totalTiles/4);
-  const remainder=totalTiles%4;
-  const boardSizes=[base,base,base,base];
+  // ------------------------------------------
+  // 台の所有
+  // 2人：2台ずつ
+  // 3人：隊長2台、子分は1台ずつ
+  // 4〜6人：1人1台
+  // ------------------------------------------
+  const rackDescriptors=[];
 
-  for(let i=0;i<remainder;i++){
-    boardSizes[i]++;
+  if(playerCount===2){
+    rackDescriptors.push(
+      {playerKey:captainKey,boardIndex:0},
+      {playerKey:captainKey,boardIndex:1},
+      {playerKey:turnOrder[1],boardIndex:0},
+      {playerKey:turnOrder[1],boardIndex:1}
+    );
+  }else if(playerCount===3){
+    rackDescriptors.push(
+      {playerKey:captainKey,boardIndex:0},
+      {playerKey:captainKey,boardIndex:1},
+      {playerKey:turnOrder[1],boardIndex:0},
+      {playerKey:turnOrder[2],boardIndex:0}
+    );
+  }else{
+    for(const key of turnOrder){
+      rackDescriptors.push({playerKey:key,boardIndex:0});
+    }
   }
 
-  // 余りは必ず 隊長A → 隊長B → 子分A → 子分B の順。
-  const rackOrder=[
-    {playerKey:captainKey,boardIndex:0},
-    {playerKey:captainKey,boardIndex:1},
-    {playerKey:minionKey,boardIndex:0},
-    {playerKey:minionKey,boardIndex:1}
-  ];
+  const rackCount=rackDescriptors.length;
+  const totalTiles=deck.length;
+  const base=Math.floor(totalTiles/rackCount);
+  const remainder=totalTiles%rackCount;
 
-  const rawBoards={
-    host:[[],[]],
-    guest:[[],[]]
-  };
+  const rackSizeMap=new Map();
+  for(const rack of rackDescriptors){
+    rackSizeMap.set(`${rack.playerKey}:${rack.boardIndex}`,base);
+  }
+
+  let extraPriority;
+
+  if(playerCount===3){
+    // 3人だけは隊長の見えているタイルを増やしすぎない。
+    // 子分1 → 子分2 → 隊長A → 隊長B の順で余りを配る。
+    extraPriority=[
+      {playerKey:turnOrder[1],boardIndex:0},
+      {playerKey:turnOrder[2],boardIndex:0},
+      {playerKey:captainKey,boardIndex:0},
+      {playerKey:captainKey,boardIndex:1}
+    ];
+  }else{
+    // 2人および4〜6人は隊長から順。
+    extraPriority=[...rackDescriptors];
+  }
+
+  for(let i=0;i<remainder;i++){
+    const rack=extraPriority[i];
+    const id=`${rack.playerKey}:${rack.boardIndex}`;
+    rackSizeMap.set(id,rackSizeMap.get(id)+1);
+  }
+
+  const rawBoards={};
+  const boardCounts={};
+
+  for(const key of seatOrder){
+    boardCounts[key]=
+      rackDescriptors.filter(r=>r.playerKey===key).length;
+    rawBoards[key]=Array.from({length:boardCounts[key]},()=>[]);
+  }
 
   let cursor=0;
 
-  rackOrder.forEach((rack,index)=>{
-    const size=boardSizes[index];
+  // 実際の配布順は隊長からの台順。枚数だけ上記ルールで調整済み。
+  for(const rack of rackDescriptors){
+    const size=rackSizeMap.get(`${rack.playerKey}:${rack.boardIndex}`);
     rawBoards[rack.playerKey][rack.boardIndex]=deck.slice(cursor,cursor+size);
     cursor+=size;
-  });
+  }
+
+  const players={};
+  const publicBoardFacts={};
+  const infoPlaced={};
+
+  for(const key of seatOrder){
+    players[key]={
+      seat:Number(key.slice(1)),
+      role:key===captainKey?"captain":"minion",
+      label:labels[key],
+      boards:rawBoards[key].map(
+        (tiles,bi)=>makeBoard(tiles,key,bi)
+      )
+    };
+
+    publicBoardFacts[key]=
+      rawBoards[key].map(()=>[]);
+
+    infoPlaced[key]=
+      rawBoards[key].map(()=>false);
+  }
 
   return {
-    version:5,
+    version:6,
     phase:"infoTokens",
     lives:2,
     lastEvent:null,
 
     config:{
+      playerCount,
       maxNumber,
       yellowCandidateCount,
       yellowUsedCount,
@@ -809,62 +1133,72 @@ function createGameState(settings){
       redCandidateCount,
       redUsedCount,
       redCandidates,
-      totalTiles
+      totalTiles,
+      rackCount
     },
 
-    // 実際に採用された特殊タイルは親機だけが保持する。
     secretYellowUsedValues:yellowUsedValues,
     secretRedUsedValues:redUsedValues,
 
-    publicBoardFacts:{
-      host:[[],[]],
-      guest:[[],[]]
-    },
+    seatOrder,
+    turnOrder,
+    captainKey,
+    players,
+    publicBoardFacts,
+    infoPlaced,
 
     infoTurn:captainKey,
-
-    infoPlaced:{
-      host:[false,false],
-      guest:[false,false]
-    },
-
-    turn:null,
-
-    players:{
-      host:{
-        role:hostRole,
-        boards:[
-          makeBoard(rawBoards.host[0],"host",0),
-          makeBoard(rawBoards.host[1],"host",1)
-        ]
-      },
-      guest:{
-        role:guestRole,
-        boards:[
-          makeBoard(rawBoards.guest[0],"guest",0),
-          makeBoard(rawBoards.guest[1],"guest",1)
-        ]
-      }
-    }
+    turn:null
   };
 }
 
+function publicBoardView(board){
+  return board.map(t=>({
+    position:t.position,
+    cut:t.cut,
+    infoToken:t.infoToken,
+    kind:t.cut?t.kind:null,
+    number:t.cut?t.number:null
+  }));
+}
+
 function makeViewFor(playerKey){
-  const opponentKey=playerKey==="host"?"guest":"host";
   const me=gameState.players[playerKey];
-  const opp=gameState.players[opponentKey];
+
+  const opponents=gameState.seatOrder
+    .filter(key=>key!==playerKey)
+    .map(key=>{
+      const p=gameState.players[key];
+
+      return {
+        playerKey:key,
+        role:p.role,
+        label:p.label,
+        infoPlaced:[...gameState.infoPlaced[key]],
+        boardFacts:gameState.publicBoardFacts[key].map(x=>[...x]),
+        boards:p.boards.map(publicBoardView)
+      };
+    });
 
   return {
     phase:gameState.phase,
     lives:gameState.lives,
     role:me.role,
+    label:me.label,
     playerKey,
     infoTurn:gameState.infoTurn,
+    infoTurnLabel:gameState.infoTurn
+      ? gameState.players[gameState.infoTurn].label
+      : null,
     infoPlaced:[...gameState.infoPlaced[playerKey]],
-    opponentInfoPlaced:[...gameState.infoPlaced[opponentKey]],
     turn:gameState.turn,
+    turnLabel:gameState.turn
+      ? gameState.players[gameState.turn].label
+      : null,
     lastEvent:gameState.lastEvent,
+
     config:{
+      playerCount:gameState.config.playerCount,
       maxNumber:gameState.config.maxNumber,
       yellowCandidateCount:gameState.config.yellowCandidateCount,
       yellowUsedCount:gameState.config.yellowUsedCount,
@@ -872,76 +1206,94 @@ function makeViewFor(playerKey){
       redCandidateCount:gameState.config.redCandidateCount,
       redUsedCount:gameState.config.redUsedCount,
       redCandidates:[...gameState.config.redCandidates],
-      totalTiles:gameState.config.totalTiles
+      totalTiles:gameState.config.totalTiles,
+      rackCount:gameState.config.rackCount
     },
+
     myBoardFacts:gameState.publicBoardFacts[playerKey].map(x=>[...x]),
-    opponentBoardFacts:gameState.publicBoardFacts[opponentKey].map(x=>[...x]),
+
     myBoards:me.boards.map(board=>board.map(t=>({
-      id:t.id,kind:t.kind,number:t.number,position:t.position,cut:t.cut,infoToken:t.infoToken
-    }))),
-    opponentBoards:opp.boards.map(board=>board.map(t=>({
+      id:t.id,
+      kind:t.kind,
+      number:t.number,
       position:t.position,
       cut:t.cut,
-      infoToken:t.infoToken,
-      kind:t.cut?t.kind:null,
-      number:t.cut?t.number:null
-    })))
+      infoToken:t.infoToken
+    }))),
+
+    opponents
   };
 }
 
 function broadcastViews(){
   if(role!=="host"||!gameState)return;
-  renderPlayerView(makeViewFor("host"));
-  send({type:"state",view:makeViewFor("guest")});
+
+  renderPlayerView(makeViewFor("p0"));
+
+  for(const key of gameState.seatOrder){
+    if(key==="p0")continue;
+    sendTo(key,{
+      type:"state",
+      view:makeViewFor(key)
+    });
+  }
 }
 
 function nextInfoTurnAfter(playerKey){
-  const player=gameState.players[playerKey];
-  const bothDone=gameState.infoPlaced[playerKey].every(Boolean);
-  if(!bothDone)return playerKey;
+  const done=gameState.infoPlaced[playerKey].every(Boolean);
 
-  if(player.role==="captain"){
-    return playerKey==="host"?"guest":"host";
+  if(!done){
+    return playerKey;
   }
 
-  // 子分も2台置き終えたので、情報トークンフェーズ終了。
+  const idx=gameState.turnOrder.indexOf(playerKey);
+
+  if(idx>=0&&idx<gameState.turnOrder.length-1){
+    return gameState.turnOrder[idx+1];
+  }
+
   gameState.phase="play";
   gameState.infoTurn=null;
-  gameState.turn=gameState.players.host.role==="captain"?"host":"guest";
+  gameState.turn=gameState.captainKey;
   return null;
 }
 
 function applyInfoTokenPlacement(playerKey,boardIndex,position){
   if(!gameState||gameState.phase!=="infoTokens")return;
   if(gameState.infoTurn!==playerKey)return;
-  if(boardIndex!==0&&boardIndex!==1)return;
+
+  const player=gameState.players[playerKey];
+  if(!player)return;
+
+  if(
+    !Number.isInteger(boardIndex) ||
+    boardIndex<0 ||
+    boardIndex>=player.boards.length
+  )return;
+
   if(gameState.infoPlaced[playerKey][boardIndex])return;
 
-  const tile=gameState.players[playerKey].boards[boardIndex][position];
+  const tile=player.boards[boardIndex][position];
   if(!tile)return;
 
-  // 初期情報トークンは通常数字タイルにしか置けない。
-  // 黄タイル・赤タイルは対象外。
+  // 初期情報トークンは通常数字タイルのみ。
   if(tile.kind!=="normal")return;
 
-  tile.infoToken={type:"number",value:tile.number,tileKind:tile.kind};
+  tile.infoToken={
+    type:"number",
+    value:tile.number,
+    tileKind:tile.kind
+  };
+
   gameState.infoPlaced[playerKey][boardIndex]=true;
   gameState.infoTurn=nextInfoTurnAfter(playerKey);
   broadcastViews();
 }
 
-
-function otherPlayer(playerKey){
-  return playerKey==="host"?"guest":"host";
-}
-
 function allTiles(){
-  return [
-    ...gameState.players.host.boards[0],
-    ...gameState.players.host.boards[1],
-    ...gameState.players.guest.boards[0],
-    ...gameState.players.guest.boards[1]
-  ];
+  return Object.values(gameState.players)
+    .flatMap(player=>player.boards)
+    .flat();
 }
 
 function allCut(){
@@ -949,7 +1301,8 @@ function allCut(){
 }
 
 function playerHasUncut(playerKey){
-  return gameState.players[playerKey].boards.some(board=>board.some(tile=>!tile.cut));
+  return gameState.players[playerKey]?.boards
+    .some(board=>board.some(tile=>!tile.cut));
 }
 
 function finishTurn(actor){
@@ -965,34 +1318,46 @@ function finishTurn(actor){
     return;
   }
 
-  const next=otherPlayer(actor);
+  const order=gameState.turnOrder;
+  const actorIndex=order.indexOf(actor);
+  const skipped=[];
 
-  if(playerHasUncut(next)){
-    gameState.turn=next;
-    return;
-  }
+  for(let step=1;step<=order.length;step++){
+    const candidate=order[(actorIndex+step)%order.length];
 
-  // 相手の未切断タイルが0枚なら、その人の手番は自動スキップ。
-  if(playerHasUncut(actor)){
-    gameState.turn=actor;
-    if(gameState.lastEvent){
-      gameState.lastEvent.skippedRole=gameState.players[next].role;
+    if(playerHasUncut(candidate)){
+      gameState.turn=candidate;
+
+      if(gameState.lastEvent&&skipped.length){
+        gameState.lastEvent.skippedPlayers=skipped;
+      }
+      return;
     }
-    return;
+
+    skipped.push(gameState.players[candidate].label);
   }
 
-  // 念のため。ここに来るなら全タイル切断済み。
   gameState.phase="clear";
   gameState.turn=null;
 }
 
 function actionError(actor,message){
-  if(actor==="guest")send({type:"actionError",message});
-  else alert(message);
+  if(actor==="p0"){
+    alert(message);
+  }else{
+    sendTo(actor,{
+      type:"actionError",
+      message
+    });
+  }
 }
 
-function validBoardIndex(v){
-  return v===0||v===1;
+function validBoardIndexFor(playerKey,v){
+  const player=gameState.players[playerKey];
+  return !!player &&
+    Number.isInteger(v) &&
+    v>=0 &&
+    v<player.boards.length;
 }
 
 function tileExactLabel(kind,number){
@@ -1028,33 +1393,69 @@ function tilesMatch(a,b){
   return a.number===b.number;
 }
 
-function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
-  if(!gameState||gameState.phase!=="play"){actionError(actor,"現在は切断フェーズではありません。");return;}
-  if(gameState.turn!==actor){actionError(actor,"あなたの手番ではありません。");return;}
-  if(!validBoardIndex(myBoard)||!validBoardIndex(targetBoard)){actionError(actor,"台の指定が正しくありません。");return;}
+function processNormalCut(
+  actor,
+  myBoard,
+  myPosition,
+  targetPlayer,
+  targetBoard,
+  targetPosition
+){
+  if(!gameState||gameState.phase!=="play"){
+    actionError(actor,"現在は切断フェーズではありません。");
+    return;
+  }
 
-  const targetPlayer=otherPlayer(actor);
-  const myTile=gameState.players[actor].boards[myBoard][myPosition];
-  const targetTile=gameState.players[targetPlayer].boards[targetBoard][targetPosition];
+  if(gameState.turn!==actor){
+    actionError(actor,"あなたの手番ではありません。");
+    return;
+  }
 
-  if(!myTile||!targetTile){actionError(actor,"タイルの指定が正しくありません。");return;}
-  if(myTile.cut||targetTile.cut){actionError(actor,"すでに切断済みのタイルは選べません。");return;}
+  if(!gameState.players[targetPlayer]||targetPlayer===actor){
+    actionError(actor,"相手の指定が正しくありません。");
+    return;
+  }
 
-  // 赤タイルは通常切断には使用できない。
+  if(
+    !validBoardIndexFor(actor,myBoard) ||
+    !validBoardIndexFor(targetPlayer,targetBoard)
+  ){
+    actionError(actor,"台の指定が正しくありません。");
+    return;
+  }
+
+  const myTile=
+    gameState.players[actor].boards[myBoard][myPosition];
+
+  const targetTile=
+    gameState.players[targetPlayer].boards[targetBoard][targetPosition];
+
+  if(!myTile||!targetTile){
+    actionError(actor,"タイルの指定が正しくありません。");
+    return;
+  }
+
+  if(myTile.cut||targetTile.cut){
+    actionError(actor,"すでに切断済みのタイルは選べません。");
+    return;
+  }
+
   if(myTile.kind==="red"){
     actionError(actor,"赤タイルは通常時には切断に使用できません。");
     return;
   }
 
-  // 相手の赤タイルの位置を指定した時点で即ゲームオーバー。
+  // 相手の赤タイルを指定した瞬間にゲームオーバー。
   if(targetTile.kind==="red"){
     gameState.lastEvent={
       kind:"redBoom",
-      actorRole:gameState.players[actor].role,
+      actorLabel:gameState.players[actor].label,
+      targetLabel:gameState.players[targetPlayer].label,
       myKind:myTile.kind,
       myNumber:myTile.number,
       myBoard,
       myPosition,
+      targetPlayer,
       targetBoard,
       targetPosition,
       redNumber:targetTile.number
@@ -1069,20 +1470,28 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
   if(tilesMatch(myTile,targetTile)){
     myTile.cut=true;
     targetTile.cut=true;
+
     gameState.lastEvent={
       kind:"success",
-      actorRole:gameState.players[actor].role,
-      myKind:myTile.kind,myNumber:myTile.number,
-      targetKind:targetTile.kind,targetNumber:targetTile.number,
-      myBoard,myPosition,targetBoard,targetPosition
+      actorLabel:gameState.players[actor].label,
+      targetLabel:gameState.players[targetPlayer].label,
+      myKind:myTile.kind,
+      myNumber:myTile.number,
+      targetKind:targetTile.kind,
+      targetNumber:targetTile.number,
+      myBoard,
+      myPosition,
+      targetPlayer,
+      targetBoard,
+      targetPosition
     };
+
     finishTurn(actor);
     broadcastViews();
     return;
   }
 
-  // 赤タイルには何があっても情報トークンを置かない。
-  // 現在は赤を指定した時点で上の処理で即ゲームオーバーになる。
+  // 赤以外の誤答先には情報トークンを置く。
   if(targetTile.kind!=="red"){
     targetTile.infoToken={
       type:"number",
@@ -1095,15 +1504,25 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
 
   const facts=gameState.publicBoardFacts[actor][myBoard];
   const fact=publicBoardFactForTile(myTile);
-  if(!facts.includes(fact))facts.push(fact);
+
+  if(!facts.includes(fact)){
+    facts.push(fact);
+  }
   sortPublicFacts(facts);
 
   gameState.lastEvent={
     kind:"failure",
-    actorRole:gameState.players[actor].role,
-    myKind:myTile.kind,myNumber:myTile.number,
-    targetKind:targetTile.kind,targetNumber:targetTile.number,
-    myBoard,myPosition,targetBoard,targetPosition,
+    actorLabel:gameState.players[actor].label,
+    targetLabel:gameState.players[targetPlayer].label,
+    myKind:myTile.kind,
+    myNumber:myTile.number,
+    targetKind:targetTile.kind,
+    targetNumber:targetTile.number,
+    myBoard,
+    myPosition,
+    targetPlayer,
+    targetBoard,
+    targetPosition,
     lives:gameState.lives
   };
 
@@ -1185,7 +1604,7 @@ function selfCutStatusForState(actor,selectedTile){
 function processSelfCut(actor,boardIndex,position){
   if(!gameState||gameState.phase!=="play"){actionError(actor,"現在は切断フェーズではありません。");return;}
   if(gameState.turn!==actor){actionError(actor,"あなたの手番ではありません。");return;}
-  if(!validBoardIndex(boardIndex)){actionError(actor,"台の指定が正しくありません。");return;}
+  if(!validBoardIndexFor(actor,boardIndex)){actionError(actor,"台の指定が正しくありません。");return;}
 
   const selected=gameState.players[actor].boards[boardIndex][position];
   if(!selected||selected.cut){actionError(actor,"切断可能な自分のタイルを選んでください。");return;}
@@ -1206,7 +1625,7 @@ function processSelfCut(actor,boardIndex,position){
 
   gameState.lastEvent={
     kind:"self",
-    actorRole:gameState.players[actor].role,
+    actorLabel:gameState.players[actor].label,
     tileKind:selected.kind,
     number:selected.number,
     count:status.ownUncut.length
@@ -1298,13 +1717,23 @@ function updateRedUsedSelector(refreshPreview=true){
   if(refreshPreview)updateSetupPreview();
 }
 
-function previewBoardSizes(totalTiles){
-  const base=Math.floor(totalTiles/4);
-  const rem=totalTiles%4;
-  const sizes=[base,base,base,base];
+function previewRackSizes(totalTiles,playerCount){
+  const rackCount=Math.max(4,playerCount);
+  const base=Math.floor(totalTiles/rackCount);
+  const rem=totalTiles%rackCount;
+  const sizes=Array(rackCount).fill(base);
 
-  for(let i=0;i<rem;i++){
-    sizes[i]++;
+  if(playerCount===3){
+    // 表示順：隊長A / 隊長B / 子分1 / 子分2
+    // 余り優先：子分1 / 子分2 / 隊長A / 隊長B
+    const priority=[2,3,0,1];
+    for(let i=0;i<rem;i++){
+      sizes[priority[i]]++;
+    }
+  }else{
+    for(let i=0;i<rem;i++){
+      sizes[i]++;
+    }
   }
 
   return sizes;
@@ -1321,17 +1750,32 @@ function updateSetupPreview(){
 
   const normalCount=maxNumber*4;
   const total=normalCount+yellowUsedCount+redUsedCount;
-  const sizes=previewBoardSizes(total);
+  const sizes=previewRackSizes(total,expectedPlayerCount);
+
+  let distribution;
+
+  if(expectedPlayerCount===2){
+    distribution=
+      `隊長A ${sizes[0]} / 隊長B ${sizes[1]} / 子分A ${sizes[2]} / 子分B ${sizes[3]}`;
+  }else if(expectedPlayerCount===3){
+    distribution=
+      `隊長A ${sizes[0]} / 隊長B ${sizes[1]} / 子分1 ${sizes[2]} / 子分2 ${sizes[3]}`;
+  }else{
+    distribution=sizes
+      .map((n,i)=>`${i===0?"隊長":`子分${i}`} ${n}`)
+      .join(" / ");
+  }
 
   els.setupPreview.textContent=
-    `通常${normalCount}枚＋黄${yellowUsedCount}枚＋赤${redUsedCount}枚＝合計${total}枚。 `+
-    `隊長A ${sizes[0]}枚 / 隊長B ${sizes[1]}枚 / 子分A ${sizes[2]}枚 / 子分B ${sizes[3]}枚。 `+
+    `${expectedPlayerCount}人・通常${normalCount}枚＋黄${yellowUsedCount}枚＋赤${redUsedCount}枚＝合計${total}枚。 `+
+    `配牌目安：${distribution}。 `+
     `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
     `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。`;
 }
 
 function readSetupSettings(){
   return {
+    playerCount:expectedPlayerCount,
     maxNumber:Number(els.maxNumberSelect.value),
     yellowCandidateCount:Number(els.yellowCandidateSelect.value),
     yellowUsedCount:Number(els.yellowUsedSelect.value),
@@ -1342,6 +1786,12 @@ function readSetupSettings(){
 
 function startOrRedeal(){
   if(role!=="host")return;
+
+  if(!allExpectedPlayersConnected()){
+    alert(`まだ全員接続していません。現在 ${connectedPlayerCount()} / ${expectedPlayerCount}人です。`);
+    return;
+  }
+
   gameState=createGameState(readSetupSettings());
   selectedInfoToken=null;
   actionState=null;
@@ -1359,15 +1809,28 @@ function renderPlayerView(view){
   els.gameCard.classList.remove("hidden");
 
   const isCaptain=view.role==="captain";
-  els.myRoleBadge.textContent=isCaptain?"隊長":"子分";
+  els.myRoleBadge.textContent=view.label;
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
 
   renderLives(view.lives);
   renderGameConfig(view.config);
   renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
-  renderBoards(els.myBoards,view.myBoards,false,view);
-  renderBoards(els.oppBoards,view.opponentBoards,true,view);
+
+  renderBoards(
+    els.myBoards,
+    view.myBoards,
+    false,
+    view,
+    {
+      playerKey:view.playerKey,
+      label:view.label,
+      infoPlaced:view.infoPlaced,
+      boardFacts:view.myBoardFacts
+    }
+  );
+
+  renderOpponents(view);
   updateActionUi();
 }
 
@@ -1412,6 +1875,7 @@ function renderGameConfig(config){
 
   const top=document.createElement("div");
   top.innerHTML=
+    `<b>参加人数：</b>${config.playerCount}人　<b>台数：</b>${config.rackCount}<br>`+
     `<b>最大数字：</b>${config.maxNumber}<br>`+
     `<b>黄：</b>${config.yellowCandidateCount}候補中${config.yellowUsedCount}枚使用　`+
     `<b>赤：</b>${config.redCandidateCount}候補中${config.redUsedCount}枚使用`;
@@ -1450,40 +1914,64 @@ function boardName(index){
   return index===0?"台A":"台B";
 }
 
+function eventActorLabel(event){
+  return event.actorLabel || (
+    event.actorRole ? roleName(event.actorRole) : "プレイヤー"
+  );
+}
+
 function renderLastEvent(event){
   els.lastEventBox.className="resultBox neutral hidden";
   if(!event)return;
 
   let text="";
   let kind="neutral";
+  const actor=eventActorLabel(event);
+  const target=event.targetLabel||"相手";
 
   if(event.kind==="success"){
-    const call=event.myKind==="yellow"?"黄タイル":formatTileNumber(event.myNumber);
+    const call=
+      event.myKind==="yellow"
+        ? "黄タイル"
+        : formatTileNumber(event.myNumber);
+
     text=
-      `${roleName(event.actorRole)}：${call}で切断成功！ `+
+      `${actor}：${call}で切断成功！ `+
       `自分の${boardName(event.myBoard)}・${event.myPosition+1}番目「${tileExactLabel(event.myKind,event.myNumber)}」と、`+
-      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目「${tileExactLabel(event.targetKind,event.targetNumber)}」を公開しました。`;
+      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目「${tileExactLabel(event.targetKind,event.targetNumber)}」を公開しました。`;
+
     kind="success";
 
   }else if(event.kind==="failure"){
-    const call=event.myKind==="yellow"?"黄タイル":`「${formatTileNumber(event.myNumber)}」`;
-    const fact=event.myKind==="yellow"?"黄タイル":`「${formatTileNumber(event.myNumber)}」`;
+    const call=
+      event.myKind==="yellow"
+        ? "黄タイル"
+        : `「${formatTileNumber(event.myNumber)}」`;
+
+    const fact=
+      event.myKind==="yellow"
+        ? "黄タイル"
+        : `「${formatTileNumber(event.myNumber)}」`;
+
     text=
-      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${fact}を使い、`+
-      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を${call}と予想しましたが不正解。`+
-      `相手の実際のタイルは「${tileExactLabel(event.targetKind,event.targetNumber)}」でした。`+
+      `${actor}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${fact}を使い、`+
+      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を${call}と予想しましたが不正解。`+
+      `実際は「${tileExactLabel(event.targetKind,event.targetNumber)}」でした。`+
       `情報トークンを置き、ライフは残り${event.lives}です。`+
-      ` このため、${roleName(event.actorRole)}の${boardName(event.myBoard)}には${fact}があることが確定します。`;
+      ` ${actor}の${boardName(event.myBoard)}には${fact}があることが確定します。`;
+
     kind="failure";
 
   }else if(event.kind==="self"){
     const label=
-      event.tileKind==="yellow" ? "黄タイル" :
-      event.tileKind==="red" ? "赤タイル" :
-      `「${formatTileNumber(event.number)}」`;
+      event.tileKind==="yellow"
+        ? "黄タイル"
+        : event.tileKind==="red"
+          ? "赤タイル"
+          : `「${formatTileNumber(event.number)}」`;
 
     text=
-      `${roleName(event.actorRole)}：${label}を自分だけで${event.count}枚同時に切断しました。`;
+      `${actor}：${label}を自分だけで${event.count}枚同時に切断しました。`;
 
     kind="self";
 
@@ -1494,14 +1982,16 @@ function renderLastEvent(event){
         : `「${formatTileNumber(event.myNumber)}」`;
 
     text=
-      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${call}で、`+
-      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を指定しました。`+
+      `${actor}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${call}で、`+
+      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を指定。`+
       `そこは赤${formatTileNumber(event.redNumber)}だったため、即ゲームオーバーです。`;
 
     kind="failure";
   }
 
-  if(event.skippedRole)text+=` ${roleName(event.skippedRole)}は未切断タイルがないため、手番をスキップします。`;
+  if(event.skippedPlayers?.length){
+    text+=` ${event.skippedPlayers.join("、")}は未切断タイルがないため手番をスキップします。`;
+  }
 
   els.lastEventBox.textContent=text;
   els.lastEventBox.className=`resultBox ${kind}`;
@@ -1514,33 +2004,57 @@ function updatePhaseUi(view){
 
   if(view.phase==="infoTokens"){
     els.phaseTitle.textContent="情報トークン配置";
-    const myTurn=view.infoTurn===view.playerKey;
-    const whoseTurn=myTurn?"あなた":(view.role==="captain"?"子分":"隊長");
 
-    els.turnBanner.textContent=`${whoseTurn}が情報トークンを配置する番です`;
+    const myTurn=
+      view.infoTurn===view.playerKey;
+
+    els.turnBanner.textContent=
+      myTurn
+        ? "あなたが情報トークンを配置する番です"
+        : `${view.infoTurnLabel}が情報トークンを配置する番です`;
+
     els.turnBanner.classList.toggle("mine",myTurn);
 
     if(myTurn){
       const remaining=[];
-      if(!view.infoPlaced[0])remaining.push("台A");
-      if(!view.infoPlaced[1])remaining.push("台B");
-      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。通常数字タイルから選んでください。黄タイル・赤タイルには情報トークンを置けません。`;
+
+      view.infoPlaced.forEach((done,index)=>{
+        if(!done){
+          remaining.push(boardName(index));
+        }
+      });
+
+      els.phaseHelp.textContent=
+        `${remaining.join("・")}に1枚ずつ置きます。通常数字タイルから選んでください。黄タイル・赤タイルには情報トークンを置けません。`;
     }else{
-      els.phaseHelp.textContent="相手が自分の2台へ情報トークンを置くのを待っています。";
+      els.phaseHelp.textContent=
+        `${view.infoTurnLabel}の配置を待っています。`;
     }
+
     return;
   }
 
   if(view.phase==="play"){
     els.phaseTitle.textContent="切断フェーズ";
-    const myTurn=view.turn===view.playerKey;
-    els.turnBanner.textContent=myTurn?"あなたの手番です":"相手の手番です";
-    els.turnBanner.classList.toggle("mine",myTurn);
-    els.phaseHelp.textContent=myTurn
-      ?"切断方法を選んでください。1回行動すると、成否に関係なく相手の手番になります。"
-      :"相手の操作を待っています。";
 
-    if(myTurn)els.playControls.classList.remove("hidden");
+    const myTurn=
+      view.turn===view.playerKey;
+
+    els.turnBanner.textContent=
+      myTurn
+        ? "あなたの手番です"
+        : `${view.turnLabel}の手番です`;
+
+    els.turnBanner.classList.toggle("mine",myTurn);
+
+    els.phaseHelp.textContent=
+      myTurn
+        ? "切断方法を選んでください。1回行動すると、成否に関係なく次のプレイヤーへ手番が移ります。"
+        : `${view.turnLabel}の操作を待っています。`;
+
+    if(myTurn){
+      els.playControls.classList.remove("hidden");
+    }
     return;
   }
 
@@ -1578,23 +2092,55 @@ function updatePhaseUi(view){
   }
 }
 
-function renderBoards(container,boards,isOpponent,view){
+function renderOpponents(view){
+  els.oppBoards.innerHTML="";
+
+  for(const opponent of view.opponents){
+    const group=document.createElement("div");
+    group.className="opponentGroup";
+
+    const heading=document.createElement("div");
+    heading.className="opponentName";
+    heading.textContent=opponent.label;
+    group.appendChild(heading);
+
+    const boards=document.createElement("div");
+    group.appendChild(boards);
+
+    renderBoards(
+      boards,
+      opponent.boards,
+      true,
+      view,
+      {
+        playerKey:opponent.playerKey,
+        label:opponent.label,
+        infoPlaced:opponent.infoPlaced,
+        boardFacts:opponent.boardFacts
+      }
+    );
+
+    els.oppBoards.appendChild(group);
+  }
+}
+
+function renderBoards(container,boards,isOpponent,view,owner){
   container.innerHTML="";
 
   boards.forEach((board,bi)=>{
     const wrap=document.createElement("div");
     wrap.className="board";
 
-    const infoDone=isOpponent ? view.opponentInfoPlaced[bi] : view.infoPlaced[bi];
+    const infoDone=owner.infoPlaced?.[bi];
     if(infoDone)wrap.classList.add("done");
-    if(isBoardSelected(isOpponent,bi))wrap.classList.add("boardSelected");
+    if(isBoardSelected(isOpponent,owner.playerKey,bi))wrap.classList.add("boardSelected");
 
     const title=document.createElement("div");
     title.className="boardTitle";
     title.textContent=`台${bi===0?"A":"B"}（${board.length}枚）`;
     wrap.appendChild(title);
 
-    const facts=isOpponent ? view.opponentBoardFacts?.[bi] : view.myBoardFacts?.[bi];
+    const facts=owner.boardFacts?.[bi];
     if(facts&&facts.length){
       const factsRow=document.createElement("div");
       factsRow.className="boardFacts";
@@ -1655,16 +2201,21 @@ function renderBoards(container,boards,isOpponent,view){
       }
 
       // 切断フェーズでのタイル選択
-      if(canSelectPlayTile(isOpponent,bi,tile,view)){
+      if(canSelectPlayTile(isOpponent,owner.playerKey,bi,tile,view)){
         el.classList.add("selectableTile");
-        el.onclick=()=>selectPlayTile(isOpponent,bi,tile.position,tile.number,tile.kind);
+        el.onclick=()=>selectPlayTile(isOpponent,owner.playerKey,bi,tile.position,tile.number,tile.kind);
       }
 
       if(actionState&&actionState.mode==="normal"){
         if(!isOpponent&&actionState.myBoard===bi&&actionState.myPosition===tile.position){
           el.classList.add("playSelectedOwn");
         }
-        if(isOpponent&&actionState.targetBoard===bi&&actionState.targetPosition===tile.position){
+        if(
+          isOpponent &&
+          actionState.targetPlayer===owner.playerKey &&
+          actionState.targetBoard===bi &&
+          actionState.targetPosition===tile.position
+        ){
           el.classList.add("playSelectedTarget");
         }
       }
@@ -1745,7 +2296,7 @@ function confirmInfoToken(){
   const {boardIndex,position}=selectedInfoToken;
 
   if(role==="host"){
-    applyInfoTokenPlacement("host",boardIndex,position);
+    applyInfoTokenPlacement(localPlayerKey,boardIndex,position);
   }else{
     send({type:"placeInfoToken",boardIndex,position});
   }
@@ -1763,6 +2314,7 @@ function beginAction(mode){
     myPosition:null,
     myKind:null,
     number:null,
+    targetPlayer:null,
     targetBoard:null,
     targetPosition:null,
     selfCount:null,
@@ -1779,7 +2331,7 @@ function cancelAction(){
   rerenderBoardsOnly();
 }
 
-function canSelectPlayTile(isOpponent,boardIndex,tile,view){
+function canSelectPlayTile(isOpponent,ownerKey,boardIndex,tile,view){
   if(!actionState||view.phase!=="play"||view.turn!==view.playerKey||tile.cut)return false;
 
   if(actionState.mode==="self"){
@@ -1801,7 +2353,7 @@ function selectedSelfPosition(boardIndex,position){
   return actionState.selfPositions.some(p=>p.boardIndex===boardIndex&&p.position===position);
 }
 
-function isBoardSelected(isOpponent,boardIndex){
+function isBoardSelected(isOpponent,ownerKey,boardIndex){
   if(!actionState)return false;
 
   if(actionState.mode==="self"){
@@ -1810,13 +2362,13 @@ function isBoardSelected(isOpponent,boardIndex){
 
   if(actionState.mode==="normal"){
     if(!isOpponent)return actionState.myBoard===boardIndex;
-    return actionState.targetBoard===boardIndex;
+    return actionState.targetPlayer===ownerKey&&actionState.targetBoard===boardIndex;
   }
 
   return false;
 }
 
-function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
+function selectPlayTile(isOpponent,ownerKey,boardIndex,position,number,tileKind){
   if(!actionState||!currentView)return;
 
   if(actionState.mode==="normal"){
@@ -1827,10 +2379,12 @@ function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
       actionState.number=number;
 
       // 使用する自分のタイルを変えたら、相手側の選択は一度解除。
+      actionState.targetPlayer=null;
       actionState.targetBoard=null;
       actionState.targetPosition=null;
     }else{
       if(actionState.myPosition===null)return;
+      actionState.targetPlayer=ownerKey;
       actionState.targetBoard=boardIndex;
       actionState.targetPosition=position;
     }
@@ -1924,9 +2478,11 @@ function selfCutStatusForView(selectedTile){
       }
     }
 
-    for(const board of currentView.opponentBoards){
-      for(const tile of board){
-        if(tile.cut&&tile.kind==="yellow")cutCount++;
+    for(const opponent of currentView.opponents){
+      for(const board of opponent.boards){
+        for(const tile of board){
+          if(tile.cut&&tile.kind==="yellow")cutCount++;
+        }
       }
     }
 
@@ -1948,9 +2504,11 @@ function selfCutStatusForView(selectedTile){
     }
   }
 
-  for(const board of currentView.opponentBoards){
-    for(const tile of board){
-      if(tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number)cutCount++;
+  for(const opponent of currentView.opponents){
+    for(const board of opponent.boards){
+      for(const tile of board){
+        if(tile.cut&&tile.kind==="normal"&&tile.number===selectedTile.number)cutCount++;
+      }
     }
   }
 
@@ -2003,7 +2561,14 @@ function updateActionUi(){
         `自分：${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目「${ownLabel}」`;
 
       if(actionState.targetPosition!==null){
-        summary+=` ／ 相手：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を${callLabel}と予想`;
+        const target=
+          currentView.opponents.find(
+            p=>p.playerKey===actionState.targetPlayer
+          );
+
+        summary+=
+          ` ／ ${target?.label||"相手"}：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を${callLabel}と予想`;
+
         els.confirmActionBtn.disabled=false;
       }else{
         summary+=" ／ 相手：未選択";
@@ -2039,8 +2604,21 @@ function updateActionUi(){
 
 function rerenderBoardsOnly(){
   if(!currentView)return;
-  renderBoards(els.myBoards,currentView.myBoards,false,currentView);
-  renderBoards(els.oppBoards,currentView.opponentBoards,true,currentView);
+
+  renderBoards(
+    els.myBoards,
+    currentView.myBoards,
+    false,
+    currentView,
+    {
+      playerKey:currentView.playerKey,
+      label:currentView.label,
+      infoPlaced:currentView.infoPlaced,
+      boardFacts:currentView.myBoardFacts
+    }
+  );
+
+  renderOpponents(currentView);
 }
 
 function confirmPlayAction(){
@@ -2059,12 +2637,20 @@ function confirmPlayAction(){
       type:"normalCut",
       myBoard:snapshot.myBoard,
       myPosition:snapshot.myPosition,
+      targetPlayer:snapshot.targetPlayer,
       targetBoard:snapshot.targetBoard,
       targetPosition:snapshot.targetPosition
     };
 
     if(role==="host"){
-      processNormalCut("host",payload.myBoard,payload.myPosition,payload.targetBoard,payload.targetPosition);
+      processNormalCut(
+        localPlayerKey,
+        payload.myBoard,
+        payload.myPosition,
+        payload.targetPlayer,
+        payload.targetBoard,
+        payload.targetPosition
+      );
     }else{
       send(payload);
     }
@@ -2076,7 +2662,7 @@ function confirmPlayAction(){
     };
 
     if(role==="host"){
-      processSelfCut("host",payload.boardIndex,payload.position);
+      processSelfCut(localPlayerKey,payload.boardIndex,payload.position);
     }else{
       send(payload);
     }
@@ -2241,34 +2827,158 @@ function renderQr(target,text){
 
 async function createOffer(){
   try{
-    setStatus("親機QRを作成中…","wait");
-    const peer=makePeer();
-    setupChannel(peer.createDataChannel("bomb-game",{ordered:true}));
-    await peer.setLocalDescription(await peer.createOffer());
+    if(role!=="host")return;
+
+    const playerKey=nextMissingPlayerKey();
+
+    if(!playerKey){
+      alert("全員接続済みです。");
+      return;
+    }
+
+    pendingHostPlayerKey=playerKey;
+    els.playerCountSelect.disabled=true;
+
+    const old=hostConnections.get(playerKey);
+    try{old?.channel?.close()}catch(_){}
+    try{old?.pc?.close()}catch(_){}
+
+    setStatus(
+      `${Number(playerKey.slice(1))+1}人目用QRを作成中…`,
+      "wait"
+    );
+
+    const peer=createRtcPeer();
+
+    const entry={
+      pc:peer,
+      channel:null,
+      connected:false
+    };
+
+    hostConnections.set(playerKey,entry);
+
+    peer.onconnectionstatechange=()=>{
+      const state=peer.connectionState;
+
+      if(state==="failed"){
+        entry.connected=false;
+        refreshHostConnectionUi();
+        setStatus(
+          `P${Number(playerKey.slice(1))+1}との接続に失敗しました`,
+          "bad"
+        );
+      }
+    };
+
+    const ch=peer.createDataChannel(
+      "bomb-game",
+      {ordered:true}
+    );
+
+    setupHostChannel(playerKey,ch,peer);
+
+    await peer.setLocalDescription(
+      await peer.createOffer()
+    );
+
     await waitIce(peer);
+
     const code=encodeDesc(peer.localDescription);
-    els.offerOut.value=code;renderQr(els.offerQr,code);
+
+    els.offerOut.value=code;
+    renderQr(els.offerQr,code);
     els.offerQrArea.classList.remove("hidden");
-    setStatus("親機QRを子機に読ませてください","wait");
-  }catch(e){console.error(e);setStatus("親機QR作成失敗","bad");alert(e.message)}
+
+    setStatus(
+      `${Number(playerKey.slice(1))+1}人目に親機QRを読ませてください`,
+      "wait"
+    );
+
+  }catch(e){
+    console.error(e);
+    setStatus("親機QR作成失敗","bad");
+    alert(e.message);
+  }
+}
+
+function closeGuestPeer(showStatus=false){
+  try{
+    if(channel&&channel.readyState==="open"){
+      channel.send(JSON.stringify({type:"disconnect"}));
+    }
+  }catch(_){}
+
+  try{channel?.close()}catch(_){}
+  try{pc?.close()}catch(_){}
+
+  channel=null;
+  pc=null;
+
+  if(showStatus){
+    setStatus("接続を切りました","wait");
+    els.lobbyCard.classList.add("hidden");
+    els.gameCard.classList.add("hidden");
+  }
 }
 
 async function buildAnswerFromCode(code){
-  const peer=makePeer();
-  peer.ondatachannel=e=>setupChannel(e.channel);
-  await peer.setRemoteDescription(decodeDesc(code));
-  await peer.setLocalDescription(await peer.createAnswer());
+  closeGuestPeer(false);
+
+  const peer=createRtcPeer();
+  pc=peer;
+
+  peer.onconnectionstatechange=()=>{
+    if(peer.connectionState==="failed"){
+      setStatus("親機との接続に失敗しました","bad");
+    }
+  };
+
+  peer.ondatachannel=e=>{
+    setupGuestChannel(e.channel);
+  };
+
+  await peer.setRemoteDescription(
+    decodeDesc(code)
+  );
+
+  await peer.setLocalDescription(
+    await peer.createAnswer()
+  );
+
   await waitIce(peer);
-  const answerCode=encodeDesc(peer.localDescription);
-  els.answerOut.value=answerCode;renderQr(els.answerQr,answerCode);
+
+  const answerCode=
+    encodeDesc(peer.localDescription);
+
+  els.answerOut.value=answerCode;
+  renderQr(els.answerQr,answerCode);
   els.answerQrArea.classList.remove("hidden");
   els.answerWait.classList.add("hidden");
+
   setStatus("返答QRを親機に読ませてください","wait");
 }
 
 async function applyAnswerCode(code){
-  if(!pc||!pc.localDescription)throw new Error("先に親機QRを作成してください。");
-  await pc.setRemoteDescription(decodeDesc(code));
+  if(role!=="host"){
+    throw new Error("親機で操作してください。");
+  }
+
+  if(!pendingHostPlayerKey){
+    throw new Error("先に次の子機用QRを作成してください。");
+  }
+
+  const entry=
+    hostConnections.get(pendingHostPlayerKey);
+
+  if(!entry?.pc?.localDescription){
+    throw new Error("先に親機QRを作成してください。");
+  }
+
+  await entry.pc.setRemoteDescription(
+    decodeDesc(code)
+  );
+
   setStatus("接続処理中…","wait");
 }
 
@@ -2316,20 +3026,47 @@ async function copyText(el){
   catch(_){el.focus();el.select();document.execCommand("copy");alert("コピーしました。")}
 }
 
-function closePeer(showStatus=true){
-  try{if(channel&&channel.readyState==="open")channel.send(JSON.stringify({type:"disconnect"}))}catch(_){}
-  try{if(channel)channel.close()}catch(_){}
-  try{if(pc)pc.close()}catch(_){}
-  channel=null;pc=null;
+function closeAllHostPeers(showStatus=true){
+  for(const [key,c] of hostConnections){
+    try{
+      if(c.channel&&c.channel.readyState==="open"){
+        c.channel.send(JSON.stringify({type:"disconnect"}));
+      }
+    }catch(_){}
+
+    try{c.channel?.close()}catch(_){}
+    try{c.pc?.close()}catch(_){}
+  }
+
+  hostConnections.clear();
+  pendingHostPlayerKey=null;
+  gameState=null;
+  connectedOnce=false;
+  els.playerCountSelect.disabled=false;
+
   if(showStatus){
-    setStatus("接続を切りました","wait");
+    setStatus("全接続を切りました","wait");
     els.lobbyCard.classList.add("hidden");
     els.gameCard.classList.add("hidden");
   }
+
+  refreshHostConnectionUi();
 }
-async function disconnect(){await stopAllScanners();closePeer(true);connectedOnce=false}
+
+async function disconnect(){
+  await stopAllScanners();
+
+  if(role==="host"){
+    closeAllHostPeers(true);
+  }else{
+    closeGuestPeer(true);
+    connectedOnce=false;
+    localPlayerKey=null;
+  }
+}
 
 els.hostBtn.onclick=()=>showRole("host");
+els.playerCountSelect.onchange=updateExpectedPlayerCount;
 els.guestBtn.onclick=()=>showRole("guest");
 els.createOfferBtn.onclick=createOffer;
 els.scanOfferBtn.onclick=()=>startScanner("guest",async code=>{
@@ -2369,7 +3106,21 @@ els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;
 
 window.addEventListener("beforeunload",()=>{
-  try{if(channel&&channel.readyState==="open")channel.send(JSON.stringify({type:"disconnect"}))}catch(_){}
+  if(role==="host"){
+    for(const [,c] of hostConnections){
+      try{
+        if(c.channel&&c.channel.readyState==="open"){
+          c.channel.send(JSON.stringify({type:"disconnect"}));
+        }
+      }catch(_){}
+    }
+  }else{
+    try{
+      if(channel&&channel.readyState==="open"){
+        channel.send(JSON.stringify({type:"disconnect"}));
+      }
+    }catch(_){}
+  }
 });
 
 updateSetupSelectors();

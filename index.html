@@ -301,13 +301,46 @@ summary{font-weight:750;cursor:pointer}
   font-size:clamp(.45rem,1.9vw,.68rem)
 }
 
+
+.redCandidateList{
+  display:flex;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-top:5px
+}
+.redCandidateBadge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:34px;
+  height:26px;
+  padding:0 7px;
+  border-radius:8px;
+  background:#fee2e2;
+  border:1px solid #dc2626;
+  color:#991b1b;
+  font-weight:900;
+  font-size:.82rem
+}
+.tile.redTile{
+  background:#fee2e2;
+  border-color:#dc2626;
+  color:#991b1b
+}
+.tile.redTile.cut{
+  background:#fecaca;
+  border-color:#b91c1c;
+  color:#7f1d1d;
+  opacity:.84
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2人用ゲーム版（スマホ幅最適化・黄タイル初期情報禁止）</p>
+  <p class="sub">2人用ゲーム版（赤タイル情報トークン禁止）</p>
 
   <section class="card">
     <div class="status">
@@ -405,6 +438,16 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
           <select id="yellowUsedSelect"></select>
           <div class="small">候補の中から秘密で抽選。通常ルールは偶数枚ですが、奇数も選択できます。</div>
         </div>
+        <div class="setupField">
+          <label for="redCandidateSelect">赤タイル候補数</label>
+          <select id="redCandidateSelect"></select>
+          <div class="small">1.5～(最大値-1).5からランダムに候補を公開します。</div>
+        </div>
+        <div class="setupField">
+          <label for="redUsedSelect">実際に使用する赤タイル数</label>
+          <select id="redUsedSelect"></select>
+          <div class="small">公開候補の中から秘密で抽選します。0枚や奇数枚も選択できます。</div>
+        </div>
       </div>
 
       <div id="setupPreview" class="notice info"></div>
@@ -415,7 +458,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       </div>
     </div>
     <div id="guestLobby" class="hidden">
-      <div class="notice info">親機が最大数字と黄タイル枚数を設定しています。</div>
+      <div class="notice info">親機が最大数字と黄・赤タイル枚数を設定しています。</div>
     </div>
   </section>
 
@@ -480,7 +523,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    最大数字8～16、黄タイル候補・実使用枚数を設定可能。黄タイル同士は数字に関係なく切断できます。
+    最大数字8～16、黄・赤タイルの候補数と使用数を設定可能。赤タイルを指定すると即ゲームオーバーです。
   </footer>
 </div>
 
@@ -512,7 +555,8 @@ const els={
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
   maxNumberSelect:$("maxNumberSelect"),yellowCandidateSelect:$("yellowCandidateSelect"),
-  yellowUsedSelect:$("yellowUsedSelect"),setupPreview:$("setupPreview"),
+  yellowUsedSelect:$("yellowUsedSelect"),redCandidateSelect:$("redCandidateSelect"),
+  redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
   myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
@@ -654,8 +698,24 @@ function sampleWithoutReplacement(values,count){
 
 function createGameState(settings){
   const maxNumber=settings.maxNumber;
-  const yellowCandidateCount=Math.max(0,Math.min(settings.yellowCandidateCount,maxNumber-1));
-  const yellowUsedCount=Math.max(0,Math.min(settings.yellowUsedCount,yellowCandidateCount));
+
+  const yellowCandidateCount=Math.max(
+    0,
+    Math.min(settings.yellowCandidateCount,maxNumber-1)
+  );
+  const yellowUsedCount=Math.max(
+    0,
+    Math.min(settings.yellowUsedCount,yellowCandidateCount)
+  );
+
+  const redCandidateCount=Math.max(
+    0,
+    Math.min(settings.redCandidateCount,maxNumber-1)
+  );
+  const redUsedCount=Math.max(
+    0,
+    Math.min(settings.redUsedCount,redCandidateCount)
+  );
 
   const captainIsHost=Math.random()<0.5;
   const hostRole=captainIsHost?"captain":"minion";
@@ -664,23 +724,55 @@ function createGameState(settings){
   const minionKey=captainIsHost?"guest":"host";
 
   const allYellowValues=[];
-  for(let n=1;n<maxNumber;n++)allYellowValues.push(Number((n+0.1).toFixed(1)));
+  const allRedValues=[];
 
-  const yellowCandidates=sampleWithoutReplacement(allYellowValues,yellowCandidateCount).sort((a,b)=>a-b);
-  const yellowUsedValues=sampleWithoutReplacement(yellowCandidates,yellowUsedCount).sort((a,b)=>a-b);
+  for(let n=1;n<maxNumber;n++){
+    allYellowValues.push(Number((n+0.1).toFixed(1)));
+    allRedValues.push(Number((n+0.5).toFixed(1)));
+  }
+
+  const yellowCandidates=
+    sampleWithoutReplacement(allYellowValues,yellowCandidateCount)
+      .sort((a,b)=>a-b);
+
+  const yellowUsedValues=
+    sampleWithoutReplacement(yellowCandidates,yellowUsedCount)
+      .sort((a,b)=>a-b);
+
+  const redCandidates=
+    sampleWithoutReplacement(allRedValues,redCandidateCount)
+      .sort((a,b)=>a-b);
+
+  const redUsedValues=
+    sampleWithoutReplacement(redCandidates,redUsedCount)
+      .sort((a,b)=>a-b);
 
   const deck=[];
+
   for(let n=1;n<=maxNumber;n++){
-    for(let k=0;k<4;k++)deck.push({kind:"normal",number:n});
+    for(let k=0;k<4;k++){
+      deck.push({kind:"normal",number:n});
+    }
   }
-  for(const value of yellowUsedValues)deck.push({kind:"yellow",number:value});
+
+  for(const value of yellowUsedValues){
+    deck.push({kind:"yellow",number:value});
+  }
+
+  for(const value of redUsedValues){
+    deck.push({kind:"red",number:value});
+  }
+
   shuffle(deck);
 
   const totalTiles=deck.length;
   const base=Math.floor(totalTiles/4);
   const remainder=totalTiles%4;
   const boardSizes=[base,base,base,base];
-  for(let i=0;i<remainder;i++)boardSizes[i]++;
+
+  for(let i=0;i<remainder;i++){
+    boardSizes[i]++;
+  }
 
   // 余りは必ず 隊長A → 隊長B → 子分A → 子分B の順。
   const rackOrder=[
@@ -690,8 +782,13 @@ function createGameState(settings){
     {playerKey:minionKey,boardIndex:1}
   ];
 
-  const rawBoards={host:[[],[]],guest:[[],[]]};
+  const rawBoards={
+    host:[[],[]],
+    guest:[[],[]]
+  };
+
   let cursor=0;
+
   rackOrder.forEach((rack,index)=>{
     const size=boardSizes[index];
     rawBoards[rack.playerKey][rack.boardIndex]=deck.slice(cursor,cursor+size);
@@ -699,22 +796,40 @@ function createGameState(settings){
   });
 
   return {
-    version:4,
+    version:5,
     phase:"infoTokens",
     lives:2,
     lastEvent:null,
+
     config:{
       maxNumber,
       yellowCandidateCount,
       yellowUsedCount,
       yellowCandidates,
+      redCandidateCount,
+      redUsedCount,
+      redCandidates,
       totalTiles
     },
+
+    // 実際に採用された特殊タイルは親機だけが保持する。
     secretYellowUsedValues:yellowUsedValues,
-    publicBoardFacts:{host:[[],[]],guest:[[],[]]},
+    secretRedUsedValues:redUsedValues,
+
+    publicBoardFacts:{
+      host:[[],[]],
+      guest:[[],[]]
+    },
+
     infoTurn:captainKey,
-    infoPlaced:{host:[false,false],guest:[false,false]},
+
+    infoPlaced:{
+      host:[false,false],
+      guest:[false,false]
+    },
+
     turn:null,
+
     players:{
       host:{
         role:hostRole,
@@ -754,6 +869,9 @@ function makeViewFor(playerKey){
       yellowCandidateCount:gameState.config.yellowCandidateCount,
       yellowUsedCount:gameState.config.yellowUsedCount,
       yellowCandidates:[...gameState.config.yellowCandidates],
+      redCandidateCount:gameState.config.redCandidateCount,
+      redUsedCount:gameState.config.redUsedCount,
+      redCandidates:[...gameState.config.redCandidates],
       totalTiles:gameState.config.totalTiles
     },
     myBoardFacts:gameState.publicBoardFacts[playerKey].map(x=>[...x]),
@@ -802,7 +920,9 @@ function applyInfoTokenPlacement(playerKey,boardIndex,position){
   const tile=gameState.players[playerKey].boards[boardIndex][position];
   if(!tile)return;
 
-  if(tile.kind==="yellow")return;
+  // 初期情報トークンは通常数字タイルにしか置けない。
+  // 黄タイル・赤タイルは対象外。
+  if(tile.kind!=="normal")return;
 
   tile.infoToken={type:"number",value:tile.number,tileKind:tile.kind};
   gameState.infoPlaced[playerKey][boardIndex]=true;
@@ -876,17 +996,28 @@ function validBoardIndex(v){
 }
 
 function tileExactLabel(kind,number){
-  return kind==="yellow" ? `黄${formatTileNumber(number)}` : formatTileNumber(number);
+  if(kind==="yellow")return `黄${formatTileNumber(number)}`;
+  if(kind==="red")return `赤${formatTileNumber(number)}`;
+  return formatTileNumber(number);
 }
 
 function publicBoardFactForTile(tile){
-  return tile.kind==="yellow" ? "黄" : formatTileNumber(tile.number);
+  if(tile.kind==="yellow")return "黄";
+  if(tile.kind==="red")return "赤";
+  return formatTileNumber(tile.number);
 }
 
 function sortPublicFacts(facts){
   facts.sort((a,b)=>{
-    if(a==="黄"&&b!=="黄")return 1;
-    if(b==="黄"&&a!=="黄")return -1;
+    const specialOrder={"黄":1,"赤":2};
+    const aSpecial=specialOrder[a]||0;
+    const bSpecial=specialOrder[b]||0;
+
+    if(aSpecial||bSpecial){
+      if(aSpecial&&bSpecial)return aSpecial-bSpecial;
+      return aSpecial ? 1 : -1;
+    }
+
     return Number(a)-Number(b);
   });
 }
@@ -909,6 +1040,32 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
   if(!myTile||!targetTile){actionError(actor,"タイルの指定が正しくありません。");return;}
   if(myTile.cut||targetTile.cut){actionError(actor,"すでに切断済みのタイルは選べません。");return;}
 
+  // 赤タイルは通常切断には使用できない。
+  if(myTile.kind==="red"){
+    actionError(actor,"赤タイルは通常時には切断に使用できません。");
+    return;
+  }
+
+  // 相手の赤タイルの位置を指定した時点で即ゲームオーバー。
+  if(targetTile.kind==="red"){
+    gameState.lastEvent={
+      kind:"redBoom",
+      actorRole:gameState.players[actor].role,
+      myKind:myTile.kind,
+      myNumber:myTile.number,
+      myBoard,
+      myPosition,
+      targetBoard,
+      targetPosition,
+      redNumber:targetTile.number
+    };
+
+    gameState.phase="gameover";
+    gameState.turn=null;
+    broadcastViews();
+    return;
+  }
+
   if(tilesMatch(myTile,targetTile)){
     myTile.cut=true;
     targetTile.cut=true;
@@ -924,7 +1081,16 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
     return;
   }
 
-  targetTile.infoToken={type:"number",value:targetTile.number,tileKind:targetTile.kind};
+  // 赤タイルには何があっても情報トークンを置かない。
+  // 現在は赤を指定した時点で上の処理で即ゲームオーバーになる。
+  if(targetTile.kind!=="red"){
+    targetTile.infoToken={
+      type:"number",
+      value:targetTile.number,
+      tileKind:targetTile.kind
+    };
+  }
+
   gameState.lives=Math.max(0,gameState.lives-1);
 
   const facts=gameState.publicBoardFacts[actor][myBoard];
@@ -947,6 +1113,38 @@ function processNormalCut(actor,myBoard,myPosition,targetBoard,targetPosition){
 
 function selfCutStatusForState(actor,selectedTile){
   const ownUncut=[];
+
+  if(selectedTile.kind==="red"){
+    const allOwnUncut=[];
+
+    gameState.players[actor].boards.forEach((board,boardIndex)=>{
+      board.forEach(tile=>{
+        if(!tile.cut){
+          allOwnUncut.push({
+            boardIndex,
+            position:tile.position,
+            kind:tile.kind
+          });
+        }
+      });
+    });
+
+    const onlyRed=
+      allOwnUncut.length>0 &&
+      allOwnUncut.every(tile=>tile.kind==="red");
+
+    return {
+      valid:onlyRed,
+      kind:"red",
+      number:selectedTile.number,
+      ownUncut:onlyRed
+        ? allOwnUncut.map(tile=>({
+            boardIndex:tile.boardIndex,
+            position:tile.position
+          }))
+        : []
+    };
+  }
 
   if(selectedTile.kind==="yellow"){
     gameState.players[actor].boards.forEach((board,boardIndex)=>{
@@ -994,7 +1192,10 @@ function processSelfCut(actor,boardIndex,position){
 
   const status=selfCutStatusForState(actor,selected);
   if(!status.valid){
-    const label=selected.kind==="yellow"?"黄タイル":`「${formatTileNumber(selected.number)}」`;
+    const label=
+      selected.kind==="yellow" ? "黄タイル" :
+      selected.kind==="red" ? "赤タイル" :
+      `「${formatTileNumber(selected.number)}」`;
     actionError(actor,`${label}は自分だけでは切断できません。`);
     return;
   }
@@ -1027,62 +1228,115 @@ function fillSelect(select,values,currentValue){
 }
 
 function updateSetupSelectors(){
-  const oldCandidate=Number(els.yellowCandidateSelect.value);
-  const oldUsed=Number(els.yellowUsedSelect.value);
+  const oldYellowCandidate=Number(els.yellowCandidateSelect.value);
+  const oldYellowUsed=Number(els.yellowUsedSelect.value);
+  const oldRedCandidate=Number(els.redCandidateSelect.value);
+  const oldRedUsed=Number(els.redUsedSelect.value);
 
   if(!els.maxNumberSelect.options.length){
-    fillSelect(els.maxNumberSelect,Array.from({length:9},(_,i)=>i+8),12);
+    fillSelect(
+      els.maxNumberSelect,
+      Array.from({length:9},(_,i)=>i+8),
+      12
+    );
   }
 
   const maxNumber=Number(els.maxNumberSelect.value)||12;
   const maxCandidate=maxNumber-1;
-  const candidates=Array.from({length:maxCandidate+1},(_,i)=>i);
-  const candidateValue=Number.isFinite(oldCandidate)?Math.min(oldCandidate,maxCandidate):Math.min(3,maxCandidate);
-  fillSelect(els.yellowCandidateSelect,candidates,candidateValue);
+  const candidateValues=Array.from({length:maxCandidate+1},(_,i)=>i);
 
-  const candidateCount=Number(els.yellowCandidateSelect.value)||0;
-  const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
-  const usedValue=Number.isFinite(oldUsed)?Math.min(oldUsed,candidateCount):Math.min(2,candidateCount);
-  fillSelect(els.yellowUsedSelect,usedValues,usedValue);
+  fillSelect(
+    els.yellowCandidateSelect,
+    candidateValues,
+    Number.isFinite(oldYellowCandidate)
+      ? Math.min(oldYellowCandidate,maxCandidate)
+      : 0
+  );
 
+  fillSelect(
+    els.redCandidateSelect,
+    candidateValues,
+    Number.isFinite(oldRedCandidate)
+      ? Math.min(oldRedCandidate,maxCandidate)
+      : 0
+  );
+
+  updateYellowUsedSelector(false);
+  updateRedUsedSelector(false);
   updateSetupPreview();
 }
 
-function updateUsedSelector(){
+function updateYellowUsedSelector(refreshPreview=true){
   const oldUsed=Number(els.yellowUsedSelect.value);
   const candidateCount=Number(els.yellowCandidateSelect.value)||0;
   const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
-  fillSelect(els.yellowUsedSelect,usedValues,Math.min(Number.isFinite(oldUsed)?oldUsed:2,candidateCount));
-  updateSetupPreview();
+
+  fillSelect(
+    els.yellowUsedSelect,
+    usedValues,
+    Number.isFinite(oldUsed)
+      ? Math.min(oldUsed,candidateCount)
+      : 0
+  );
+
+  if(refreshPreview)updateSetupPreview();
+}
+
+function updateRedUsedSelector(refreshPreview=true){
+  const oldUsed=Number(els.redUsedSelect.value);
+  const candidateCount=Number(els.redCandidateSelect.value)||0;
+  const usedValues=Array.from({length:candidateCount+1},(_,i)=>i);
+
+  fillSelect(
+    els.redUsedSelect,
+    usedValues,
+    Number.isFinite(oldUsed)
+      ? Math.min(oldUsed,candidateCount)
+      : 0
+  );
+
+  if(refreshPreview)updateSetupPreview();
 }
 
 function previewBoardSizes(totalTiles){
   const base=Math.floor(totalTiles/4);
   const rem=totalTiles%4;
   const sizes=[base,base,base,base];
-  for(let i=0;i<rem;i++)sizes[i]++;
+
+  for(let i=0;i<rem;i++){
+    sizes[i]++;
+  }
+
   return sizes;
 }
 
 function updateSetupPreview(){
   if(!els.maxNumberSelect.options.length)return;
+
   const maxNumber=Number(els.maxNumberSelect.value);
-  const candidateCount=Number(els.yellowCandidateSelect.value)||0;
-  const usedCount=Number(els.yellowUsedSelect.value)||0;
-  const total=maxNumber*4+usedCount;
+  const yellowCandidateCount=Number(els.yellowCandidateSelect.value)||0;
+  const yellowUsedCount=Number(els.yellowUsedSelect.value)||0;
+  const redCandidateCount=Number(els.redCandidateSelect.value)||0;
+  const redUsedCount=Number(els.redUsedSelect.value)||0;
+
+  const normalCount=maxNumber*4;
+  const total=normalCount+yellowUsedCount+redUsedCount;
   const sizes=previewBoardSizes(total);
 
   els.setupPreview.textContent=
-    `通常${maxNumber*4}枚＋黄${usedCount}枚＝合計${total}枚。 `+
+    `通常${normalCount}枚＋黄${yellowUsedCount}枚＋赤${redUsedCount}枚＝合計${total}枚。 `+
     `隊長A ${sizes[0]}枚 / 隊長B ${sizes[1]}枚 / 子分A ${sizes[2]}枚 / 子分B ${sizes[3]}枚。 `+
-    `黄候補${candidateCount}枚のうち${usedCount}枚を秘密で採用します。`;
+    `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
+    `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。`;
 }
 
 function readSetupSettings(){
   return {
     maxNumber:Number(els.maxNumberSelect.value),
     yellowCandidateCount:Number(els.yellowCandidateSelect.value),
-    yellowUsedCount:Number(els.yellowUsedSelect.value)
+    yellowUsedCount:Number(els.yellowUsedSelect.value),
+    redCandidateCount:Number(els.redCandidateSelect.value),
+    redUsedCount:Number(els.redUsedSelect.value)
   };
 }
 
@@ -1117,31 +1371,24 @@ function renderPlayerView(view){
   updateActionUi();
 }
 
-function renderGameConfig(config){
-  if(!config){els.gameConfigBox.classList.add("hidden");return;}
-
-  els.gameConfigBox.innerHTML="";
-
-  const top=document.createElement("div");
-  top.innerHTML=
-    `<b>最大数字：</b>${config.maxNumber}　`+
-    `<b>黄タイル：</b>${config.yellowCandidateCount}候補のうち${config.yellowUsedCount}枚使用`;
-  els.gameConfigBox.appendChild(top);
-
+function appendCandidateSection(container,title,values,type){
   const label=document.createElement("div");
   label.className="small";
-  label.style.color="#92400e";
-  label.style.marginTop="5px";
-  label.textContent="公開されている黄タイル候補";
-  els.gameConfigBox.appendChild(label);
+  label.style.marginTop="7px";
+  label.style.color=type==="red" ? "#991b1b" : "#92400e";
+  label.textContent=title;
+  container.appendChild(label);
 
   const list=document.createElement("div");
-  list.className="yellowCandidateList";
+  list.className=type==="red" ? "redCandidateList" : "yellowCandidateList";
 
-  if(config.yellowCandidates.length){
-    config.yellowCandidates.forEach(value=>{
+  if(values.length){
+    values.forEach(value=>{
       const badge=document.createElement("span");
-      badge.className="yellowCandidateBadge";
+      badge.className=
+        type==="red"
+          ? "redCandidateBadge"
+          : "yellowCandidateBadge";
       badge.textContent=formatTileNumber(value);
       list.appendChild(badge);
     });
@@ -1152,7 +1399,39 @@ function renderGameConfig(config){
     list.appendChild(none);
   }
 
-  els.gameConfigBox.appendChild(list);
+  container.appendChild(list);
+}
+
+function renderGameConfig(config){
+  if(!config){
+    els.gameConfigBox.classList.add("hidden");
+    return;
+  }
+
+  els.gameConfigBox.innerHTML="";
+
+  const top=document.createElement("div");
+  top.innerHTML=
+    `<b>最大数字：</b>${config.maxNumber}<br>`+
+    `<b>黄：</b>${config.yellowCandidateCount}候補中${config.yellowUsedCount}枚使用　`+
+    `<b>赤：</b>${config.redCandidateCount}候補中${config.redUsedCount}枚使用`;
+
+  els.gameConfigBox.appendChild(top);
+
+  appendCandidateSection(
+    els.gameConfigBox,
+    "公開されている黄タイル候補",
+    config.yellowCandidates,
+    "yellow"
+  );
+
+  appendCandidateSection(
+    els.gameConfigBox,
+    "公開されている赤タイル候補",
+    config.redCandidates,
+    "red"
+  );
+
   els.gameConfigBox.classList.remove("hidden");
 }
 
@@ -1198,9 +1477,28 @@ function renderLastEvent(event){
     kind="failure";
 
   }else if(event.kind==="self"){
-    const label=event.tileKind==="yellow"?"黄タイル":`「${formatTileNumber(event.number)}」`;
-    text=`${roleName(event.actorRole)}：${label}を自分だけで${event.count}枚同時に切断しました。`;
+    const label=
+      event.tileKind==="yellow" ? "黄タイル" :
+      event.tileKind==="red" ? "赤タイル" :
+      `「${formatTileNumber(event.number)}」`;
+
+    text=
+      `${roleName(event.actorRole)}：${label}を自分だけで${event.count}枚同時に切断しました。`;
+
     kind="self";
+
+  }else if(event.kind==="redBoom"){
+    const call=
+      event.myKind==="yellow"
+        ? "黄タイル"
+        : `「${formatTileNumber(event.myNumber)}」`;
+
+    text=
+      `${roleName(event.actorRole)}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${call}で、`+
+      `相手の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を指定しました。`+
+      `そこは赤${formatTileNumber(event.redNumber)}だったため、即ゲームオーバーです。`;
+
+    kind="failure";
   }
 
   if(event.skippedRole)text+=` ${roleName(event.skippedRole)}は未切断タイルがないため、手番をスキップします。`;
@@ -1226,7 +1524,7 @@ function updatePhaseUi(view){
       const remaining=[];
       if(!view.infoPlaced[0])remaining.push("台A");
       if(!view.infoPlaced[1])remaining.push("台B");
-      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。通常数字タイルから選んでください。黄タイルには初期配置できません。`;
+      els.phaseHelp.textContent=`${remaining.join("・")}に1枚ずつ置きます。通常数字タイルから選んでください。黄タイル・赤タイルには情報トークンを置けません。`;
     }else{
       els.phaseHelp.textContent="相手が自分の2台へ情報トークンを置くのを待っています。";
     }
@@ -1258,10 +1556,24 @@ function updatePhaseUi(view){
 
   if(view.phase==="gameover"){
     els.phaseTitle.textContent="ゲーム終了";
-    els.turnBanner.textContent="ライフが0になりました";
+
+    const hitRed=
+      view.lastEvent &&
+      view.lastEvent.kind==="redBoom";
+
+    els.turnBanner.textContent=
+      hitRed
+        ? "赤タイルを指定しました"
+        : "ライフが0になりました";
+
     els.turnBanner.classList.remove("mine");
     els.phaseHelp.textContent="";
-    els.gameEndBox.textContent="💥 ゲームオーバー";
+
+    els.gameEndBox.textContent=
+      hitRed
+        ? "💥 赤タイル！ ゲームオーバー"
+        : "💥 ゲームオーバー";
+
     els.gameEndBox.className="gameEnd over";
   }
 }
@@ -1296,7 +1608,12 @@ function renderBoards(container,boards,isOpponent,view){
         const badge=document.createElement("span");
         badge.className="boardFactBadge";
         badge.textContent=String(number);
-        badge.title=number==="黄"?"この台に黄タイルがあることが公開済み":`この台に「${number}」があることが公開済み`;
+        badge.title=
+          number==="黄"
+            ? "この台に黄タイルがあることが公開済み"
+            : number==="赤"
+              ? "この台に赤タイルがあることが公開済み"
+              : `この台に「${number}」があることが公開済み`;
         factsRow.appendChild(badge);
       });
 
@@ -1311,10 +1628,13 @@ function renderBoards(container,boards,isOpponent,view){
       const el=document.createElement("div");
       const hidden=isOpponent && tile.number==null;
       const visibleYellow=!hidden&&tile.kind==="yellow";
+      const visibleRed=!hidden&&tile.kind==="red";
+
       el.className=
         "tile"+
         (hidden?" hiddenTile":"")+
         (visibleYellow?" yellowTile":"")+
+        (visibleRed?" redTile":"")+
         (tile.cut?" cut":"");
 
       el.textContent=hidden?"?":formatTileNumber(tile.number);
@@ -1327,7 +1647,7 @@ function renderBoards(container,boards,isOpponent,view){
         !view.infoPlaced[bi] &&
         !tile.infoToken &&
         !tile.cut &&
-        tile.kind!=="yellow";
+        tile.kind==="normal";
 
       if(canPlaceInfo){
         el.classList.add("selectableTile");
@@ -1409,7 +1729,12 @@ function selectInfoTokenTile(boardIndex,position,el,number){
   selectedInfoToken={boardIndex,position};
 
   const selected=currentView.myBoards[boardIndex][position];
-  const label=selected.kind==="yellow"?`黄${formatTileNumber(selected.number)}`:formatTileNumber(selected.number);
+  const label=
+    selected.kind==="yellow"
+      ? `黄${formatTileNumber(selected.number)}`
+      : selected.kind==="red"
+        ? `赤${formatTileNumber(selected.number)}`
+        : formatTileNumber(selected.number);
   els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${label}」の下に数字情報トークンを置きます。`;
   els.tokenConfirmArea.classList.remove("hidden");
 }
@@ -1462,7 +1787,9 @@ function canSelectPlayTile(isOpponent,boardIndex,tile,view){
   }
 
   if(actionState.mode==="normal"){
-    if(!isOpponent)return true;
+    if(!isOpponent){
+      return tile.kind!=="red";
+    }
     return actionState.myPosition!==null;
   }
 
@@ -1525,7 +1852,10 @@ function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
       actionState.selfCount=null;
       actionState.selfPositions=[];
 
-      const label=selectedTile.kind==="yellow"?"黄タイル":`「${formatTileNumber(selectedTile.number)}」`;
+      const label=
+        selectedTile.kind==="yellow" ? "黄タイル" :
+        selectedTile.kind==="red" ? "赤タイル" :
+        `「${formatTileNumber(selectedTile.number)}」`;
       els.actionSummary.textContent=`${label}は現在、自分だけでは切断できません。`;
       els.actionSummary.classList.remove("hidden");
       els.confirmActionBtn.disabled=true;
@@ -1542,9 +1872,12 @@ function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
 
     currentView.myBoards.forEach((board,bi)=>{
       board.forEach(tile=>{
-        const sameGroup=selectedTile.kind==="yellow"
-          ? tile.kind==="yellow"
-          : tile.kind==="normal"&&tile.number===selectedTile.number;
+        const sameGroup=
+          selectedTile.kind==="yellow"
+            ? tile.kind==="yellow"
+            : selectedTile.kind==="red"
+              ? tile.kind==="red"
+              : tile.kind==="normal"&&tile.number===selectedTile.number;
         if(!tile.cut&&sameGroup){
           actionState.selfPositions.push({boardIndex:bi,position:tile.position});
         }
@@ -1557,6 +1890,29 @@ function selectPlayTile(isOpponent,boardIndex,position,number,tileKind){
 }
 
 function selfCutStatusForView(selectedTile){
+  if(selectedTile.kind==="red"){
+    const allOwnUncut=[];
+
+    for(const board of currentView.myBoards){
+      for(const tile of board){
+        if(!tile.cut){
+          allOwnUncut.push(tile);
+        }
+      }
+    }
+
+    const ownUncutCount=
+      allOwnUncut.filter(tile=>tile.kind==="red").length;
+
+    return {
+      valid:
+        allOwnUncut.length>0 &&
+        ownUncutCount===allOwnUncut.length,
+      ownUncutCount,
+      cutCount:0
+    };
+  }
+
   if(selectedTile.kind==="yellow"){
     let ownUncutCount=0;
     let cutCount=0;
@@ -1667,7 +2023,12 @@ function updateActionUi(){
         :"ハイライトされたタイルをまとめて切断します。";
 
     if(actionState.number!==null&&actionState.selfCount){
-      const label=actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`;
+      const label=
+        actionState.myKind==="yellow"
+          ? "黄タイル"
+          : actionState.myKind==="red"
+            ? "赤タイル"
+            : `「${formatTileNumber(actionState.number)}」`;
       els.actionSummary.textContent=`${label}を${actionState.selfCount}枚同時に切断します。`;
       els.actionSummary.classList.remove("hidden");
       els.confirmActionBtn.disabled=false;
@@ -1996,8 +2357,10 @@ els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
 els.maxNumberSelect.onchange=updateSetupSelectors;
-els.yellowCandidateSelect.onchange=updateUsedSelector;
+els.yellowCandidateSelect.onchange=()=>updateYellowUsedSelector(true);
 els.yellowUsedSelect.onchange=updateSetupPreview;
+els.redCandidateSelect.onchange=()=>updateRedUsedSelector(true);
+els.redUsedSelect.onchange=updateSetupPreview;
 els.confirmTokenBtn.onclick=confirmInfoToken;
 els.normalCutBtn.onclick=()=>beginAction("normal");
 els.selfCutBtn.onclick=()=>beginAction("self");

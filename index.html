@@ -894,17 +894,45 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   width:100%;
   aspect-ratio:.30;
   min-height:28px;
-  border:2px dashed #94a3b8;
-  border-radius:4px;
+  border:0;
+  border-radius:0;
   display:flex;
   align-items:center;
   justify-content:center;
-  color:#94a3b8;
-  font-size:clamp(.42rem,1.7vw,.62rem);
-  font-weight:900;
+  color:#64748b;
+  font-size:clamp(.48rem,1.9vw,.68rem);
+  font-weight:1000;
+  line-height:1;
   writing-mode:vertical-rl;
   text-orientation:mixed;
-  overflow:hidden
+  overflow:visible;
+  position:relative;
+  padding:7px 0;
+  box-sizing:border-box
+}
+
+/* 「（ ）を上下にした形」の交換跡マーカー。
+   フォント記号ではなくCSSの曲線なので端末差が出にくい。 */
+.exchangeHole::before,
+.exchangeHole::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  width:82%;
+  height:7px;
+  transform:translateX(-50%);
+  box-sizing:border-box;
+  pointer-events:none
+}
+.exchangeHole::before{
+  top:1px;
+  border-top:2px solid #94a3b8;
+  border-radius:50% 50% 0 0
+}
+.exchangeHole::after{
+  bottom:1px;
+  border-bottom:2px solid #94a3b8;
+  border-radius:0 0 50% 50%
 }
 .exchangeTag{
   position:absolute;
@@ -1285,7 +1313,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イレシー挿入タップ判定改善版。
+    2〜6人対応。イレシー交換跡表示改善版。
   </footer>
 </div>
 

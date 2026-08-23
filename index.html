@@ -154,19 +154,34 @@ summary{font-weight:750;cursor:pointer}
   z-index:100;
   width:min(calc(100% - 20px),740px);
   margin:0;
-  padding:11px;
+  padding:8px;
   border:1px solid #bfdbfe;
   border-radius:16px;
   background:rgba(248,251,255,.97);
   box-shadow:0 8px 28px rgba(0,0,0,.20);
   backdrop-filter:blur(8px)
 }
-.actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.actionButtons button{min-height:52px}
-.actionButtons button.modeActive{outline:3px solid #1d4ed8}
-.actionStep{font-weight:850;margin-bottom:4px}
-.actionSummary{line-height:1.45;margin-top:7px!important;padding:8px 10px!important}
-.actionControls{display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-top:8px}
+.actionButtons{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin:0
+}
+.actionButtons button,
+.actionControls button{
+  min-height:42px;
+  padding:9px 10px;
+  font-size:.92rem;
+  line-height:1.1;
+  white-space:nowrap
+}
+.actionButtons button.modeActive{outline:3px solid #7c3aed}
+.actionControls{
+  display:grid;
+  grid-template-columns:1fr 1.6fr;
+  gap:7px;
+  margin:0
+}
 .actionControls button{width:100%}
 .board{
   border:2px solid transparent;
@@ -175,20 +190,17 @@ summary{font-weight:750;cursor:pointer}
   transition:.12s
 }
 .board.boardSelected{
-  border-color:#2563eb;
-  background:#eff6ff;
-  box-shadow:0 0 0 2px rgba(37,99,235,.12)
+  border-color:#7c3aed;
+  background:#f5f3ff;
+  box-shadow:0 0 0 2px rgba(124,58,237,.12)
 }
-.tile.playSelectedOwn{
-  outline:3px solid #2563eb;
-  background:#dbeafe!important;
-  color:#1e3a8a!important;
-  opacity:1
-}
+.tile.playSelectedOwn,
 .tile.playSelectedTarget{
-  outline:3px solid #ea580c;
-  background:#ffedd5!important;
-  color:#9a3412!important;
+  z-index:6;
+  outline:3px solid #7c3aed;
+  background:#ede9fe!important;
+  color:#5b21b6!important;
+  transform:scale(1.035);
   opacity:1
 }
 .tile.selfGroupSelected{
@@ -591,7 +603,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（選択色分離）</p>
+  <p class="sub">2〜6人対応版（操作UI省スペース）</p>
 
   <section class="card">
     <div class="status">
@@ -768,7 +780,6 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
     <div id="playControls" class="actionPanel hidden">
       <div id="actionChoice">
-        <div class="actionStep">このターンはどうしますか？</div>
         <div class="actionButtons">
           <button id="normalCutBtn" class="primary">相手を指定して切断</button>
           <button id="selfCutBtn" class="secondary">自分だけで切断</button>
@@ -776,10 +787,6 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       </div>
 
       <div id="actionProgress" class="hidden">
-        <div id="actionStepText" class="actionStep"></div>
-        <div id="actionHint" class="selectionLegend"></div>
-        <div id="actionSummary" class="notice info hidden"></div>
-
         <div class="actionControls">
           <button id="cancelActionBtn" class="secondary">やり直す</button>
           <button id="confirmActionBtn" class="primary" disabled>切断する</button>
@@ -888,8 +895,7 @@ const els={
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),
-  actionStepText:$("actionStepText"),actionHint:$("actionHint"),
-  actionSummary:$("actionSummary"),confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
+  confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   tokenConfirmArea:$("tokenConfirmArea"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
   connectionDiagnostics:$("connectionDiagnostics"),connectionLog:$("connectionLog"),
@@ -2964,10 +2970,8 @@ function updatePhaseUi(view){
 
     els.turnBanner.classList.toggle("mine",myTurn);
 
-    els.phaseHelp.textContent=
-      myTurn
-        ? "切断方法を選んでください。1回行動すると、成否に関係なく次のプレイヤーへ手番が移ります。"
-        : `${view.turnLabel}の操作を待っています。`;
+    // ルール説明は表示せず、手番表示と操作UIだけにする。
+    els.phaseHelp.textContent="";
 
     if(myTurn){
       els.playControls.classList.remove("hidden");
@@ -3361,12 +3365,6 @@ function selectPlayTile(isOpponent,ownerKey,boardIndex,position,number,tileKind)
       actionState.selfCount=null;
       actionState.selfPositions=[];
 
-      const label=
-        selectedTile.kind==="yellow" ? "黄タイル" :
-        selectedTile.kind==="red" ? "赤タイル" :
-        `「${formatTileNumber(selectedTile.number)}」`;
-      els.actionSummary.textContent=`${label}は現在、自分だけでは切断できません。`;
-      els.actionSummary.classList.remove("hidden");
       els.confirmActionBtn.disabled=true;
       rerenderBoardsOnly();
       return;
@@ -3495,65 +3493,23 @@ function updateActionUi(){
 
   els.actionChoice.classList.add("hidden");
   els.actionProgress.classList.remove("hidden");
-  els.actionSummary.classList.add("hidden");
-  els.confirmActionBtn.disabled=true;
+
+  // 選択内容は盤面の紫ハイライトだけで示す。
+  // ボタン文言も固定し、余分な文字情報を増やさない。
   els.confirmActionBtn.textContent="切断する";
+  els.confirmActionBtn.disabled=true;
 
   if(actionState.mode==="normal"){
-    els.actionStepText.textContent="相手を指定して切断";
-    els.actionHint.textContent=
-      actionState.myPosition===null
-        ?"① 自分の未切断タイルをタップしてください。台も同時に選択されます。"
-        : actionState.targetPosition===null
-          ?`② ${actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`}で切る相手のタイルをタップしてください。`
-          :"自分と相手の選択中タイルを確認して「切断する」を押してください。";
-
-    if(actionState.myPosition!==null){
-      const ownLabel=actionState.myKind==="yellow"?`黄${formatTileNumber(actionState.number)}`:formatTileNumber(actionState.number);
-      const callLabel=actionState.myKind==="yellow"?"黄タイル":`「${formatTileNumber(actionState.number)}」`;
-
-      let summary=
-        `自分：${boardName(actionState.myBoard)}・${actionState.myPosition+1}番目「${ownLabel}」`;
-
-      if(actionState.targetPosition!==null){
-        const target=
-          currentView.opponents.find(
-            p=>p.playerKey===actionState.targetPlayer
-          );
-
-        summary+=
-          ` ／ ${target?.label||"相手"}：${boardName(actionState.targetBoard)}・${actionState.targetPosition+1}番目を${callLabel}と予想`;
-
-        els.confirmActionBtn.disabled=false;
-      }else{
-        summary+=" ／ 相手：未選択";
-      }
-
-      els.actionSummary.textContent=summary;
-      els.actionSummary.classList.remove("hidden");
-    }
+    els.confirmActionBtn.disabled=
+      actionState.myPosition===null ||
+      actionState.targetPosition===null;
     return;
   }
 
   if(actionState.mode==="self"){
-    els.actionStepText.textContent="自分だけで切断";
-    els.actionHint.textContent=
-      actionState.number===null
-        ?"切断したい自分の未切断タイルを1枚タップしてください。切断可能なら対象全部がハイライトされます。"
-        :"ハイライトされたタイルをまとめて切断します。";
-
-    if(actionState.number!==null&&actionState.selfCount){
-      const label=
-        actionState.myKind==="yellow"
-          ? "黄タイル"
-          : actionState.myKind==="red"
-            ? "赤タイル"
-            : `「${formatTileNumber(actionState.number)}」`;
-      els.actionSummary.textContent=`${label}を${actionState.selfCount}枚同時に切断します。`;
-      els.actionSummary.classList.remove("hidden");
-      els.confirmActionBtn.disabled=false;
-      els.confirmActionBtn.textContent=`${actionState.selfCount}枚を切断する`;
-    }
+    els.confirmActionBtn.disabled=
+      actionState.number===null ||
+      !actionState.selfCount;
   }
 }
 

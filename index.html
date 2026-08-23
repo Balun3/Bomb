@@ -988,13 +988,16 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 }
 .tile.hasExchangeTag{position:relative}
 .insertGap{
-  /* レイアウト上は14px程度だが、左右へ透明な判定を広げる */
-  flex:0 0 14px;
-  width:34px;
-  min-width:34px;
-  height:64px;
-  margin:0 -17px 0 -17px;
-  padding:26px 0 0;
+  /*
+    タイルへ重ねず、矢印専用の実幅を確保する。
+    中央の隙間でも左右のタイルにタップを奪われない。
+  */
+  flex:0 0 22px;
+  width:22px;
+  min-width:22px;
+  height:52px;
+  margin:8px 0 0;
+  padding:0;
   box-sizing:border-box;
   touch-action:manipulation;
   -webkit-tap-highlight-color:transparent;
@@ -1004,11 +1007,11 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   background:transparent;
   cursor:pointer;
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:center;
   color:#7c3aed;
   font-weight:1000;
-  font-size:1.05rem;
+  font-size:1.08rem;
   line-height:1;
   z-index:50;
   position:relative
@@ -1017,6 +1020,9 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   background:#ede9fe;
   box-shadow:0 0 0 2px rgba(124,58,237,.28);
   color:#5b21b6
+}
+.tiles.swapInsertMode{
+  gap:1px
 }
 .tiles.swapInsertMode .tileColumn{
   pointer-events:none
@@ -1029,9 +1035,9 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   position:absolute;
   width:22px;
   height:22px;
-  top:21px;
+  top:50%;
   left:50%;
-  transform:translateX(-50%);
+  transform:translate(-50%,-50%);
   border-radius:50%;
   background:rgba(124,58,237,.12);
   box-shadow:0 0 0 2px rgba(124,58,237,.22);
@@ -1448,7 +1454,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。共有装備カード6種を実装。
+    2〜6人対応。イレシー中央挿入のタップ処理を改善。
   </footer>
 </div>
 
@@ -5962,19 +5968,32 @@ function selectSwapTargetBoard(ownerKey,boardIndex){
   rerenderBoardsOnly();
 }
 
-function selectInsertIndex(index){
+function selectInsertIndex(index,buttonEl=null){
   if(!actionState||actionState.mode!=="swapInsert")return;
 
   const normalizedIndex=Number(index);
   if(!Number.isInteger(normalizedIndex))return;
 
   // ↑ は合法な候補位置にしか描画されない。
-  // ここで候補配列との型・同期差によって弾かない。
-  // 最終的な合法性は親機の processSwapInsert() で検証する。
+  // 最終的な合法性は親機の processSwapInsert() でも再検証する。
   actionState.insertIndex=normalizedIndex;
 
+  // タップ直後に盤面DOMを作り直さない。
+  // 中央の隙間で pointerup → DOM再生成 → click が不安定になるのを防ぐ。
+  document.querySelectorAll(".insertGap.selected")
+    .forEach(el=>el.classList.remove("selected"));
+
+  const targetButton=
+    buttonEl ||
+    document.querySelector(
+      `.insertGap[data-insert-index="${normalizedIndex}"]`
+    );
+
+  if(targetButton){
+    targetButton.classList.add("selected");
+  }
+
   updateActionUi();
-  rerenderBoardsOnly();
 }
 
 function renderTokenSlot(tile){
@@ -6143,13 +6162,16 @@ renderBoards=function(container,boards,isOpponent,view,owner){
     const appendInsertGap=index=>{
       if(!insertSet.has(index))return;
 
+      const normalizedIndex=Number(index);
       const gap=document.createElement("button");
+
       gap.type="button";
+      gap.dataset.insertIndex=String(normalizedIndex);
       gap.className=
         "insertGap"+
         (
           actionState?.mode==="swapInsert" &&
-          Number(actionState.insertIndex)===Number(index)
+          Number(actionState.insertIndex)===normalizedIndex
             ? " selected"
             : ""
         );
@@ -6160,13 +6182,27 @@ renderBoards=function(container,boards,isOpponent,view,owner){
       const choose=e=>{
         e.preventDefault();
         e.stopPropagation();
-        selectInsertIndex(index);
+        selectInsertIndex(normalizedIndex,gap);
       };
 
-      // Android等で細い要素のclickを取りこぼすケースに備え、
-      // pointerupでも選択する。
-      gap.addEventListener("pointerup",choose);
-      gap.addEventListener("click",choose);
+      // pointerdownで即座に選択。
+      // clickはキーボード操作等のフォールバックとして残す。
+      let pointerHandled=false;
+
+      gap.addEventListener("pointerdown",e=>{
+        pointerHandled=true;
+        choose(e);
+      });
+
+      gap.addEventListener("click",e=>{
+        if(pointerHandled){
+          pointerHandled=false;
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        choose(e);
+      });
 
       tiles.appendChild(gap);
     };

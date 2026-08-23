@@ -319,6 +319,37 @@ summary{font-weight:750;cursor:pointer}
   color:#5b21b6
 }
 
+.exchangeKnowledgeBadge{
+  width:100%;
+  min-height:18px;
+  border:1px dashed #64748b;
+  border-radius:5px;
+  background:#f1f5f9;
+  color:#475569;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:1px;
+  font-size:clamp(.48rem,2vw,.68rem);
+  font-weight:900;
+  line-height:1;
+  padding:1px 0;
+  white-space:nowrap;
+  overflow:hidden
+}
+.exchangeKnowledgeBadge::before{
+  content:"↔";
+  font-size:.82em;
+  opacity:.72
+}
+.infoTokenSlot.hasMultiple{
+  gap:1px
+}
+.infoTokenSlot.hasMultiple .infoTokenBadge,
+.infoTokenSlot.hasMultiple .exchangeKnowledgeBadge{
+  width:calc(50% - 1px)
+}
+
 
 .boardFacts{
   margin:5px 0 2px;
@@ -379,6 +410,14 @@ summary{font-weight:750;cursor:pointer}
   padding:1px 0;
   border-radius:4px;
   font-size:clamp(.45rem,1.9vw,.68rem)
+}
+
+.board .exchangeKnowledgeBadge{
+  min-width:0;
+  width:100%;
+  padding:1px 0;
+  border-radius:4px;
+  font-size:clamp(.43rem,1.8vw,.64rem)
 }
 
 
@@ -878,27 +917,99 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 }
 .tile.hasExchangeTag{position:relative}
 .insertGap{
-  flex:.28 1 0;
-  min-width:7px;
-  min-height:48px;
-  align-self:stretch;
-  border:2px dashed #a78bfa;
-  border-radius:5px;
+  flex:0 0 14px;
+  width:14px;
+  min-width:14px;
+  height:28px;
+  margin:20px -7px 0;
+  padding:0;
+  align-self:flex-start;
+  border:0;
+  border-radius:999px;
+  background:transparent;
   cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
   color:#7c3aed;
-  font-weight:900;
-  font-size:.58rem
+  font-weight:1000;
+  font-size:1.05rem;
+  line-height:1;
+  z-index:9;
+  position:relative
 }
 .insertGap.selected{
-  flex:1 1 0;
-  min-width:0;
-  border:3px solid #7c3aed;
   background:#ede9fe;
-  color:#5b21b6;
-  font-size:clamp(.52rem,2.2vw,.92rem)
+  box-shadow:0 0 0 2px rgba(124,58,237,.28);
+  color:#5b21b6
+}
+.receivedTilePreview{
+  position:absolute;
+  left:50%;
+  bottom:calc(100% + 7px);
+  transform:translateX(-50%);
+  z-index:110;
+  pointer-events:none
+}
+.receivedTilePreview.hidden{display:none!important}
+.receivedTilePreviewCard{
+  width:42px;
+  min-height:54px;
+  box-sizing:border-box;
+  border:2px solid #94a3b8;
+  border-radius:7px;
+  background:#fff;
+  color:#111827;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  font-size:.88rem;
+  font-weight:1000;
+  box-shadow:0 5px 16px rgba(0,0,0,.16)
+}
+.receivedTilePreviewCard.yellowTile{
+  background:#fef08a;
+  border-color:#eab308;
+  color:#854d0e
+}
+.receivedTilePreviewCard.redTile{
+  background:#fee2e2;
+  border-color:#ef4444;
+  color:#991b1b
+}
+.receivedTilePreviewKnowledge{
+  position:absolute;
+  left:50%;
+  top:calc(100% + 3px);
+  transform:translateX(-50%);
+  min-width:28px;
+  padding:2px 4px;
+  border:1px dashed #64748b;
+  border-radius:5px;
+  background:#f1f5f9;
+  color:#475569;
+  font-size:.58rem;
+  font-weight:900;
+  line-height:1;
+  text-align:center;
+  white-space:nowrap
+}
+.receivedTilePreviewToken{
+  position:absolute;
+  left:50%;
+  top:calc(100% + 22px);
+  transform:translateX(-50%);
+  min-width:25px;
+  padding:2px 4px;
+  border:1px solid #f59e0b;
+  border-radius:5px;
+  background:#fff7ed;
+  color:#92400e;
+  font-size:.58rem;
+  font-weight:900;
+  line-height:1;
+  text-align:center
 }
 .actionControls.forced{
   grid-template-columns:1fr
@@ -1104,6 +1215,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       </div>
 
       <div id="actionProgress" class="hidden">
+        <div id="receivedTilePreview" class="receivedTilePreview hidden"></div>
         <div class="actionControls">
           <button id="cancelActionBtn" class="secondary">やり直す</button>
           <button id="confirmActionBtn" class="primary" disabled>切断する</button>
@@ -1139,7 +1251,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。個人カード対応。表示は「名前（役職）＋個人カード」で、手番順に並びます。
+    2〜6人対応。個人カード対応。交換情報マーカー改善版。
   </footer>
 </div>
 
@@ -1238,6 +1350,7 @@ const els={
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),personalCardBtn:$("personalCardBtn"),
+  receivedTilePreview:$("receivedTilePreview"),
   confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   personalCardChoiceArea:$("personalCardChoiceArea"),
   interruptCardArea:$("interruptCardArea"),interruptCardBtn:$("interruptCardBtn"),
@@ -4632,11 +4745,43 @@ function consumePersonalCard(playerKey,expectedType){
   return true;
 }
 
-function tileKnownExactlyTo(tile,viewerKey){
+function tileFaceVisibleTo(tile,viewerKey){
+  if(!tile)return false;
+
+  // 交換で数字を知っていても、未切断タイルの表面は開かない。
+  return !!tile.cut;
+}
+
+function tileNumberKnownTo(tile,viewerKey){
   if(!tile)return false;
   if(tile.cut)return true;
-  if(tile.infoToken&&typeof tile.infoToken==="object"&&tile.infoToken.type==="number")return true;
-  return Array.isArray(tile.knownBy)&&tile.knownBy.includes(viewerKey);
+
+  // 交換で一度知ったプレイヤーは、その後も数字情報を保持する。
+  if(Array.isArray(tile.knownBy)&&tile.knownBy.includes(viewerKey))return true;
+
+  return !!(
+    tile.infoToken &&
+    typeof tile.infoToken==="object" &&
+    tile.infoToken.type==="number"
+  );
+}
+
+function privateExchangeInfoFor(tile,viewerKey){
+  if(
+    !tile ||
+    tile.cut ||
+    !tile.exchangeTag ||
+    !Array.isArray(tile.knownBy) ||
+    !tile.knownBy.includes(viewerKey)
+  ){
+    return null;
+  }
+
+  return {
+    number:tile.number,
+    kind:tile.kind,
+    exchangeTag:tile.exchangeTag
+  };
 }
 
 function findTileByIdAnywhere(tileId){
@@ -4661,7 +4806,7 @@ function layoutView(playerKey,boardIndex,viewerKey){
   return layout.map(item=>{
     if(item.type==="tile")return {type:"tile",tileId:item.tileId};
     const found=findTileByIdAnywhere(item.tileId);
-    const exact=found&&tileKnownExactlyTo(found.tile,viewerKey);
+    const exact=found&&tileNumberKnownTo(found.tile,viewerKey);
     return {
       type:"hole",
       tileId:item.tileId,
@@ -4672,19 +4817,22 @@ function layoutView(playerKey,boardIndex,viewerKey){
 }
 
 function publicTileForViewer(tile,viewerKey){
-  const exact=tileKnownExactlyTo(tile,viewerKey);
+  const faceVisible=tileFaceVisibleTo(tile,viewerKey);
   return {
     id:tile.id,
     position:tile.position,
     cut:tile.cut,
     infoToken:tile.infoToken,
     exchangeTag:tile.exchangeTag||null,
-    kind:exact?tile.kind:null,
-    number:exact?tile.number:null
+    exchangeInfo:privateExchangeInfoFor(tile,viewerKey),
+    faceHidden:!faceVisible,
+    kind:faceVisible?tile.kind:null,
+    number:faceVisible?tile.number:null
   };
 }
 
-function ownTileView(tile){
+function ownTileView(tile,viewerKey){
+  const exchangedHidden=!!(tile.exchangeTag&&!tile.cut);
   return {
     id:tile.id,
     kind:tile.kind,
@@ -4692,7 +4840,9 @@ function ownTileView(tile){
     position:tile.position,
     cut:tile.cut,
     infoToken:tile.infoToken,
-    exchangeTag:tile.exchangeTag||null
+    exchangeTag:tile.exchangeTag||null,
+    exchangeInfo:exchangedHidden?privateExchangeInfoFor(tile,viewerKey):null,
+    faceHidden:exchangedHidden
   };
 }
 
@@ -4755,7 +4905,8 @@ function publicCardFlowFor(viewerKey){
       receivedTile:tile?{
         kind:tile.kind,
         number:tile.number,
-        exchangeTag:tile.exchangeTag||null
+        exchangeTag:tile.exchangeTag||null,
+        infoToken:tile.infoToken?JSON.parse(JSON.stringify(tile.infoToken)):null
       }:null
     };
   }
@@ -4836,7 +4987,7 @@ makeViewFor=function(playerKey){
       redCandidates:[...gameState.config.redCandidates]
     },
     myBoardFacts:gameState.publicBoardFacts[playerKey].map(x=>[...x]),
-    myBoards:me.boards.map(board=>board.map(ownTileView)),
+    myBoards:me.boards.map(board=>board.map(t=>ownTileView(t,playerKey))),
     myLayouts:me.boards.map((_,bi)=>layoutView(playerKey,bi,playerKey)),
     opponents
   };
@@ -5075,27 +5226,56 @@ function processDotchiCard(actor,payload){
   broadcastViews();
 }
 
+function instantCardHasLegalUse(actor,type){
+  if(type==="radar"){
+    return allTiles().some(t=>!t.cut&&t.kind==="normal");
+  }
+  if(type==="swap"){
+    const ownHasTile=gameState.players[actor]?.boards?.some(
+      board=>board.some(t=>!t.cut)
+    );
+    const otherHasTile=gameState.seatOrder.some(
+      key=>
+        key!==actor &&
+        gameState.players[key]?.boards?.some(
+          board=>board.some(t=>!t.cut)
+        )
+    );
+    return !!(ownHasTile&&otherHasTile);
+  }
+  return false;
+}
+
 function startInstantCard(actor,expectedTurnSerial=null,expectedTurn=null){
   if(!gameState||gameState.phase!=="play"||gameState.cardFlow)return;
   if(expectedTurnSerial!==null&&Number(expectedTurnSerial)!==Number(gameState.turnSerial||0))return;
   if(expectedTurn!==null&&expectedTurn!==gameState.turn)return;
   const card=gameState.players[actor]?.personalCard;
   if(!card||!cardUsable(card)||!PERSONAL_CARDS[card.type]||PERSONAL_CARDS[card.type].mode!=="instant")return;
+
+  if(!instantCardHasLegalUse(actor,card.type)){
+    actionError(actor,"現在は使用できません。");
+    broadcastViews();
+    return;
+  }
+
+  // 「使う」と宣言した時点でカード使用を確定し、元の手番をロックする。
+  if(!consumePersonalCard(actor,card.type))return;
+
   gameState.cardFlow={
     type:card.type,
     stage:card.type==="radar"?"radarInput":"swapInput",
     actor,
     resolver:actor,
-    baseTurn:gameState.turn
+    baseTurn:gameState.turn,
+    committed:true
   };
   broadcastViews();
 }
 
 function cancelInstantCard(actor){
-  const flow=gameState?.cardFlow;
-  if(!flow||flow.actor!==actor||flow.resolver!==actor||!["radarInput","swapInput"].includes(flow.stage))return;
-  gameState.cardFlow=null;
-  broadcastViews();
+  // 割り込み宣言後は使用確定済みなのでキャンセル不可。
+  return;
 }
 
 function processRadar(actor,number){
@@ -5104,7 +5284,6 @@ function processRadar(actor,number){
   if(!Number.isInteger(number)||number<1||number>gameState.config.maxNumber)return;
   const remaining=allTiles().filter(t=>!t.cut&&t.kind==="normal"&&t.number===number).length;
   if(!remaining){actionError(actor,"切断済みの数字は選べません。");return;}
-  if(!consumePersonalCard(actor,"radar"))return;
   for(const key of gameState.seatOrder){
     gameState.players[key].boards.forEach((board,bi)=>{
       if(board.some(t=>!t.cut&&t.kind==="normal"&&t.number===number))addPublicFact(key,bi,number);
@@ -5180,7 +5359,6 @@ function processSwapStart(actor,payload){
   if(!own||own.cut||targetPlayer===actor||!validBoardIndexFor(targetPlayer,payload.targetBoard))return;
   const candidates=gameState.players[targetPlayer].boards[payload.targetBoard].filter(t=>!t.cut);
   if(!candidates.length)return;
-  if(!consumePersonalCard(actor,"swap"))return;
   gameState.cardFlow={
     type:"swap",
     stage:"swapChooseGive",
@@ -5332,11 +5510,11 @@ beginAction=function(mode){
 };
 
 cancelAction=function(){
+  if(actionState?.forced)return;
   if(actionState&&["radar","swap"].includes(actionState.mode)&&currentView?.cardFlow?.actor===currentView.playerKey){
     requestCancelInstantCard();
     return;
   }
-  if(actionState?.forced)return;
   actionState=null;
   updateActionUi();
   renderNumberTracker(currentView);
@@ -5490,22 +5668,48 @@ function selectInsertIndex(index){
 function renderTokenSlot(tile){
   const slot=document.createElement("div");
   slot.className="infoTokenSlot";
+
+  let badgeCount=0;
+
   if(tile?.infoToken){
     const badge=document.createElement("div");
     const type=typeof tile.infoToken==="object"?tile.infoToken.type:"number";
     const value=typeof tile.infoToken==="object"?tile.infoToken.value:tile.number;
     badge.className="infoTokenBadge";
+
     if(type==="number"){
       badge.classList.add("numberToken");
-      if(typeof tile.infoToken==="object"&&tile.infoToken.tileKind==="yellow")badge.classList.add("yellowNumberToken");
+      if(typeof tile.infoToken==="object"&&tile.infoToken.tileKind==="yellow"){
+        badge.classList.add("yellowNumberToken");
+      }
       badge.textContent=formatTileNumber(value);
     }else if(type==="even"){
-      badge.classList.add("evenToken");badge.textContent="偶";
+      badge.classList.add("evenToken");
+      badge.textContent="偶";
     }else if(type==="count"){
-      badge.classList.add("countToken");badge.textContent=`${value}枚`;
-    }else badge.textContent="?";
+      badge.classList.add("countToken");
+      badge.textContent=`${value}枚`;
+    }else{
+      badge.textContent="?";
+    }
+
     slot.appendChild(badge);
+    badgeCount++;
   }
+
+  if(tile?.exchangeInfo&&!tile.cut){
+    const badge=document.createElement("div");
+    badge.className="exchangeKnowledgeBadge";
+    badge.textContent=formatTileNumber(tile.exchangeInfo.number);
+    badge.title=`交換で知っている数字 ${formatTileNumber(tile.exchangeInfo.number)}`;
+    slot.appendChild(badge);
+    badgeCount++;
+  }
+
+  if(badgeCount>1){
+    slot.classList.add("hasMultiple");
+  }
+
   return slot;
 }
 
@@ -5549,11 +5753,11 @@ renderBoards=function(container,boards,isOpponent,view,owner){
 
     const appendInsertGap=index=>{
       if(!insertSet.has(index))return;
-      const gap=document.createElement("div");
+      const gap=document.createElement("button");
+      gap.type="button";
       gap.className="insertGap"+(actionState?.mode==="swapInsert"&&actionState.insertIndex===index?" selected":"");
-      if(actionState?.mode==="swapInsert"&&actionState.insertIndex===index&&insertFlow?.receivedTile){
-        gap.textContent=formatTileNumber(insertFlow.receivedTile.number);
-      }
+      gap.textContent="↑";
+      gap.setAttribute("aria-label","ここに置く");
       gap.onclick=e=>{e.stopPropagation();selectInsertIndex(index)};
       tiles.appendChild(gap);
     };
@@ -5570,7 +5774,9 @@ renderBoards=function(container,boards,isOpponent,view,owner){
       if(!tile){appendInsertGap(layoutIndex+1);return;}
       const col=document.createElement("div");col.className="tileColumn";
       const el=document.createElement("div");
-      const hidden=isOpponent&&tile.number==null;
+      const hidden=
+        !!tile.faceHidden ||
+        (isOpponent&&tile.number==null);
       const visibleYellow=!hidden&&tile.kind==="yellow";
       const visibleRed=!hidden&&tile.kind==="red";
       el.className="tile"+(hidden?" hiddenTile":"")+(visibleYellow?" yellowTile":"")+(visibleRed?" redTile":"")+(tile.cut?" cut":"");
@@ -5689,10 +5895,10 @@ function syncForcedAction(view){
   const flow=view.cardFlow;
   if(!flow)return;
   if(flow.actor===view.playerKey&&flow.stage==="radarInput"){
-    actionState={mode:"radar",selectedNumber:null};return;
+    actionState={mode:"radar",forced:true,selectedNumber:null};return;
   }
   if(flow.actor===view.playerKey&&flow.stage==="swapInput"){
-    actionState={mode:"swap",myBoard:null,myPosition:null,targetPlayer:null,targetBoard:null};return;
+    actionState={mode:"swap",forced:true,myBoard:null,myPosition:null,targetPlayer:null,targetBoard:null};return;
   }
   if(flow.resolver!==view.playerKey)return;
   if(flow.stage==="probeResolve"){
@@ -5700,7 +5906,15 @@ function syncForcedAction(view){
   }else if(flow.stage==="swapChooseGive"){
     actionState={mode:"swapGive",forced:true,targetBoard:flow.targetBoard,allowedPositions:[...flow.allowedPositions],targetPosition:null};
   }else if(flow.stage==="swapInsert"){
-    actionState={mode:"swapInsert",forced:true,receiveBoard:flow.receiveBoard,insertOptions:[...flow.insertOptions],insertIndex:null,receivedTile:flow.receivedTile};
+    const options=[...flow.insertOptions];
+    actionState={
+      mode:"swapInsert",
+      forced:true,
+      receiveBoard:flow.receiveBoard,
+      insertOptions:options,
+      insertIndex:options.length===1?options[0]:null,
+      receivedTile:flow.receivedTile
+    };
   }
 }
 
@@ -5736,8 +5950,66 @@ rerenderBoardsOnly=function(){
   renderOpponents(currentView);
 };
 
+function hideReceivedTilePreview(){
+  if(!els.receivedTilePreview)return;
+  els.receivedTilePreview.classList.add("hidden");
+  els.receivedTilePreview.innerHTML="";
+}
+
+function renderReceivedTilePreview(tile){
+  if(!els.receivedTilePreview)return;
+  if(!tile){
+    hideReceivedTilePreview();
+    return;
+  }
+
+  els.receivedTilePreview.innerHTML="";
+
+  const card=document.createElement("div");
+  card.className="receivedTilePreviewCard";
+  card.textContent="?";
+
+  if(tile.exchangeTag){
+    const tag=document.createElement("span");
+    tag.className="exchangeTag";
+    tag.textContent=tile.exchangeTag;
+    card.appendChild(tag);
+  }
+
+  const privateBadge=document.createElement("div");
+  privateBadge.className="receivedTilePreviewKnowledge";
+  privateBadge.textContent=`↔${formatTileNumber(tile.number)}`;
+  card.appendChild(privateBadge);
+
+  if(tile.infoToken){
+    const token=document.createElement("div");
+    token.className="receivedTilePreviewToken";
+    const type=typeof tile.infoToken==="object"?tile.infoToken.type:"number";
+    const value=typeof tile.infoToken==="object"?tile.infoToken.value:tile.number;
+    token.textContent=
+      type==="number" ? formatTileNumber(value) :
+      type==="even" ? "偶" :
+      type==="count" ? `${value}枚` : "?";
+    card.appendChild(token);
+  }
+
+  els.receivedTilePreview.appendChild(card);
+  els.receivedTilePreview.classList.remove("hidden");
+}
+
 updateActionUi=function(){
-  if(!currentView){els.playControls.classList.add("hidden");return;}
+  if(!currentView){
+    hideReceivedTilePreview();
+    els.playControls.classList.add("hidden");
+    return;
+  }
+
+  if(actionState?.mode==="swapInsert"){
+    renderReceivedTilePreview(actionState.receivedTile);
+  }else{
+    hideReceivedTilePreview();
+  }
+
   const forced=!!actionState?.forced;
   const flowInput=actionState&&["radar","swap"].includes(actionState.mode)&&currentView.cardFlow?.actor===currentView.playerKey;
   const normalTurn=currentView.phase==="play"&&currentView.turn===currentView.playerKey&&!currentView.cardFlow;
@@ -5771,8 +6043,10 @@ updateActionUi=function(){
   }else if(actionState.mode==="dotchi"){
     els.confirmActionBtn.disabled=actionState.sources.length!==2||actionState.targetPosition===null;
   }else if(actionState.mode==="radar"){
+    els.confirmActionBtn.textContent="決定";
     els.confirmActionBtn.disabled=!actionState.selectedNumber;
   }else if(actionState.mode==="swap"){
+    els.confirmActionBtn.textContent="決定";
     els.confirmActionBtn.disabled=actionState.myPosition===null||actionState.targetPlayer===null||actionState.targetBoard===null;
   }else if(actionState.mode==="probeResolve"){
     els.confirmActionBtn.textContent=actionState.resolution==="cut"?"切断する":"情報トークン";

@@ -112,6 +112,25 @@ summary{font-weight:750;cursor:pointer}
 .tile.cut::before{
   content:"✓";position:absolute;left:2px;top:0;font-size:.65rem;font-weight:900;color:#16a34a
 }
+
+.tile.lastCutTile{
+  z-index:4;
+  outline:3px solid #2563eb;
+  outline-offset:1px
+}
+.tile.lastCutTile.lastCutPulse{
+  animation:lastCutPulse .62s ease-in-out 3
+}
+@keyframes lastCutPulse{
+  0%,100%{
+    outline-color:#2563eb;
+    box-shadow:0 0 0 1px rgba(37,99,235,.18)
+  }
+  50%{
+    outline-color:rgba(37,99,235,.10);
+    box-shadow:0 0 0 5px rgba(37,99,235,.25)
+  }
+}
 .actionPanel{
   position:fixed;
   left:50%;
@@ -194,6 +213,40 @@ summary{font-weight:750;cursor:pointer}
   cursor:pointer;
   user-select:none
 }
+.connectionDiagBox{
+  margin:8px 0 10px;
+  padding:8px;
+  border:1px solid #e5e7eb;
+  border-radius:9px;
+  background:#f8fafc
+}
+.connectionDiagTitle{
+  font-size:.76rem;
+  font-weight:900;
+  color:#475569;
+  margin-bottom:4px
+}
+.connectionDiagnostics{
+  font-size:.72rem;
+  line-height:1.45;
+  color:#334155;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere
+}
+.connectionLog{
+  margin-top:5px;
+  padding-top:5px;
+  border-top:1px solid #e5e7eb;
+  font-size:.68rem;
+  line-height:1.4;
+  color:#64748b;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;
+  max-height:92px;
+  overflow:auto
+}
+
 .infoTokenRow{
   display:grid;
   grid-template-columns:repeat(12,minmax(0,1fr));
@@ -523,7 +576,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（省スペースUI）</p>
+  <p class="sub">2〜6人対応版（盤面フィードバック中心）</p>
 
   <section class="card">
     <div class="status">
@@ -535,6 +588,13 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     <details id="connectionMenu" class="connectionMenu">
       <summary>接続設定</summary>
       <p class="small">通常のゲーム中は開く必要はありません。</p>
+
+      <div class="connectionDiagBox">
+        <div class="connectionDiagTitle">通信診断</div>
+        <div id="connectionDiagnostics" class="connectionDiagnostics">未接続</div>
+        <div id="connectionLog" class="connectionLog"></div>
+      </div>
+
       <button id="disconnectBtn" class="danger" style="width:100%">接続を切る</button>
     </details>
   </section>
@@ -689,7 +749,6 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <div id="phaseHelp" class="tokenHelp"></div>
     </div>
 
-    <div id="lastEventBox" class="resultBox neutral hidden"></div>
     <div id="gameEndBox" class="gameEnd hidden"></div>
 
     <div id="playControls" class="actionPanel hidden">
@@ -769,6 +828,23 @@ let currentView=null;
 let selectedInfoToken=null;
 let actionState=null;
 
+// 直前の切断成功、または誤答で狙われた相手側の位置を青枠で示す。
+let lastAnimatedCutId=null;
+let animateLatestCut=false;
+
+// 一瞬の回線揺れでは切断扱いにしない。
+const CONNECTION_GRACE_MS=60000;
+const AUTO_ICE_RESTART_DELAY_MS=8000;
+const AUTO_ICE_RESTART_TIMEOUT_MS=12000;
+const MAX_AUTO_ICE_RESTARTS=1;
+
+let connectionEvents=[];
+let guestRecovery={
+  graceTimer:null,
+  restartTimer:null,
+  recovering:false
+};
+
 const $=id=>document.getElementById(id);
 const els={
   statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
@@ -794,13 +870,14 @@ const els={
   specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
   myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
-  lifeDisplay:$("lifeDisplay"),lastEventBox:$("lastEventBox"),gameEndBox:$("gameEndBox"),
+  lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),
   actionStepText:$("actionStepText"),actionHint:$("actionHint"),
   actionSummary:$("actionSummary"),confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   tokenConfirmArea:$("tokenConfirmArea"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
+  connectionDiagnostics:$("connectionDiagnostics"),connectionLog:$("connectionLog"),
   disconnectBtn:$("disconnectBtn")
 };
 
@@ -810,6 +887,422 @@ function setStatus(text,type="normal"){
   if(type==="ok")els.statusDot.classList.add("ok");
   if(type==="wait")els.statusDot.classList.add("wait");
   if(type==="bad")els.statusDot.classList.add("bad");
+}
+
+
+function shortClock(){
+  const d=new Date();
+  return [d.getHours(),d.getMinutes(),d.getSeconds()]
+    .map(v=>String(v).padStart(2,"0"))
+    .join(":");
+}
+
+function addConnectionEvent(text){
+  connectionEvents.push(`${shortClock()} ${text}`);
+  if(connectionEvents.length>14){
+    connectionEvents=connectionEvents.slice(-14);
+  }
+  renderConnectionDiagnostics();
+}
+
+function stateOf(peer,key){
+  if(!peer)return "-";
+  return peer[key]||"-";
+}
+
+function renderConnectionDiagnostics(){
+  if(!els.connectionDiagnostics||!els.connectionLog)return;
+
+  const lines=[];
+
+  if(role==="host"){
+    for(let i=1;i<expectedPlayerCount;i++){
+      const key=`p${i}`;
+      const c=hostConnections.get(key);
+
+      if(!c){
+        lines.push(`P${i+1}  PC:- / ICE:- / DC:-`);
+        continue;
+      }
+
+      lines.push(
+        `P${i+1}  PC:${stateOf(c.pc,"connectionState")}`+
+        ` / ICE:${stateOf(c.pc,"iceConnectionState")}`+
+        ` / DC:${c.channel?.readyState||"-"}`
+      );
+    }
+
+    if(!lines.length){
+      lines.push("子機未接続");
+    }
+  }else if(role==="guest"){
+    lines.push(
+      `親機  PC:${stateOf(pc,"connectionState")}`+
+      ` / ICE:${stateOf(pc,"iceConnectionState")}`+
+      ` / DC:${channel?.readyState||"-"}`
+    );
+  }else{
+    lines.push("未接続");
+  }
+
+  lines.push(`端末:${navigator.onLine===false?"offline":"online"}`);
+
+  els.connectionDiagnostics.textContent=lines.join("\n");
+  els.connectionLog.textContent=
+    connectionEvents.length
+      ? connectionEvents.slice(-10).join("\n")
+      : "変化なし";
+}
+
+function clearTimer(obj,key){
+  if(obj?.[key]){
+    clearTimeout(obj[key]);
+    obj[key]=null;
+  }
+}
+
+function clearRecoveryTimers(obj){
+  clearTimer(obj,"graceTimer");
+  clearTimer(obj,"restartTimer");
+}
+
+function peerIsRecovered(peer){
+  if(!peer)return false;
+
+  const pcOk=
+    peer.connectionState==="connected";
+
+  const iceOk=
+    peer.iceConnectionState==="connected" ||
+    peer.iceConnectionState==="completed";
+
+  return pcOk&&iceOk;
+}
+
+function connectionLabel(playerKey){
+  return `P${Number(playerKey.slice(1))+1}`;
+}
+
+function descriptionForSignal(desc){
+  return {
+    type:desc.type,
+    sdp:desc.sdp
+  };
+}
+
+async function attemptHostIceRestart(playerKey,entry){
+  if(!entry?.pc||!entry.channel)return;
+  if(peerIsRecovered(entry.pc))return;
+  if(entry.restartInFlight)return;
+  if((entry.restartAttempts||0)>=MAX_AUTO_ICE_RESTARTS)return;
+
+  // ICE restartのoffer/answerを渡すため、古いDataChannelがopenである必要がある。
+  if(entry.channel.readyState!=="open"){
+    addConnectionEvent(`${connectionLabel(playerKey)} ICE再起動不可(DC closed)`);
+    return;
+  }
+
+  if(entry.pc.signalingState!=="stable"){
+    addConnectionEvent(`${connectionLabel(playerKey)} ICE再起動待機(signaling)`);
+    return;
+  }
+
+  entry.restartAttempts=(entry.restartAttempts||0)+1;
+  entry.restartInFlight=true;
+
+  try{
+    addConnectionEvent(`${connectionLabel(playerKey)} 自動ICE restart開始`);
+
+    if(typeof entry.pc.restartIce==="function"){
+      entry.pc.restartIce();
+    }
+
+    const offer=await entry.pc.createOffer({iceRestart:true});
+    await entry.pc.setLocalDescription(offer);
+    await waitIce(entry.pc,6000);
+
+    if(entry.channel.readyState!=="open"){
+      throw new Error("DataChannel closed");
+    }
+
+    entry.channel.send(JSON.stringify({
+      type:"iceRestartOffer",
+      description:descriptionForSignal(entry.pc.localDescription)
+    }));
+
+    clearTimer(entry,"restartResultTimer");
+    entry.restartResultTimer=setTimeout(()=>{
+      entry.restartInFlight=false;
+      renderConnectionDiagnostics();
+    },AUTO_ICE_RESTART_TIMEOUT_MS);
+
+    addConnectionEvent(`${connectionLabel(playerKey)} ICE restart offer送信`);
+  }catch(e){
+    entry.restartInFlight=false;
+    addConnectionEvent(
+      `${connectionLabel(playerKey)} ICE restart失敗:${e?.message||"error"}`
+    );
+  }
+}
+
+async function handleGuestIceRestartOffer(description){
+  if(!pc||!channel||channel.readyState!=="open")return;
+
+  try{
+    addConnectionEvent("親機からICE restart受信");
+
+    await pc.setRemoteDescription(description);
+    const answer=await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitIce(pc,6000);
+
+    if(channel.readyState!=="open"){
+      throw new Error("DataChannel closed");
+    }
+
+    channel.send(JSON.stringify({
+      type:"iceRestartAnswer",
+      description:descriptionForSignal(pc.localDescription)
+    }));
+
+    addConnectionEvent("ICE restart answer送信");
+  }catch(e){
+    addConnectionEvent(`ICE restart応答失敗:${e?.message||"error"}`);
+  }
+}
+
+async function handleHostIceRestartAnswer(playerKey,description){
+  const entry=hostConnections.get(playerKey);
+  if(!entry?.pc)return;
+
+  try{
+    await entry.pc.setRemoteDescription(description);
+    entry.restartInFlight=false;
+    clearTimer(entry,"restartResultTimer");
+    addConnectionEvent(`${connectionLabel(playerKey)} ICE restart answer受信`);
+  }catch(e){
+    entry.restartInFlight=false;
+    addConnectionEvent(
+      `${connectionLabel(playerKey)} ICE restart適用失敗:${e?.message||"error"}`
+    );
+  }
+}
+
+function markHostRecovered(playerKey,entry){
+  if(!entry)return;
+
+  const wasRecovering=!!entry.recovering;
+
+  clearRecoveryTimers(entry);
+  clearTimer(entry,"restartResultTimer");
+  entry.recovering=false;
+  entry.restartInFlight=false;
+  entry.connected=entry.channel?.readyState==="open";
+
+  if(wasRecovering){
+    addConnectionEvent(`${connectionLabel(playerKey)} 通信復帰`);
+    setStatus(`${connectionLabel(playerKey)}との通信が復帰しました`,"ok");
+
+    // 切断中に状態更新を取りこぼしていても、最新状態で同期し直す。
+    if(gameState&&entry.channel?.readyState==="open"){
+      sendTo(playerKey,{
+        type:"state",
+        view:makeViewFor(playerKey)
+      });
+    }
+  }
+
+  refreshHostConnectionUi();
+  renderConnectionDiagnostics();
+}
+
+function scheduleHostRecovery(playerKey,entry,immediateRestart=false){
+  if(!entry?.pc)return;
+
+  if(!entry.recovering){
+    entry.recovering=true;
+    addConnectionEvent(`${connectionLabel(playerKey)} 一時切断・復帰待ち`);
+    setStatus(
+      `${connectionLabel(playerKey)}との通信が不安定です・復帰待ち`,
+      "wait"
+    );
+  }
+
+  if(!entry.restartTimer){
+    entry.restartTimer=setTimeout(()=>{
+      entry.restartTimer=null;
+      if(!peerIsRecovered(entry.pc)){
+        attemptHostIceRestart(playerKey,entry);
+      }
+    },immediateRestart?300: AUTO_ICE_RESTART_DELAY_MS);
+  }
+
+  if(!entry.graceTimer){
+    entry.graceTimer=setTimeout(()=>{
+      entry.graceTimer=null;
+
+      if(peerIsRecovered(entry.pc)){
+        markHostRecovered(playerKey,entry);
+        return;
+      }
+
+      entry.connected=false;
+      refreshHostConnectionUi();
+      renderConnectionDiagnostics();
+
+      setStatus(
+        `${connectionLabel(playerKey)}との通信を復旧できません・ゲーム状態は保持中`,
+        "bad"
+      );
+
+      addConnectionEvent(`${connectionLabel(playerKey)} 復旧待ち継続`);
+    },CONNECTION_GRACE_MS);
+  }
+}
+
+function handleHostPeerState(playerKey,entry,source){
+  const peer=entry?.pc;
+  if(!peer)return;
+
+  addConnectionEvent(
+    `${connectionLabel(playerKey)} ${source}`+
+    ` PC:${peer.connectionState} ICE:${peer.iceConnectionState}`
+  );
+
+  if(peerIsRecovered(peer)){
+    markHostRecovered(playerKey,entry);
+    return;
+  }
+
+  const failed=
+    peer.connectionState==="failed" ||
+    peer.iceConnectionState==="failed";
+
+  const disconnected=
+    peer.connectionState==="disconnected" ||
+    peer.iceConnectionState==="disconnected";
+
+  if(failed){
+    scheduleHostRecovery(playerKey,entry,true);
+  }else if(disconnected){
+    scheduleHostRecovery(playerKey,entry,false);
+  }else{
+    renderConnectionDiagnostics();
+  }
+}
+
+function markGuestRecovered(){
+  const wasRecovering=guestRecovery.recovering;
+
+  clearRecoveryTimers(guestRecovery);
+  guestRecovery.recovering=false;
+
+  if(wasRecovering){
+    addConnectionEvent("親機との通信復帰");
+    setStatus("親機との通信が復帰しました","ok");
+  }
+
+  renderConnectionDiagnostics();
+}
+
+function scheduleGuestRecovery(){
+  if(!guestRecovery.recovering){
+    guestRecovery.recovering=true;
+    addConnectionEvent("親機との通信が一時切断・復帰待ち");
+    setStatus("通信が不安定です・復帰待ち","wait");
+  }
+
+  // 子機からはrestartを開始しない。親機からのrestart offerに応答する。
+  if(!guestRecovery.graceTimer){
+    guestRecovery.graceTimer=setTimeout(()=>{
+      guestRecovery.graceTimer=null;
+
+      if(peerIsRecovered(pc)){
+        markGuestRecovered();
+        return;
+      }
+
+      setStatus(
+        "親機との通信を復旧できません・ゲーム状態は保持中",
+        "bad"
+      );
+      addConnectionEvent("親機との復旧待ち継続");
+      renderConnectionDiagnostics();
+    },CONNECTION_GRACE_MS);
+  }
+}
+
+function handleGuestPeerState(source){
+  if(!pc)return;
+
+  addConnectionEvent(
+    `親機 ${source} PC:${pc.connectionState} ICE:${pc.iceConnectionState}`
+  );
+
+  if(peerIsRecovered(pc)){
+    markGuestRecovered();
+    return;
+  }
+
+  const failed=
+    pc.connectionState==="failed" ||
+    pc.iceConnectionState==="failed";
+
+  const disconnected=
+    pc.connectionState==="disconnected" ||
+    pc.iceConnectionState==="disconnected";
+
+  if(failed||disconnected){
+    scheduleGuestRecovery();
+  }else{
+    renderConnectionDiagnostics();
+  }
+}
+
+function bindHostPeerDiagnostics(playerKey,entry){
+  const peer=entry.pc;
+
+  peer.addEventListener(
+    "connectionstatechange",
+    ()=>handleHostPeerState(playerKey,entry,"PC")
+  );
+
+  peer.addEventListener(
+    "iceconnectionstatechange",
+    ()=>handleHostPeerState(playerKey,entry,"ICE")
+  );
+
+  peer.addEventListener(
+    "icegatheringstatechange",
+    ()=>renderConnectionDiagnostics()
+  );
+
+  peer.addEventListener("icecandidateerror",e=>{
+    addConnectionEvent(
+      `${connectionLabel(playerKey)} STUN error ${e.errorCode||""}`.trim()
+    );
+  });
+}
+
+function bindGuestPeerDiagnostics(peer){
+  peer.addEventListener(
+    "connectionstatechange",
+    ()=>handleGuestPeerState("PC")
+  );
+
+  peer.addEventListener(
+    "iceconnectionstatechange",
+    ()=>handleGuestPeerState("ICE")
+  );
+
+  peer.addEventListener(
+    "icegatheringstatechange",
+    ()=>renderConnectionDiagnostics()
+  );
+
+  peer.addEventListener("icecandidateerror",e=>{
+    addConnectionEvent(`親機 STUN error ${e.errorCode||""}`.trim());
+  });
 }
 
 function showRole(which){
@@ -830,13 +1323,21 @@ function showRole(which){
     els.roleText.textContent="この端末は子機です。";
     setStatus("子機：親機QR待ち","wait");
   }
+
+  renderConnectionDiagnostics();
 }
 
 function createRtcPeer(){
   return new RTCPeerConnection({
     iceServers:[
-      {urls:"stun:stun.cloudflare.com:3478"}
-    ]
+      {
+        urls:[
+          "stun:stun.cloudflare.com:3478",
+          "stun:stun.l.google.com:19302"
+        ]
+      }
+    ],
+    iceCandidatePoolSize:2
   });
 }
 
@@ -979,14 +1480,23 @@ function updateExpectedPlayerCount(){
 
 function setupHostChannel(playerKey,ch,peer){
   const entry=hostConnections.get(playerKey)||{pc:peer};
+
   entry.pc=peer;
   entry.channel=ch;
   entry.connected=false;
+  entry.recovering=false;
+  entry.restartInFlight=false;
+  entry.restartAttempts=entry.restartAttempts||0;
+
   hostConnections.set(playerKey,entry);
 
   ch.onopen=()=>{
     entry.connected=true;
+    entry.recovering=false;
+    clearRecoveryTimers(entry);
     hostConnections.set(playerKey,entry);
+
+    addConnectionEvent(`${connectionLabel(playerKey)} DC open`);
 
     try{
       ch.send(JSON.stringify({
@@ -995,6 +1505,14 @@ function setupHostChannel(playerKey,ch,peer){
         playerNumber:Number(playerKey.slice(1))+1,
         expectedPlayers:expectedPlayerCount
       }));
+
+      // 再接続なら、ゲームを作り直さず最新状態をそのまま返す。
+      if(gameState&&gameState.players[playerKey]){
+        ch.send(JSON.stringify({
+          type:"state",
+          view:makeViewFor(playerKey)
+        }));
+      }
     }catch(_){}
 
     if(pendingHostPlayerKey===playerKey){
@@ -1005,6 +1523,7 @@ function setupHostChannel(playerKey,ch,peer){
     els.answerIn.value="";
     connectedOnce=true;
     refreshHostConnectionUi();
+    renderConnectionDiagnostics();
   };
 
   ch.onmessage=e=>{
@@ -1013,17 +1532,31 @@ function setupHostChannel(playerKey,ch,peer){
     handleHostMessage(playerKey,msg);
   };
 
+  ch.onerror=()=>{
+    addConnectionEvent(`${connectionLabel(playerKey)} DC error`);
+    renderConnectionDiagnostics();
+  };
+
   ch.onclose=()=>{
+    clearRecoveryTimers(entry);
+    clearTimer(entry,"restartResultTimer");
+    entry.restartInFlight=false;
     entry.connected=false;
     hostConnections.set(playerKey,entry);
 
+    addConnectionEvent(`${connectionLabel(playerKey)} DC closed`);
+
     if(gameState){
-      setStatus(`P${Number(playerKey.slice(1))+1}との接続が切れました`,"bad");
+      setStatus(
+        `${connectionLabel(playerKey)}との接続が切れました・ゲーム状態は保持中`,
+        "bad"
+      );
     }else{
       setStatus("子機との接続が切れました","bad");
     }
 
     refreshHostConnectionUi();
+    renderConnectionDiagnostics();
   };
 }
 
@@ -1032,15 +1565,28 @@ function setupGuestChannel(ch){
 
   channel.onopen=()=>{
     connectedOnce=true;
+    guestRecovery.recovering=false;
+    clearRecoveryTimers(guestRecovery);
+
+    addConnectionEvent("親機 DC open");
     setStatus("親機と接続しました","ok");
     stopAllScanners();
+    renderConnectionDiagnostics();
   };
 
   channel.onclose=()=>{
+    addConnectionEvent("親機 DC closed");
+    renderConnectionDiagnostics();
+
     if(connectedOnce){
-      setStatus("親機との接続が切れました","bad");
-      els.lobbyCard.classList.add("hidden");
+      // ゲーム画面と現在の状態は消さない。
+      setStatus("親機との接続が切れました・ゲーム状態は保持中","bad");
     }
+  };
+
+  channel.onerror=()=>{
+    addConnectionEvent("親機 DC error");
+    renderConnectionDiagnostics();
   };
 
   channel.onmessage=e=>{
@@ -1051,6 +1597,11 @@ function setupGuestChannel(ch){
 }
 
 function handleHostMessage(actorKey,msg){
+  if(msg.type==="iceRestartAnswer"){
+    handleHostIceRestartAnswer(actorKey,msg.description);
+    return;
+  }
+
   if(msg.type==="setName"){
     const name=cleanPlayerName(msg.name);
 
@@ -1092,6 +1643,11 @@ function handleHostMessage(actorKey,msg){
 }
 
 function handleGuestMessage(msg){
+  if(msg.type==="iceRestartOffer"){
+    handleGuestIceRestartOffer(msg.description);
+    return;
+  }
+
   if(msg.type==="hello"){
     localPlayerKey=msg.playerKey;
     expectedPlayerCount=msg.expectedPlayers;
@@ -1388,6 +1944,8 @@ function createGameState(settings){
     phase:"infoTokens",
     lives:playerCount,
     lastEvent:null,
+    lastCutId:0,
+    lastCutTiles:[],
 
     config:{
       playerCount,
@@ -1471,6 +2029,8 @@ function makeViewFor(playerKey){
       ? gameState.players[gameState.turn].label
       : null,
     lastEvent:gameState.lastEvent,
+    lastCutId:gameState.lastCutId||0,
+    lastCutTiles:(gameState.lastCutTiles||[]).map(x=>({...x})),
 
     config:{
       playerCount:gameState.config.playerCount,
@@ -1746,6 +2306,20 @@ function processNormalCut(
     myTile.cut=true;
     targetTile.cut=true;
 
+    gameState.lastCutId=(gameState.lastCutId||0)+1;
+    gameState.lastCutTiles=[
+      {
+        playerKey:actor,
+        boardIndex:myBoard,
+        position:myPosition
+      },
+      {
+        playerKey:targetPlayer,
+        boardIndex:targetBoard,
+        position:targetPosition
+      }
+    ];
+
     gameState.lastEvent={
       kind:"success",
       actorLabel:gameState.players[actor].label,
@@ -1785,6 +2359,17 @@ function processNormalCut(
   }
   sortPublicFacts(facts);
 
+  // 誤答時は、狙われた相手側の位置だけを公開ハイライトする。
+  // 切る側の具体的な位置は公開しない。
+  gameState.lastCutId=(gameState.lastCutId||0)+1;
+  gameState.lastCutTiles=[
+    {
+      playerKey:targetPlayer,
+      boardIndex:targetBoard,
+      position:targetPosition
+    }
+  ];
+
   gameState.lastEvent={
     kind:"failure",
     actorLabel:gameState.players[actor].label,
@@ -1794,7 +2379,6 @@ function processNormalCut(
     targetKind:targetTile.kind,
     targetNumber:targetTile.number,
     myBoard,
-    myPosition,
     targetPlayer,
     targetBoard,
     targetPosition,
@@ -1897,6 +2481,13 @@ function processSelfCut(actor,boardIndex,position){
   for(const p of status.ownUncut){
     gameState.players[actor].boards[p.boardIndex][p.position].cut=true;
   }
+
+  gameState.lastCutId=(gameState.lastCutId||0)+1;
+  gameState.lastCutTiles=status.ownUncut.map(p=>({
+    playerKey:actor,
+    boardIndex:p.boardIndex,
+    position:p.position
+  }));
 
   gameState.lastEvent={
     kind:"self",
@@ -2098,6 +2689,13 @@ function renderPlayerView(view){
   selectedInfoToken=null;
   actionState=null;
 
+  // 新しい成功切断または誤答対象だけ、初回描画時に3回点滅。
+  animateLatestCut=
+    Number(view.lastCutId||0)>0 &&
+    Array.isArray(view.lastCutTiles) &&
+    view.lastCutTiles.length>0 &&
+    view.lastCutId!==lastAnimatedCutId;
+
   document.body.classList.remove(
     "myTurnNow",
     "infoTurnNow"
@@ -2122,7 +2720,6 @@ function renderPlayerView(view){
   renderGameConfig(view.config);
   renderSpecialTileTracker(view.config);
   renderNumberTracker(view);
-  renderLastEvent(view.lastEvent);
   updatePhaseUi(view);
 
   renderBoards(
@@ -2140,6 +2737,11 @@ function renderPlayerView(view){
 
   renderOpponents(view);
   updateActionUi();
+
+  if(animateLatestCut){
+    lastAnimatedCutId=view.lastCutId;
+  }
+  animateLatestCut=false;
 }
 
 function renderGameConfig(config){
@@ -2297,89 +2899,6 @@ function boardName(index){
   return index===0?"台A":"台B";
 }
 
-function eventActorLabel(event){
-  return event.actorLabel || (
-    event.actorRole ? roleName(event.actorRole) : "プレイヤー"
-  );
-}
-
-function renderLastEvent(event){
-  els.lastEventBox.className="resultBox neutral hidden";
-  if(!event)return;
-
-  let text="";
-  let kind="neutral";
-  const actor=eventActorLabel(event);
-  const target=event.targetLabel||"相手";
-
-  if(event.kind==="success"){
-    const call=
-      event.myKind==="yellow"
-        ? "黄タイル"
-        : formatTileNumber(event.myNumber);
-
-    text=
-      `${actor}：${call}で切断成功！ `+
-      `自分の${boardName(event.myBoard)}・${event.myPosition+1}番目「${tileExactLabel(event.myKind,event.myNumber)}」と、`+
-      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目「${tileExactLabel(event.targetKind,event.targetNumber)}」を公開しました。`;
-
-    kind="success";
-
-  }else if(event.kind==="failure"){
-    const call=
-      event.myKind==="yellow"
-        ? "黄タイル"
-        : `「${formatTileNumber(event.myNumber)}」`;
-
-    const fact=
-      event.myKind==="yellow"
-        ? "黄タイル"
-        : `「${formatTileNumber(event.myNumber)}」`;
-
-    text=
-      `${actor}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${fact}を使い、`+
-      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を${call}と予想しましたが不正解。`+
-      `実際は「${tileExactLabel(event.targetKind,event.targetNumber)}」でした。`+
-      `情報トークンを置き、ライフは残り${event.lives}です。`+
-      ` ${actor}の${boardName(event.myBoard)}には${fact}があることが確定します。`;
-
-    kind="failure";
-
-  }else if(event.kind==="self"){
-    const label=
-      event.tileKind==="yellow"
-        ? "黄タイル"
-        : event.tileKind==="red"
-          ? "赤タイル"
-          : `「${formatTileNumber(event.number)}」`;
-
-    text=
-      `${actor}：${label}を自分だけで${event.count}枚同時に切断しました。`;
-
-    kind="self";
-
-  }else if(event.kind==="redBoom"){
-    const call=
-      event.myKind==="yellow"
-        ? "黄タイル"
-        : `「${formatTileNumber(event.myNumber)}」`;
-
-    text=
-      `${actor}：自分の${boardName(event.myBoard)}・${event.myPosition+1}番目の${call}で、`+
-      `${target}の${boardName(event.targetBoard)}・${event.targetPosition+1}番目を指定。`+
-      `そこは赤${formatTileNumber(event.redNumber)}だったため、即ゲームオーバーです。`;
-
-    kind="failure";
-  }
-
-  if(event.skippedPlayers?.length){
-    text+=` ${event.skippedPlayers.join("、")}は未切断タイルがないため手番をスキップします。`;
-  }
-
-  els.lastEventBox.textContent=text;
-  els.lastEventBox.className=`resultBox ${kind}`;
-}
-
 function updatePhaseUi(view){
   els.nextPhaseNotice.classList.add("hidden");
   els.playControls.classList.add("hidden");
@@ -2535,6 +3054,15 @@ function renderOpponents(view){
   }
 }
 
+function isLastCutTile(view,playerKey,boardIndex,position){
+  return (view.lastCutTiles||[]).some(
+    t=>
+      t.playerKey===playerKey &&
+      t.boardIndex===boardIndex &&
+      t.position===position
+  );
+}
+
 function renderBoards(container,boards,isOpponent,view,owner){
   container.innerHTML="";
 
@@ -2588,6 +3116,16 @@ function renderBoards(container,boards,isOpponent,view,owner){
         (visibleYellow?" yellowTile":"")+
         (visibleRed?" redTile":"")+
         (tile.cut?" cut":"");
+
+      if(
+        isLastCutTile(view,owner.playerKey,bi,tile.position)
+      ){
+        el.classList.add("lastCutTile");
+
+        if(animateLatestCut){
+          el.classList.add("lastCutPulse");
+        }
+      }
 
       el.textContent=hidden?"?":formatTileNumber(tile.number);
 
@@ -3121,32 +3659,45 @@ function candidateCost(line){
 function minimizeSdp(sdp){
   const lines=sdp.split(/\r?\n/).filter(Boolean);
 
-  // 別ネットワーク越しでは STUN で得られる srflx candidate を最優先。
-  // 同一Wi-Fiでも使えるよう host candidate も1本だけ残す。
+  // QRサイズは抑えつつ、以前より候補を増やして経路切替の余地を持たせる。
+  // srflx 最大2本 + host 最大2本を残す。
   const candidates=lines.filter(l=>l.startsWith("a=candidate:"));
   const udp=candidates.filter(l=>/\sudp\s/i.test(l));
 
+  const preferIpv4=(a,b)=>{
+    const a4=/\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(a) ? 0 : 1;
+    const b4=/\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(b) ? 0 : 1;
+    return a4-b4 || candidateCost(a)-candidateCost(b);
+  };
+
   const srflx=udp
     .filter(l=>/\styp\s+srflx\b/i.test(l))
-    .sort((a,b)=>candidateCost(a)-candidateCost(b));
+    .sort(preferIpv4);
 
   const host=udp
     .filter(l=>/\styp\s+host\b/i.test(l))
-    .sort((a,b)=>candidateCost(a)-candidateCost(b));
+    .sort(preferIpv4);
 
-  let chosen=[];
+  const chosen=[];
 
-  // IPv4のsrflxを優先（QRを小さく保つため原則1本）
-  const srflxV4=srflx.find(l=>/\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+srflx\b/i.test(l));
-  if(srflxV4) chosen.push(srflxV4);
-  else if(srflx.length) chosen.push(srflx[0]);
+  for(const line of srflx.slice(0,2)){
+    if(!chosen.includes(line))chosen.push(line);
+  }
 
-  // 同一LAN接続用としてhostを1本だけ追加
-  if(host.length) chosen.push(compactCandidateLine(host[0]));
+  for(const line of host.slice(0,2)){
+    const compact=compactCandidateLine(line);
+    if(!chosen.includes(compact))chosen.push(compact);
+  }
 
-  // srflxが取得できなかった場合は、UDP候補を最大2本まで残す
+  // srflx/hostが少ない端末では、他のUDP候補で最大4本まで補う。
+  for(const line of udp){
+    if(chosen.length>=4)break;
+    if(!chosen.includes(line))chosen.push(line);
+  }
+
+  // UDP候補自体が取れない場合だけ、候補全体から最大4本残す。
   if(!chosen.length){
-    chosen=udp.length ? udp.slice(0,2) : candidates.slice(0,2);
+    chosen.push(...candidates.slice(0,4));
   }
 
   const wantedPrefixes=[
@@ -3171,7 +3722,6 @@ function minimizeSdp(sdp){
     wantedPrefixes.some(prefix=>line.startsWith(prefix))
   );
 
-  // ICE candidate は選別したものだけ追加。
   kept.push(...chosen);
 
   if(lines.includes("a=end-of-candidates")){
@@ -3268,18 +3818,7 @@ async function createOffer(){
 
     hostConnections.set(playerKey,entry);
 
-    peer.onconnectionstatechange=()=>{
-      const state=peer.connectionState;
-
-      if(state==="failed"){
-        entry.connected=false;
-        refreshHostConnectionUi();
-        setStatus(
-          `P${Number(playerKey.slice(1))+1}との接続に失敗しました`,
-          "bad"
-        );
-      }
-    };
+    bindHostPeerDiagnostics(playerKey,entry);
 
     const ch=peer.createDataChannel(
       "bomb-game",
@@ -3313,6 +3852,9 @@ async function createOffer(){
 }
 
 function closeGuestPeer(showStatus=false){
+  clearRecoveryTimers(guestRecovery);
+  guestRecovery.recovering=false;
+
   try{
     if(channel&&channel.readyState==="open"){
       channel.send(JSON.stringify({type:"disconnect"}));
@@ -3344,11 +3886,7 @@ async function buildAnswerFromCode(code){
   const peer=createRtcPeer();
   pc=peer;
 
-  peer.onconnectionstatechange=()=>{
-    if(peer.connectionState==="failed"){
-      setStatus("親機との接続に失敗しました","bad");
-    }
-  };
+  bindGuestPeerDiagnostics(peer);
 
   peer.ondatachannel=e=>{
     setupGuestChannel(e.channel);
@@ -3444,6 +3982,9 @@ async function copyText(el){
 
 function closeAllHostPeers(showStatus=true){
   for(const [key,c] of hostConnections){
+    clearRecoveryTimers(c);
+    clearTimer(c,"restartResultTimer");
+
     try{
       if(c.channel&&c.channel.readyState==="open"){
         c.channel.send(JSON.stringify({type:"disconnect"}));
@@ -3528,6 +4069,17 @@ els.cancelActionBtn.onclick=cancelAction;
 els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;
 
+window.addEventListener("online",()=>{
+  addConnectionEvent("端末 online");
+  renderConnectionDiagnostics();
+});
+
+window.addEventListener("offline",()=>{
+  addConnectionEvent("端末 offline");
+  setStatus("端末がオフラインです・ゲーム状態は保持中","wait");
+  renderConnectionDiagnostics();
+});
+
 window.addEventListener("beforeunload",()=>{
   if(role==="host"){
     for(const [,c] of hostConnections){
@@ -3547,6 +4099,7 @@ window.addEventListener("beforeunload",()=>{
 });
 
 updateSetupSelectors();
+renderConnectionDiagnostics();
 })();
 </script>
 </body>

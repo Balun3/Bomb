@@ -839,6 +839,9 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   padding:6px 5px;
   font-size:.76rem
 }
+.actionButtons.noPersonalCards{
+  grid-template-columns:1fr 1fr
+}
 .interruptCardArea{
   position:fixed;
   right:10px;
@@ -1151,6 +1154,14 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
           <div class="small">8～16。通常数字は1～最大値を各4枚使用します。</div>
         </div>
         <div class="setupField">
+          <label for="personalCardsEnabledSelect">個人カード</label>
+          <select id="personalCardsEnabledSelect">
+            <option value="1" selected>使用する</option>
+            <option value="0">使用しない</option>
+          </select>
+          <div class="small">使用しない場合は誰にも配られません。</div>
+        </div>
+        <div class="setupField">
           <label for="yellowCandidateSelect">黄タイル候補数</label>
           <select id="yellowCandidateSelect"></select>
           <div class="small">1.1～(最大値-1).1からランダムに候補を公開します。</div>
@@ -1251,7 +1262,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。個人カード対応。交換情報マーカー改善版。
+    2〜6人対応。個人カード使用有無を設定可能。
   </footer>
 </div>
 
@@ -1340,7 +1351,8 @@ const els={
   copyOfferBtn:$("copyOfferBtn"),copyAnswerBtn:$("copyAnswerBtn"),
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
-  maxNumberSelect:$("maxNumberSelect"),yellowCandidateSelect:$("yellowCandidateSelect"),
+  maxNumberSelect:$("maxNumberSelect"),personalCardsEnabledSelect:$("personalCardsEnabledSelect"),
+  yellowCandidateSelect:$("yellowCandidateSelect"),
   yellowUsedSelect:$("yellowUsedSelect"),redCandidateSelect:$("redCandidateSelect"),
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
   myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),
@@ -3344,13 +3356,15 @@ function updateSetupPreview(){
     `${expectedPlayerCount}人・通常${normalCount}枚＋黄${yellowUsedCount}枚＋赤${redUsedCount}枚＝合計${total}枚。 `+
     `配牌目安：${distribution}。 `+
     `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
-    `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。`;
+    `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。 `+
+    `個人カード：${els.personalCardsEnabledSelect.value==="1"?"使用":"なし"}`;
 }
 
 function readSetupSettings(){
   return {
     playerCount:expectedPlayerCount,
     maxNumber:Number(els.maxNumberSelect.value),
+    personalCardsEnabled:els.personalCardsEnabledSelect.value==="1",
     yellowCandidateCount:Number(els.yellowCandidateSelect.value),
     yellowUsedCount:Number(els.yellowUsedSelect.value),
     redCandidateCount:Number(els.redCandidateSelect.value),
@@ -4916,9 +4930,12 @@ function publicCardFlowFor(viewerKey){
 const _baseCreateGameState=createGameState;
 createGameState=function(settings){
   const state=_baseCreateGameState(settings);
-  state.version=7;
-  state.phase="personalCards";
-  state.infoTurn=null;
+  const personalCardsEnabled=settings.personalCardsEnabled!==false;
+
+  state.version=8;
+  state.config.personalCardsEnabled=personalCardsEnabled;
+  state.phase=personalCardsEnabled?"personalCards":"infoTokens";
+  state.infoTurn=personalCardsEnabled?null:state.captainKey;
   state.turn=null;
   state.cardFlow=null;
   state.turnSerial=0;
@@ -4927,9 +4944,13 @@ createGameState=function(settings){
 
   for(const key of state.seatOrder){
     const p=state.players[key];
-    p.personalCard=key===state.captainKey
-      ? {type:"futsu",remainingUses:1,usedCount:0}
-      : null;
+
+    // 個人カードOFFなら隊長を含め誰にも配らない。
+    p.personalCard=
+      personalCardsEnabled && key===state.captainKey
+        ? {type:"futsu",remainingUses:1,usedCount:0}
+        : null;
+
     state.boardLayouts[key]=[];
     p.boards.forEach((board,bi)=>{
       board.forEach(tile=>{
@@ -4939,6 +4960,7 @@ createGameState=function(settings){
       state.boardLayouts[key][bi]=board.map(tile=>({type:"tile",tileId:tile.id}));
     });
   }
+
   return state;
 };
 
@@ -5004,7 +5026,7 @@ finishTurn=function(actor){
 };
 
 function processChoosePersonalCard(actor,type){
-  if(!gameState||gameState.phase!=="personalCards")return;
+  if(!gameState||gameState.config.personalCardsEnabled===false||gameState.phase!=="personalCards")return;
   const p=gameState.players[actor];
   if(!p||p.role==="captain"||p.personalCard)return;
   if(!PERSONAL_CARDS[type])return;
@@ -5247,6 +5269,7 @@ function instantCardHasLegalUse(actor,type){
 }
 
 function startInstantCard(actor,expectedTurnSerial=null,expectedTurn=null){
+  if(gameState?.config?.personalCardsEnabled===false)return;
   if(!gameState||gameState.phase!=="play"||gameState.cardFlow)return;
   if(expectedTurnSerial!==null&&Number(expectedTurnSerial)!==Number(gameState.turnSerial||0))return;
   if(expectedTurn!==null&&expectedTurn!==gameState.turn)return;
@@ -5861,7 +5884,14 @@ renderNumberTracker=function(view){
 
 function renderPersonalCardChoice(view){
   els.personalCardChoiceArea.innerHTML="";
-  if(view.phase!=="personalCards"||view.personalCard){els.personalCardChoiceArea.classList.add("hidden");return;}
+  if(
+    view.config?.personalCardsEnabled===false ||
+    view.phase!=="personalCards" ||
+    view.personalCard
+  ){
+    els.personalCardChoiceArea.classList.add("hidden");
+    return;
+  }
   els.personalCardChoiceArea.classList.remove("hidden");
   for(const type of PERSONAL_CARD_ORDER){
     const def=PERSONAL_CARDS[type];
@@ -5920,6 +5950,7 @@ function syncForcedAction(view){
 
 function renderInterruptButton(view){
   els.interruptCardArea.classList.add("hidden");
+  if(view.config?.personalCardsEnabled===false)return;
   const c=view.personalCard;
   if(view.phase!=="play"||view.cardFlow||view.turn===view.playerKey||!c||c.remainingUses<=0)return;
   if(PERSONAL_CARDS[c.type]?.mode!=="instant")return;
@@ -5930,6 +5961,11 @@ function renderInterruptButton(view){
 const _baseRenderPlayerView=renderPlayerView;
 renderPlayerView=function(view){
   _baseRenderPlayerView(view);
+
+  const cardsEnabled=view.config?.personalCardsEnabled!==false;
+  els.personalCardBtn.classList.toggle("hidden",!cardsEnabled);
+  els.personalCardBtn.parentElement?.classList.toggle("noPersonalCards",!cardsEnabled);
+
   if(view.phase==="personalCards")armLeaveGuard();
   els.myPlayerHeading.innerHTML=cardHeadingHtml(view.label,view.personalCard,"");
   renderPersonalCardChoice(view);
@@ -6018,9 +6054,18 @@ updateActionUi=function(){
   els.playControls.classList.remove("hidden");
 
   if(!actionState){
-    els.actionChoice.classList.remove("hidden");els.actionProgress.classList.add("hidden");
+    els.actionChoice.classList.remove("hidden");
+    els.actionProgress.classList.add("hidden");
+
+    const cardsEnabled=currentView.config?.personalCardsEnabled!==false;
     const c=currentView.personalCard;
-    els.personalCardBtn.disabled=!c||c.remainingUses<=0;
+
+    els.personalCardBtn.classList.toggle("hidden",!cardsEnabled);
+    els.personalCardBtn.parentElement?.classList.toggle("noPersonalCards",!cardsEnabled);
+
+    if(cardsEnabled){
+      els.personalCardBtn.disabled=!c||c.remainingUses<=0;
+    }
     return;
   }
   els.actionChoice.classList.add("hidden");els.actionProgress.classList.remove("hidden");
@@ -6131,6 +6176,7 @@ els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
 els.maxNumberSelect.onchange=updateSetupSelectors;
+els.personalCardsEnabledSelect.onchange=updateSetupPreview;
 els.yellowCandidateSelect.onchange=()=>updateYellowUsedSelector(true);
 els.yellowUsedSelect.onchange=updateSetupPreview;
 els.redCandidateSelect.onchange=()=>updateRedUsedSelector(true);

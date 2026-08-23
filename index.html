@@ -721,7 +721,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（縦方向コンパクト）</p>
+  <p class="sub">2〜6人対応版（ランダム名前対応）</p>
 
   <section class="card">
     <div class="status">
@@ -807,7 +807,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <input id="guestNameInput" maxlength="16">
     </div>
 
-    <div id="guestSeatStatus" class="notice info">名前を入力してから親機のQRを読み取ってください。</div>
+    <div id="guestSeatStatus" class="notice info">親機のQRを読み取ってください。</div>
     <div class="step">
       <b>① 親機QRを読む</b>
       <button id="scanOfferBtn" class="primary">親機QRを読み取る</button>
@@ -919,7 +919,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     </div>
 
     <div class="playerBlock">
-      <h2>あなたのタイル</h2>
+      <h2 id="myPlayerHeading">―</h2>
       <div id="myBoards"></div>
     </div>
 
@@ -1008,7 +1008,7 @@ const els={
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
   myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),
   specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
-  myBoards:$("myBoards"),oppBoards:$("oppBoards"),
+  myPlayerHeading:$("myPlayerHeading"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
@@ -1487,6 +1487,61 @@ function cleanPlayerName(value){
     .slice(0,16);
 }
 
+const RANDOM_PLAYER_NAMES=[
+  "チョキカス",
+  "ヤンキー",
+  "ゴリラ",
+  "誤爆王",
+  "爆散太郎",
+  "切断厨",
+  "勘ピュータ",
+  "脳筋マン",
+  "ビビり神",
+  "赤踏みマン",
+  "チンピラ",
+  "深夜のカニ"
+];
+
+function randomUnusedPlayerName(playerKey){
+  const used=new Set(
+    Object.entries(playerNames)
+      .filter(([key])=>key!==playerKey)
+      .map(([,name])=>cleanPlayerName(name))
+      .filter(Boolean)
+  );
+
+  const available=
+    RANDOM_PLAYER_NAMES.filter(name=>!used.has(name));
+
+  if(available.length){
+    return available[Math.floor(Math.random()*available.length)];
+  }
+
+  // 最大6人なので通常ここには来ないが、候補枯渇時の保険。
+  let n=1;
+  while(used.has(`名無し${n}`))n++;
+  return `名無し${n}`;
+}
+
+function assignPlayerName(playerKey,requestedName=""){
+  const requested=cleanPlayerName(requestedName);
+
+  if(requested){
+    playerNames[playerKey]=requested;
+    return requested;
+  }
+
+  // 再接続などで既に割当済みなら、その名前を維持。
+  const existing=cleanPlayerName(playerNames[playerKey]);
+  if(existing){
+    return existing;
+  }
+
+  const generated=randomUnusedPlayerName(playerKey);
+  playerNames[playerKey]=generated;
+  return generated;
+}
+
 function allNamesReady(){
   for(let i=0;i<expectedPlayerCount;i++){
     const key=`p${i}`;
@@ -1508,9 +1563,8 @@ function sendGuestName(){
 
   const name=cleanPlayerName(els.guestNameInput.value);
 
-  if(!name)return;
-
   if(channel&&channel.readyState==="open"){
+    // 空欄なら親機側でランダム名を割り当てる。
     send({
       type:"setName",
       name
@@ -1742,12 +1796,14 @@ function handleHostMessage(actorKey,msg){
   }
 
   if(msg.type==="setName"){
-    const name=cleanPlayerName(msg.name);
+    const name=assignPlayerName(actorKey,msg.name);
 
-    if(name){
-      playerNames[actorKey]=name;
-      refreshHostConnectionUi();
-    }
+    sendTo(actorKey,{
+      type:"assignedName",
+      name
+    });
+
+    refreshHostConnectionUi();
     return;
   }
 
@@ -1799,16 +1855,22 @@ function handleGuestMessage(msg){
 
     const myName=cleanPlayerName(els.guestNameInput.value);
 
-    if(myName){
-      send({
-        type:"setName",
-        name:myName
-      });
-    }
+    send({
+      type:"setName",
+      name:myName
+    });
 
     setStatus("親機と接続しました","ok");
     els.lobbyCard.classList.remove("hidden");
     els.guestLobby.classList.remove("hidden");
+    return;
+  }
+
+  if(msg.type==="assignedName"){
+    const name=cleanPlayerName(msg.name);
+    if(name){
+      els.guestNameInput.value=name;
+    }
     return;
   }
 
@@ -2808,11 +2870,13 @@ function startOrRedeal(){
     return;
   }
 
-  playerNames.p0=cleanPlayerName(els.hostNameInput.value);
+  const hostName=assignPlayerName("p0",els.hostNameInput.value);
+  if(!cleanPlayerName(els.hostNameInput.value)){
+    els.hostNameInput.value=hostName;
+  }
 
-  if(!allNamesReady()){
-    alert("全員が名前を入力してから開始してください。");
-    return;
+  for(let i=1;i<expectedPlayerCount;i++){
+    assignPlayerName(`p${i}`,playerNames[`p${i}`]);
   }
 
   gameState=createGameState(readSetupSettings());
@@ -2854,6 +2918,7 @@ function renderPlayerView(view){
   const isCaptain=view.role==="captain";
   els.myRoleBadge.textContent=view.label;
   els.myRoleBadge.className="roleBadge "+(isCaptain?"captain":"minion");
+  els.myPlayerHeading.textContent=view.label;
 
   renderLives(view.lives,view.config.playerCount);
   renderGameConfig(view.config);
@@ -3870,13 +3935,10 @@ async function createOffer(){
   try{
     if(role!=="host")return;
 
-    const hostName=cleanPlayerName(els.hostNameInput.value);
-
-    if(!hostName){
-      throw new Error("先に親機プレイヤーの名前を入力してください。");
+    const hostName=assignPlayerName("p0",els.hostNameInput.value);
+    if(!cleanPlayerName(els.hostNameInput.value)){
+      els.hostNameInput.value=hostName;
     }
-
-    playerNames.p0=hostName;
 
     const playerKey=nextMissingPlayerKey();
 
@@ -3964,12 +4026,6 @@ function closeGuestPeer(showStatus=false){
 }
 
 async function buildAnswerFromCode(code){
-  const guestName=cleanPlayerName(els.guestNameInput.value);
-
-  if(!guestName){
-    throw new Error("先にあなたの名前を入力してください。");
-  }
-
   closeGuestPeer(false);
 
   const peer=createRtcPeer();

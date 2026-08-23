@@ -201,14 +201,14 @@ summary{font-weight:750;cursor:pointer}
   opacity:1
 }
 .probeResolveBanner{
-  margin:0 0 5px;
-  padding:3px 7px;
-  border:1px solid #f59e0b;
-  border-radius:7px;
+  margin:0 0 6px;
+  padding:5px 9px;
+  border:2px solid #f59e0b;
+  border-radius:8px;
   background:#fff7ed;
   color:#9a3412;
-  font-size:clamp(.66rem,2.6vw,.82rem);
-  font-weight:900;
+  font-size:clamp(.72rem,2.9vw,.9rem);
+  font-weight:1000;
   line-height:1.15;
   width:max-content;
   max-width:100%;
@@ -1353,7 +1353,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。探知機の指定履歴を次の1手番まで表示。
+    2〜6人対応。探知機の宣言数字表示を修正。
   </footer>
 </div>
 
@@ -5347,9 +5347,12 @@ function processResolveProbe(resolver,position){
 
     gameState.lives=Math.max(0,gameState.lives-1);
     addPublicFact(flow.actor,flow.sourceBoard,flow.sourceNumber);
-    markLastResult([
-      {playerKey:flow.targetPlayer,boardIndex:flow.targetBoard,position:target.position,tileId:target.id}
-    ]);
+
+    // 全外れでは指定箇所すべてが橙枠で十分に分かる。
+    // 情報トークンを置いた1枚には青枠を付けない。
+    // 直前の青結果だけはここで消す。
+    markLastResult([]);
+
     gameState.lastEvent={kind:"failure",cardType:flow.type,lives:gameState.lives};
   }
 
@@ -5996,6 +5999,26 @@ renderBoards=function(container,boards,isOpponent,view,owner){
     if(actionState?.mode==="swap"&&isOpponent&&actionState.myPosition!==null&&board.some(t=>!t.cut)){
       wrap.classList.add("selectableBoard");
       wrap.onclick=()=>selectSwapTargetBoard(owner.playerKey,bi);
+    }
+
+    // フツたん／ミツたんの宣言数字を、対象台の直前に全員へ表示。
+    // 解決中と、解決後の次の1手番の両方で表示する。
+    const probeDisplays=probeDisplaysForBoard(
+      view,
+      owner.playerKey,
+      bi
+    );
+
+    for(const display of probeDisplays){
+      const probeBanner=document.createElement("div");
+      probeBanner.className=
+        "probeResolveBanner"+
+        (display.phase==="recent"?" recent":"");
+
+      probeBanner.textContent=
+        `${probeShortName(display.cardType)}：${formatTileNumber(display.sourceNumber)}`;
+
+      wrap.appendChild(probeBanner);
     }
 
     const facts=owner.boardFacts?.[bi];

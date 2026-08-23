@@ -86,7 +86,7 @@ summary{font-weight:750;cursor:pointer}
   display:flex;align-items:center;justify-content:center;
   border:1px solid #9ca3af;border-radius:6px;background:#fff;
   font-weight:850;font-size:clamp(.72rem,3vw,1.05rem);
-  box-shadow:0 1px 2px rgba(0,0,0,.06)
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
   transition:transform .12s ease, box-shadow .12s ease, outline-color .12s ease;
 }
 .tile.hiddenTile{background:#e5e7eb;color:#6b7280}
@@ -597,13 +597,131 @@ body.infoTurnNow{
   padding:10px
 }
 
+
+/* ===== ゲーム画面：縦方向の省スペース化 ===== */
+
+/* 大きなカード自体の余白を約2割圧縮 */
+.card{
+  padding:12px;
+  margin:10px 0
+}
+
+/* 推理情報・あなたのタイルの見出しを約3割縮小 */
+.playerBlock > h2{
+  font-size:.74rem;
+  line-height:1.15;
+  margin:0 0 6px
+}
+
+/* プレイヤー名（役職）も約3割縮小 */
+.opponentName{
+  margin:0 0 5px;
+  font-size:.65rem;
+  line-height:1.2
+}
+.opponentName.activeLabel,
+.opponentName.activeInfoLabel{
+  font-size:.70rem
+}
+.turnWho{
+  gap:4px
+}
+.turnArrow{
+  font-size:.82rem
+}
+
+/* セクション間の縦余白をおおむね2割圧縮 */
+.playerBlock{
+  padding-top:10px;
+  margin-top:10px
+}
+.inferenceBlock{
+  margin-bottom:6px!important
+}
+.inferenceBlock h2{
+  margin-bottom:5px
+}
+.opponentBlock{
+  margin-top:3px!important
+}
+.opponentGroup{
+  margin:11px 0 14px;
+  padding-top:8px
+}
+.opponentGroup.activeTurn,
+.opponentGroup.activeInfoTurn{
+  padding:8px
+}
+
+/* 台まわりの上下余白を圧縮 */
+.board{
+  padding:4px;
+  margin-top:3px!important;
+  margin-bottom:6px!important
+}
+.boardFacts{
+  margin:4px 0 2px;
+  min-height:18px
+}
+
+/* 黄・赤情報と残数表示も少し詰める */
+.specialTileTracker{
+  gap:2px;
+  margin:0 0 4px
+}
+.specialTileLine{
+  padding:3px 6px
+}
+.numberTracker{
+  margin:1px 0 5px
+}
+.numberTrackCell{
+  height:22px
+}
+
+/* タイルは横幅を変えず、高さだけ約10%縮小 */
+.tile{
+  aspect-ratio:.80
+}
+
+/* 情報トークン列もタイルに合わせて少し低く */
+.infoTokenRow{
+  margin-top:4px;
+  min-height:20px
+}
+.infoTokenSlot{
+  min-height:20px
+}
+.infoTokenBadge{
+  min-height:18px;
+  padding:1px 0
+}
+
+/* 上部のフェーズ表示も縦余白だけ少し圧縮 */
+.phaseTitle{
+  margin-bottom:5px
+}
+.turnBanner{
+  padding:9px 10px;
+  margin:10px 0
+}
+.tokenHelp{
+  margin:6px 0
+}
+.meta{
+  gap:8px
+}
+.roleBadge{
+  padding:6px 10px
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（操作UI省スペース）</p>
+  <p class="sub">2〜6人対応版（縦方向コンパクト）</p>
 
   <section class="card">
     <div class="status">

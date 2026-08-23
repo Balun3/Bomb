@@ -1223,11 +1223,12 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
    イコールラベル / コトナルラベル
    ============================================================ */
 .tiles.relationLabelBoard{
-  position:relative
+  position:relative;
+  overflow:visible
 }
 .relationLabelPlaced{
   position:absolute;
-  height:17px;
+  height:15px;
   box-sizing:border-box;
   border-top:2px solid #64748b;
   border-left:2px solid #64748b;
@@ -1261,8 +1262,8 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 .relationLabelPlaced.different .relationLabelSymbol{color:#6d28d9}
 .relationChoice{
   position:absolute;
-  width:30px;
-  height:44px;
+  width:32px;
+  height:30px;
   transform:translateX(-50%);
   z-index:70;
   cursor:pointer;
@@ -1544,7 +1545,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イコール／コトナルラベルを追加。
+    2〜6人対応。関係ラベルをタイル上側へ配置。
   </footer>
 </div>
 
@@ -8451,8 +8452,10 @@ function placeRelationLabelElement(
     `${l.left-box.left+1}px`;
   el.style.width=
     `${Math.max(24,r.right-l.left-2)}px`;
-  el.style.bottom=
-    `${lane*19}px`;
+
+  // タイル列の上側に確保したラベル専用領域へ配置。
+  el.style.top=
+    `${lane*19+9}px`;
 
   tiles.appendChild(el);
 }
@@ -8462,7 +8465,8 @@ function placeRelationChoiceElement(
   leftCol,
   rightCol,
   pair,
-  symbolText
+  symbolText,
+  lane=0
 ){
   const box=tiles.getBoundingClientRect();
   const l=leftCol.getBoundingClientRect();
@@ -8477,7 +8481,9 @@ function placeRelationChoiceElement(
 
   label.className="relationChoice";
   label.style.left=`${center}px`;
-  label.style.top="12px";
+
+  // 既存ラベルとは重ならない上側の候補選択段。
+  label.style.top=`${lane*19+1}px`;
 
   radio.type="radio";
   radio.name="equipmentRelationChoice";
@@ -8601,9 +8607,15 @@ function decorateRelationLabels(
       "relationLabelBoard"
     );
 
-    if(labels.length){
-      tiles.style.paddingBottom=
-        `${labels.length*19+7}px`;
+    const topLanes=
+      labels.length+
+      (candidates.length?1:0);
+
+    if(topLanes){
+      // ラベル・候補はすべてタイル上側へ置く。
+      // 情報トークンのある下側には干渉しない。
+      tiles.style.paddingTop=
+        `${topLanes*19+8}px`;
     }
 
     labels.forEach((label,lane)=>{
@@ -8656,7 +8668,8 @@ function decorateRelationLabels(
           cols[leftIndex],
           cols[rightIndex],
           pair,
-          symbolText
+          symbolText,
+          labels.length
         );
       });
     }

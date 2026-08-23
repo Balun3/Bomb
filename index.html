@@ -503,13 +503,27 @@ body.infoTurnNow{
   margin-bottom:7px!important
 }
 
+
+.inferenceBlock{
+  margin-bottom:8px!important
+}
+.inferenceBlock h2{
+  margin-bottom:7px
+}
+.opponentBlock{
+  margin-top:4px!important
+}
+#tokenConfirmArea{
+  padding:10px
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（黄タイル偶数枚限定）</p>
+  <p class="sub">2〜6人対応版（省スペースUI）</p>
 
   <section class="card">
     <div class="status">
@@ -699,21 +713,23 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       </div>
     </div>
 
-    <div class="playerBlock">
-      <h2>あなたのタイル</h2>
+    <div class="playerBlock inferenceBlock">
+      <h2>推理情報</h2>
       <div id="specialTileTracker" class="specialTileTracker"></div>
       <div id="numberTracker" class="numberTracker"></div>
+    </div>
+
+    <div class="playerBlock">
+      <h2>あなたのタイル</h2>
       <div id="myBoards"></div>
     </div>
 
-    <div class="playerBlock">
-      <h2>ほかのプレイヤーのタイル</h2>
+    <div class="playerBlock opponentBlock">
       <div id="oppBoards"></div>
     </div>
 
-    <div id="tokenConfirmArea" class="hidden">
-      <div id="tokenSelectionText" class="notice info"></div>
-      <button id="confirmTokenBtn" class="primary" style="width:100%;margin-top:10px">このタイルに情報トークンを置く</button>
+    <div id="tokenConfirmArea" class="actionPanel hidden">
+      <button id="confirmTokenBtn" class="primary" style="width:100%">このタイルに情報トークンを置く</button>
     </div>
 
     <div id="nextPhaseNotice" class="notice info hidden"></div>
@@ -783,7 +799,7 @@ const els={
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),
   actionStepText:$("actionStepText"),actionHint:$("actionHint"),
   actionSummary:$("actionSummary"),confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
-  tokenConfirmArea:$("tokenConfirmArea"),tokenSelectionText:$("tokenSelectionText"),
+  tokenConfirmArea:$("tokenConfirmArea"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
   disconnectBtn:$("disconnectBtn")
 };
@@ -2665,18 +2681,14 @@ function renderBoards(container,boards,isOpponent,view,owner){
 }
 
 function selectInfoTokenTile(boardIndex,position,el,number){
-  document.querySelectorAll(".selectableTile.selected").forEach(x=>x.classList.remove("selected"));
+  document.querySelectorAll(".selectableTile.selected").forEach(
+    x=>x.classList.remove("selected")
+  );
+
   el.classList.add("selected");
   selectedInfoToken={boardIndex,position};
 
-  const selected=currentView.myBoards[boardIndex][position];
-  const label=
-    selected.kind==="yellow"
-      ? `黄${formatTileNumber(selected.number)}`
-      : selected.kind==="red"
-        ? `赤${formatTileNumber(selected.number)}`
-        : formatTileNumber(selected.number);
-  els.tokenSelectionText.textContent=`${boardName(boardIndex)}・左から${position+1}番目の「${label}」の下に数字情報トークンを置きます。`;
+  // 選択状態はタイルのハイライトだけで示す。
   els.tokenConfirmArea.classList.remove("hidden");
 }
 

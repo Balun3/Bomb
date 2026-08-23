@@ -1117,6 +1117,97 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   .actionButtons .personalActionBtn{font-size:.68rem}
 }
 
+
+/* ============================================================
+   共通装備カード
+   ============================================================ */
+.equipmentSection{
+  margin-top:8px;
+  border-top:1px solid #e5e7eb;
+  padding-top:6px
+}
+.equipmentTitle{
+  margin:0 0 4px;
+  color:#64748b;
+  font-size:.67rem;
+  font-weight:900;
+  line-height:1
+}
+.equipmentCards{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px
+}
+.equipmentItem{
+  min-width:0;
+  text-align:center
+}
+.equipmentCardFace{
+  position:relative;
+  min-height:38px;
+  padding:4px 3px;
+  border:1.5px solid #94a3b8;
+  border-radius:7px;
+  background:#f8fafc;
+  color:#334155;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  font-size:clamp(.56rem,2.25vw,.72rem);
+  font-weight:900;
+  line-height:1.05;
+  overflow:hidden;
+  user-select:none;
+  transition:transform .08s ease,opacity .08s ease,border-color .08s ease
+}
+.equipmentUnlockNumber{
+  margin-top:2px;
+  min-height:15px;
+  color:#111827;
+  font-size:.78rem;
+  font-weight:1000;
+  line-height:1
+}
+.equipmentItem.locked .equipmentCardFace{
+  opacity:.38
+}
+.equipmentItem.ready .equipmentCardFace{
+  border-color:#475569;
+  background:#fff
+}
+.equipmentItem.clickable .equipmentCardFace{
+  cursor:pointer;
+  box-shadow:0 1px 4px rgba(15,23,42,.12)
+}
+.equipmentItem.clickable .equipmentCardFace:active{
+  transform:scale(.97)
+}
+.equipmentItem.used .equipmentCardFace{
+  opacity:.28
+}
+.equipmentItem.used .equipmentUnlockNumber{
+  opacity:.35
+}
+.equipmentUsedMark{
+  position:absolute;
+  right:3px;
+  top:2px;
+  font-size:.72rem;
+  font-weight:1000;
+  color:#475569
+}
+.equipmentItem.selected .equipmentCardFace{
+  outline:3px solid #7c3aed;
+  outline-offset:1px
+}
+/* 将来の「4枚切断で解放」カード用 */
+.equipmentCardFace.threshold4{
+  border-color:#b8860b;
+  background:linear-gradient(180deg,#fff7c2,#f1d36a);
+  color:#5f4600
+}
+
 </style>
 </head>
 <body>
@@ -1329,6 +1420,10 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <h2>推理情報</h2>
       <div id="specialTileTracker" class="specialTileTracker"></div>
       <div id="numberTracker" class="numberTracker"></div>
+      <div id="equipmentSection" class="equipmentSection">
+        <div class="equipmentTitle">装備</div>
+        <div id="equipmentCards" class="equipmentCards"></div>
+      </div>
     </div>
 
     <div class="playerBlock">
@@ -1353,7 +1448,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。探知機の宣言数字表示を修正。
+    2〜6人対応。共有装備カード6種を実装。
   </footer>
 </div>
 
@@ -1448,6 +1543,7 @@ const els={
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
   myRoleBadge:$("myRoleBadge"),gameConfigBox:$("gameConfigBox"),
   specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
+  equipmentSection:$("equipmentSection"),equipmentCards:$("equipmentCards"),
   myPlayerHeading:$("myPlayerHeading"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
   phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
@@ -6460,6 +6556,1085 @@ const _baseIsGameInProgress=isGameInProgress;
 isGameInProgress=function(){
   if(role==="host")return !!(gameState&&["personalCards","infoTokens","play"].includes(gameState.phase));
   return !!(currentView&&["personalCards","infoTokens","play"].includes(currentView.phase));
+};
+
+
+
+/* ============================================================
+   共通装備カード拡張
+   ============================================================ */
+const EQUIPMENT_CARDS={
+  dotchi:{
+    name:"ドッチカアタレイ",
+    short:"ドチアタ",
+    threshold:2,
+    mode:"turn"
+  },
+  mitsu:{
+    name:"ミッツケル探知機",
+    short:"ミツたん",
+    threshold:2,
+    mode:"turn"
+  },
+  swap:{
+    name:"イレカエシーバー",
+    short:"イレシー",
+    threshold:2,
+    mode:"instant"
+  },
+  radar:{
+    name:"なんでもレーダー",
+    short:"なんレー",
+    threshold:2,
+    mode:"instant"
+  },
+  lifeCancel:{
+    name:"失敗帳消し機",
+    short:"帳消し",
+    threshold:2,
+    mode:"auto"
+  },
+  infoToken:{
+    name:"情報トークン",
+    short:"情報",
+    threshold:2,
+    mode:"instant"
+  }
+};
+
+const EQUIPMENT_CARD_ORDER=[
+  "dotchi",
+  "mitsu",
+  "swap",
+  "radar",
+  "lifeCancel",
+  "infoToken"
+];
+
+function normalCutCountForEquipment(number){
+  if(!gameState)return 0;
+  return allTiles().filter(
+    t=>t.cut&&t.kind==="normal"&&t.number===number
+  ).length;
+}
+
+function equipmentCardState(type){
+  return gameState?.equipmentCards?.find(c=>c.type===type)||null;
+}
+
+function equipmentCardUsableState(card){
+  return !!card&&card.unlocked&&Number(card.remainingUses||0)>0;
+}
+
+function consumeEquipmentCard(type){
+  const card=equipmentCardState(type);
+  if(!equipmentCardUsableState(card))return false;
+  card.remainingUses=Math.max(0,Number(card.remainingUses||0)-1);
+  card.usedCount=Math.max(0,Number(card.usedCount||0))+1;
+  return true;
+}
+
+function createEquipmentCards(state){
+  const count=Math.min(
+    Number(state.config.playerCount||state.seatOrder.length||2),
+    EQUIPMENT_CARD_ORDER.length
+  );
+
+  // 採用カード自体をランダム選定。
+  const pickedSet=new Set(
+    shuffle([...EQUIPMENT_CARD_ORDER]).slice(0,count)
+  );
+
+  // 同じ解放枚数グループ内では数字を重複させない。
+  const byThreshold=new Map();
+
+  for(const type of EQUIPMENT_CARD_ORDER){
+    if(!pickedSet.has(type))continue;
+    const threshold=EQUIPMENT_CARDS[type].threshold;
+    if(!byThreshold.has(threshold))byThreshold.set(threshold,[]);
+    byThreshold.get(threshold).push(type);
+  }
+
+  const result=[];
+
+  for(const [threshold,types] of byThreshold){
+    const numbers=shuffle(
+      Array.from(
+        {length:state.config.maxNumber},
+        (_,i)=>i+1
+      )
+    );
+
+    if(numbers.length<types.length){
+      throw new Error("装備カードへ割り当てる数字が不足しています。");
+    }
+
+    types.forEach((type,index)=>{
+      result.push({
+        type,
+        threshold,
+        unlockNumber:numbers[index],
+        unlocked:false,
+        remainingUses:1,
+        usedCount:0
+      });
+    });
+  }
+
+  // 表示順は毎回同じにし、どのカードが採用されたかだけランダムにする。
+  result.sort(
+    (a,b)=>
+      EQUIPMENT_CARD_ORDER.indexOf(a.type)-
+      EQUIPMENT_CARD_ORDER.indexOf(b.type)
+  );
+
+  return result;
+}
+
+function equipmentViewCards(){
+  return (gameState?.equipmentCards||[]).map(card=>{
+    const def=EQUIPMENT_CARDS[card.type];
+    return {
+      type:card.type,
+      name:def.name,
+      short:def.short,
+      threshold:card.threshold,
+      unlockNumber:card.unlockNumber,
+      unlocked:!!card.unlocked,
+      remainingUses:Math.max(0,Number(card.remainingUses||0)),
+      usedCount:Math.max(0,Number(card.usedCount||0)),
+      mode:def.mode
+    };
+  });
+}
+
+function refreshEquipmentStates(){
+  if(!gameState?.equipmentCards)return;
+
+  for(const card of gameState.equipmentCards){
+    if(!card.unlocked){
+      const cutCount=normalCutCountForEquipment(card.unlockNumber);
+      if(cutCount>=card.threshold){
+        card.unlocked=true;
+      }
+    }
+  }
+
+  // 即時発動は、他のカード効果を解決し終わってから行う。
+  if(gameState.cardFlow)return;
+
+  for(const card of gameState.equipmentCards){
+    const def=EQUIPMENT_CARDS[card.type];
+    if(
+      def?.mode==="auto" &&
+      equipmentCardUsableState(card)
+    ){
+      if(card.type==="lifeCancel"){
+        card.remainingUses=Math.max(0,card.remainingUses-1);
+        card.usedCount=(card.usedCount||0)+1;
+        // 上限なし
+        gameState.lives=Number(gameState.lives||0)+1;
+      }
+    }
+  }
+}
+
+/* 新規ゲーム時に、人数分の共有装備をランダム採用・割当 */
+const _equipmentBaseCreateGameState=createGameState;
+createGameState=function(settings){
+  const state=_equipmentBaseCreateGameState(settings);
+  state.version=10;
+  state.equipmentCards=createEquipmentCards(state);
+  return state;
+};
+
+/* すべての状態配信直前に解放条件と即時発動を更新 */
+const _equipmentBaseBroadcastViews=broadcastViews;
+broadcastViews=function(){
+  if(gameState)refreshEquipmentStates();
+  return _equipmentBaseBroadcastViews();
+};
+
+/* 各端末へ共有装備状態を送る */
+const _equipmentBaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+  const view=_equipmentBaseMakeViewFor(playerKey);
+  view.equipmentCards=equipmentViewCards();
+  return view;
+};
+
+/* ------------------------------------------------------------
+   装備版 ミッツケル探知機
+   ------------------------------------------------------------ */
+function processEquipmentProbe(actor,payload){
+  const cardType="mitsu";
+
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.turn!==actor ||
+    gameState.cardFlow
+  )return;
+
+  const equipment=equipmentCardState(cardType);
+  if(!equipmentCardUsableState(equipment))return;
+
+  const source=getStateTile(
+    actor,
+    payload.sourceBoard,
+    payload.sourcePosition
+  );
+
+  if(!source||source.cut||source.kind!=="normal"){
+    actionError(actor,"通常数字のタイルを選んでください。");
+    return;
+  }
+
+  const targetPlayer=payload.targetPlayer;
+  const targetBoard=payload.targetBoard;
+
+  if(
+    targetPlayer===actor ||
+    !validBoardIndexFor(targetPlayer,targetBoard)
+  )return;
+
+  const board=gameState.players[targetPlayer].boards[targetBoard];
+  const uncut=board.filter(t=>!t.cut);
+
+  if(uncut.length<2){
+    actionError(actor,"残り1枚の台には使用できません。");
+    return;
+  }
+
+  const required=Math.min(3,uncut.length);
+  const positions=[...(payload.targetPositions||[])];
+
+  if(
+    positions.length!==required ||
+    new Set(positions).size!==required
+  )return;
+
+  const targets=positions.map(pos=>board[pos]);
+  if(targets.some(t=>!t||t.cut))return;
+
+  if(!consumeEquipmentCard(cardType))return;
+
+  if(targets.every(t=>t.kind==="red")){
+    gameState.lastEvent={
+      kind:"redBoom",
+      actorLabel:gameState.players[actor].label,
+      cardType
+    };
+    gameState.phase="gameover";
+    gameState.turn=null;
+    gameState.cardFlow=null;
+    broadcastViews();
+    return;
+  }
+
+  const matching=targets.filter(
+    t=>t.kind==="normal"&&t.number===source.number
+  );
+
+  gameState.cardFlow={
+    type:cardType,
+    stage:matching.length
+      ? "probeChooseCut"
+      : "probeChooseInfo",
+    actor,
+    resolver:targetPlayer,
+    sourceBoard:payload.sourceBoard,
+    sourceTileId:source.id,
+    sourceNumber:source.number,
+    targetPlayer,
+    targetBoard,
+    selectedTileIds:targets.map(t=>t.id),
+    selectedPositions:targets.map(t=>t.position),
+    allowedPositions:matching.length
+      ? matching.map(t=>t.position)
+      : targets.filter(t=>t.kind!=="red").map(t=>t.position),
+    sourceKind:"equipment"
+  };
+
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   装備版 ドッチカアタレイ
+   ------------------------------------------------------------ */
+function processEquipmentDotchi(actor,payload){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.turn!==actor ||
+    gameState.cardFlow
+  )return;
+
+  const equipment=equipmentCardState("dotchi");
+  if(!equipmentCardUsableState(equipment))return;
+
+  const src=(payload.sources||[]);
+  if(src.length!==2)return;
+  if(src[0].boardIndex!==src[1].boardIndex)return;
+
+  const t1=getStateTile(
+    actor,
+    src[0].boardIndex,
+    src[0].position
+  );
+  const t2=getStateTile(
+    actor,
+    src[1].boardIndex,
+    src[1].position
+  );
+
+  if(
+    !t1 ||
+    !t2 ||
+    t1.cut ||
+    t2.cut ||
+    t1.kind!=="normal" ||
+    t2.kind!=="normal" ||
+    t1.number===t2.number
+  )return;
+
+  const targetPlayer=payload.targetPlayer;
+  const target=getStateTile(
+    targetPlayer,
+    payload.targetBoard,
+    payload.targetPosition
+  );
+
+  if(
+    targetPlayer===actor ||
+    !target ||
+    target.cut
+  )return;
+
+  if(!consumeEquipmentCard("dotchi"))return;
+
+  if(target.kind==="red"){
+    gameState.lastEvent={
+      kind:"redBoom",
+      actorLabel:gameState.players[actor].label,
+      cardType:"dotchi"
+    };
+    gameState.phase="gameover";
+    gameState.turn=null;
+    broadcastViews();
+    return;
+  }
+
+  const hit=
+    target.kind==="normal"
+      ? [t1,t2].find(t=>t.number===target.number)
+      : null;
+
+  if(hit){
+    const missed=t1===hit?t2:t1;
+    addPublicFact(
+      actor,
+      src[0].boardIndex,
+      missed.number
+    );
+
+    hit.cut=true;
+    target.cut=true;
+
+    markLastResult([
+      {
+        playerKey:actor,
+        boardIndex:src[0].boardIndex,
+        position:hit.position,
+        tileId:hit.id
+      },
+      {
+        playerKey:targetPlayer,
+        boardIndex:payload.targetBoard,
+        position:target.position,
+        tileId:target.id
+      }
+    ]);
+
+    gameState.lastEvent={
+      kind:"success",
+      cardType:"dotchi"
+    };
+  }else{
+    addPublicFact(
+      actor,
+      src[0].boardIndex,
+      t1.number
+    );
+    addPublicFact(
+      actor,
+      src[0].boardIndex,
+      t2.number
+    );
+
+    target.infoToken={
+      type:"number",
+      value:target.number,
+      tileKind:target.kind
+    };
+
+    gameState.lives=Math.max(
+      0,
+      gameState.lives-1
+    );
+
+    markLastResult([
+      {
+        playerKey:targetPlayer,
+        boardIndex:payload.targetBoard,
+        position:target.position,
+        tileId:target.id
+      }
+    ]);
+
+    gameState.lastEvent={
+      kind:"failure",
+      cardType:"dotchi",
+      lives:gameState.lives
+    };
+  }
+
+  finishTurn(actor);
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   いつでも使用する共有装備
+   ------------------------------------------------------------ */
+function equipmentInstantHasLegalUse(actor,type){
+  if(type==="radar"){
+    return allTiles().some(
+      t=>!t.cut&&t.kind==="normal"
+    );
+  }
+
+  if(type==="swap"){
+    const ownHasTile=
+      gameState.players[actor]?.boards?.some(
+        board=>board.some(t=>!t.cut)
+      );
+
+    const otherHasTile=
+      gameState.seatOrder.some(
+        key=>
+          key!==actor &&
+          gameState.players[key]?.boards?.some(
+            board=>board.some(t=>!t.cut)
+          )
+      );
+
+    return !!(ownHasTile&&otherHasTile);
+  }
+
+  if(type==="infoToken"){
+    return gameState.players[actor]?.boards?.some(
+      board=>board.some(
+        t=>
+          !t.cut &&
+          t.kind==="normal" &&
+          !t.infoToken
+      )
+    );
+  }
+
+  return false;
+}
+
+function startEquipmentCard(
+  actor,
+  type,
+  expectedTurnSerial=null,
+  expectedTurn=null
+){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.cardFlow
+  )return;
+
+  if(
+    expectedTurnSerial!==null &&
+    Number(expectedTurnSerial)!==
+      Number(gameState.turnSerial||0)
+  )return;
+
+  if(
+    expectedTurn!==null &&
+    expectedTurn!==gameState.turn
+  )return;
+
+  const def=EQUIPMENT_CARDS[type];
+  const card=equipmentCardState(type);
+
+  if(
+    !def ||
+    def.mode!=="instant" ||
+    !equipmentCardUsableState(card)
+  )return;
+
+  if(!equipmentInstantHasLegalUse(actor,type)){
+    actionError(actor,"現在は使用できません。");
+    broadcastViews();
+    return;
+  }
+
+  // 「使う」と押した瞬間に共有カードを確保する。
+  if(!consumeEquipmentCard(type))return;
+
+  gameState.cardFlow={
+    type:
+      type==="infoToken"
+        ? "equipmentInfo"
+        : type,
+    equipmentType:type,
+    stage:
+      type==="radar"
+        ? "radarInput"
+        : type==="swap"
+          ? "swapInput"
+          : "equipmentInfoInput",
+    actor,
+    resolver:actor,
+    baseTurn:gameState.turn,
+    committed:true,
+    sourceKind:"equipment"
+  };
+
+  broadcastViews();
+}
+
+function processEquipmentInfoToken(actor,boardIndex,position){
+  const flow=gameState?.cardFlow;
+
+  if(
+    !flow ||
+    flow.type!=="equipmentInfo" ||
+    flow.stage!=="equipmentInfoInput" ||
+    flow.actor!==actor
+  )return;
+
+  const tile=getStateTile(
+    actor,
+    boardIndex,
+    position
+  );
+
+  if(
+    !tile ||
+    tile.cut ||
+    tile.kind!=="normal" ||
+    tile.infoToken
+  )return;
+
+  tile.infoToken={
+    type:"number",
+    value:tile.number,
+    tileKind:"normal"
+  };
+
+  gameState.cardFlow=null;
+  broadcastViews();
+}
+
+/* equipmentInfoだけ既存cardFlow表示を拡張 */
+const _equipmentBasePublicCardFlowFor=publicCardFlowFor;
+publicCardFlowFor=function(viewerKey){
+  const flow=gameState?.cardFlow;
+
+  if(
+    flow?.type==="equipmentInfo" &&
+    flow.stage==="equipmentInfoInput"
+  ){
+    const common={
+      active:true,
+      type:flow.type,
+      actor:flow.actor,
+      actorLabel:gameState.players[flow.actor]?.label||"",
+      resolver:flow.actor,
+      resolverLabel:gameState.players[flow.actor]?.label||"",
+      stage:"resolving"
+    };
+
+    if(viewerKey===flow.actor){
+      return {
+        ...common,
+        stage:"equipmentInfoInput"
+      };
+    }
+
+    return common;
+  }
+
+  return _equipmentBasePublicCardFlowFor(viewerKey);
+};
+
+/* ------------------------------------------------------------
+   通信
+   ------------------------------------------------------------ */
+const _equipmentBaseHandleHostMessage=handleHostMessage;
+handleHostMessage=function(actorKey,msg){
+  if(msg.type==="equipmentProbe"){
+    processEquipmentProbe(actorKey,msg);
+    return;
+  }
+
+  if(msg.type==="equipmentDotchi"){
+    processEquipmentDotchi(actorKey,msg);
+    return;
+  }
+
+  if(msg.type==="startEquipmentCard"){
+    startEquipmentCard(
+      actorKey,
+      msg.equipmentType,
+      msg.expectedTurnSerial,
+      msg.expectedTurn
+    );
+    return;
+  }
+
+  if(msg.type==="equipmentInfoApply"){
+    processEquipmentInfoToken(
+      actorKey,
+      Number(msg.boardIndex),
+      Number(msg.position)
+    );
+    return;
+  }
+
+  return _equipmentBaseHandleHostMessage(
+    actorKey,
+    msg
+  );
+};
+
+/* ------------------------------------------------------------
+   端末側：共有装備UI
+   ------------------------------------------------------------ */
+function equipmentClientCanUse(card,view){
+  if(
+    !card ||
+    !view ||
+    view.phase!=="play" ||
+    view.cardFlow ||
+    !card.unlocked ||
+    card.remainingUses<=0
+  )return false;
+
+  if(card.mode==="auto")return false;
+
+  if(card.mode==="turn"){
+    return view.turn===view.playerKey;
+  }
+
+  return true;
+}
+
+function renderEquipmentCards(view){
+  if(!els.equipmentCards)return;
+
+  els.equipmentCards.innerHTML="";
+
+  const cards=view?.equipmentCards||[];
+
+  els.equipmentSection?.classList.toggle(
+    "hidden",
+    cards.length===0
+  );
+
+  for(const card of cards){
+    const item=document.createElement("div");
+
+    const used=card.remainingUses<=0;
+    const ready=card.unlocked&&!used;
+    const clickable=equipmentClientCanUse(
+      card,
+      view
+    );
+
+    item.className=
+      "equipmentItem"+
+      (used?" used":ready?" ready":" locked")+
+      (clickable?" clickable":"")+
+      (
+        actionState?.equipmentType===card.type
+          ? " selected"
+          : ""
+      );
+
+    const face=document.createElement("div");
+    face.className=
+      "equipmentCardFace"+
+      (card.threshold===4?" threshold4":"");
+
+    face.textContent=card.name;
+
+    if(used){
+      const mark=document.createElement("span");
+      mark.className="equipmentUsedMark";
+      mark.textContent="✓";
+      face.appendChild(mark);
+    }
+
+    const unlock=document.createElement("div");
+    unlock.className="equipmentUnlockNumber";
+    unlock.textContent=String(card.unlockNumber);
+
+    if(clickable){
+      face.onclick=()=>{
+        beginEquipmentCardAction(card.type);
+      };
+    }
+
+    item.appendChild(face);
+    item.appendChild(unlock);
+    els.equipmentCards.appendChild(item);
+  }
+}
+
+function currentEquipmentCard(type){
+  return currentView?.equipmentCards?.find(
+    c=>c.type===type
+  )||null;
+}
+
+function requestStartEquipmentCard(type){
+  if(!currentView)return;
+
+  const payload={
+    type:"startEquipmentCard",
+    equipmentType:type,
+    expectedTurnSerial:currentView.turnSerial||0,
+    expectedTurn:currentView.turn
+  };
+
+  if(role==="host"){
+    startEquipmentCard(
+      localPlayerKey,
+      type,
+      payload.expectedTurnSerial,
+      payload.expectedTurn
+    );
+  }else{
+    send(payload);
+  }
+}
+
+function beginEquipmentCardAction(type){
+  const card=currentEquipmentCard(type);
+
+  if(
+    !card ||
+    !equipmentClientCanUse(card,currentView)
+  )return;
+
+  const def=EQUIPMENT_CARDS[type];
+
+  if(def.mode==="instant"){
+    requestStartEquipmentCard(type);
+    return;
+  }
+
+  if(
+    def.mode!=="turn" ||
+    currentView.turn!==currentView.playerKey
+  )return;
+
+  if(type==="mitsu"){
+    actionState={
+      mode:"probe",
+      cardType:"mitsu",
+      actionSource:"equipment",
+      equipmentType:type,
+      sourceBoard:null,
+      sourcePosition:null,
+      sourceNumber:null,
+      targetPlayer:null,
+      targetBoard:null,
+      targetPositions:[]
+    };
+  }else if(type==="dotchi"){
+    actionState={
+      mode:"dotchi",
+      actionSource:"equipment",
+      equipmentType:type,
+      sourceBoard:null,
+      sources:[],
+      targetPlayer:null,
+      targetBoard:null,
+      targetPosition:null
+    };
+  }else{
+    return;
+  }
+
+  updateActionUi();
+  renderEquipmentCards(currentView);
+  rerenderBoardsOnly();
+}
+
+/* equipmentInfo の強制入力 */
+const _equipmentBaseSyncForcedAction=syncForcedAction;
+syncForcedAction=function(view){
+  const flow=view?.cardFlow;
+
+  if(
+    flow?.actor===view.playerKey &&
+    flow.stage==="equipmentInfoInput"
+  ){
+    actionState={
+      mode:"equipmentInfo",
+      forced:true,
+      equipmentType:"infoToken",
+      targetBoard:null,
+      targetPosition:null
+    };
+    return;
+  }
+
+  return _equipmentBaseSyncForcedAction(view);
+};
+
+/* equipmentInfo用の選択可否 */
+const _equipmentBaseCanSelectPlayTile=canSelectPlayTile;
+canSelectPlayTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  tile,
+  view
+){
+  if(actionState?.mode==="equipmentInfo"){
+    return (
+      view.phase==="play" &&
+      !isOpponent &&
+      ownerKey===view.playerKey &&
+      !tile.cut &&
+      tile.kind==="normal" &&
+      !tile.infoToken
+    );
+  }
+
+  return _equipmentBaseCanSelectPlayTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    tile,
+    view
+  );
+};
+
+/* equipmentInfoで選択したタイルも紫表示 */
+const _equipmentBaseIsSelectedCardTile=isSelectedCardTile;
+isSelectedCardTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  tile
+){
+  if(actionState?.mode==="equipmentInfo"){
+    return (
+      !isOpponent &&
+      ownerKey===currentView?.playerKey &&
+      actionState.targetBoard===boardIndex &&
+      actionState.targetPosition===tile.position
+    );
+  }
+
+  return _equipmentBaseIsSelectedCardTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    tile
+  );
+};
+
+/* equipmentInfoのタイル選択 */
+const _equipmentBaseSelectPlayTile=selectPlayTile;
+selectPlayTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  position,
+  number,
+  tileKind
+){
+  if(actionState?.mode==="equipmentInfo"){
+    if(isOpponent)return;
+
+    actionState.targetBoard=boardIndex;
+    actionState.targetPosition=position;
+
+    updateActionUi();
+    rerenderBoardsOnly();
+    return;
+  }
+
+  return _equipmentBaseSelectPlayTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    position,
+    number,
+    tileKind
+  );
+};
+
+/* equipmentInfoの確定ボタン */
+const _equipmentBaseUpdateActionUi=updateActionUi;
+updateActionUi=function(){
+  _equipmentBaseUpdateActionUi();
+
+  if(
+    actionState?.mode==="equipmentInfo" &&
+    currentView
+  ){
+    els.confirmActionBtn.textContent="情報トークン";
+    els.confirmActionBtn.disabled=
+      actionState.targetPosition===null;
+  }
+};
+
+/* 装備由来のミツたん／ドチアタ／情報トークンを送信 */
+const _equipmentBaseConfirmPlayAction=confirmPlayAction;
+confirmPlayAction=function(){
+  if(
+    !actionState ||
+    !currentView ||
+    els.confirmActionBtn.disabled
+  ){
+    return _equipmentBaseConfirmPlayAction();
+  }
+
+  const s=JSON.parse(
+    JSON.stringify(actionState)
+  );
+
+  if(
+    s.mode==="probe" &&
+    s.actionSource==="equipment"
+  ){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentProbe",
+      sourceBoard:s.sourceBoard,
+      sourcePosition:s.sourcePosition,
+      targetPlayer:s.targetPlayer,
+      targetBoard:s.targetBoard,
+      targetPositions:s.targetPositions
+    };
+
+    if(role==="host"){
+      processEquipmentProbe(
+        localPlayerKey,
+        payload
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  if(
+    s.mode==="dotchi" &&
+    s.actionSource==="equipment"
+  ){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentDotchi",
+      sources:s.sources.map(
+        x=>({
+          boardIndex:s.sourceBoard,
+          position:x.position
+        })
+      ),
+      targetPlayer:s.targetPlayer,
+      targetBoard:s.targetBoard,
+      targetPosition:s.targetPosition
+    };
+
+    if(role==="host"){
+      processEquipmentDotchi(
+        localPlayerKey,
+        payload
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  if(s.mode==="equipmentInfo"){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentInfoApply",
+      boardIndex:s.targetBoard,
+      position:s.targetPosition
+    };
+
+    if(role==="host"){
+      processEquipmentInfoToken(
+        localPlayerKey,
+        payload.boardIndex,
+        payload.position
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  return _equipmentBaseConfirmPlayAction();
+};
+
+/* renderごとに装備カード欄を更新 */
+const _equipmentBaseRenderPlayerView=renderPlayerView;
+renderPlayerView=function(view){
+  _equipmentBaseRenderPlayerView(view);
+  renderEquipmentCards(view);
+};
+
+/* actionState変更時にも選択中表示を同期 */
+const _equipmentBaseCancelAction=cancelAction;
+cancelAction=function(){
+  const result=_equipmentBaseCancelAction();
+  if(currentView)renderEquipmentCards(currentView);
+  return result;
+};
+
+/* reject表示を個人カード限定の文言にしない */
+rejectIfCardFlow=function(actor){
+  if(gameState?.cardFlow){
+    actionError(actor,"カードの効果を処理中です。");
+    return true;
+  }
+  return false;
 };
 
 

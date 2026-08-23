@@ -715,13 +715,49 @@ body.infoTurnNow{
   padding:6px 10px
 }
 
+
+.leaveConfirmOverlay{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(15,23,42,.48)
+}
+.leaveConfirmOverlay.hidden{
+  display:none!important
+}
+.leaveConfirmDialog{
+  width:min(100%,360px);
+  padding:16px;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 18px 50px rgba(0,0,0,.22)
+}
+.leaveConfirmTitle{
+  font-size:1rem;
+  font-weight:900;
+  text-align:center;
+  margin-bottom:14px
+}
+.leaveConfirmButtons{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px
+}
+.leaveConfirmButtons button{
+  min-height:44px
+}
+
 footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bomb Busters</h1>
-  <p class="sub">2〜6人対応版（ランダム名前対応）</p>
+  <p class="sub">2〜6人対応版（誤操作・放置対策）</p>
 
   <section class="card">
     <div class="status">
@@ -940,6 +976,17 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   </footer>
 </div>
 
+
+<div id="leaveConfirmOverlay" class="leaveConfirmOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="leaveConfirmTitle">
+  <div class="leaveConfirmDialog">
+    <div id="leaveConfirmTitle" class="leaveConfirmTitle">ゲームから退出しますか？</div>
+    <div class="leaveConfirmButtons">
+      <button id="stayGameBtn" class="secondary">キャンセル</button>
+      <button id="leaveGameBtn" class="danger">退出する</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
 "use strict";
@@ -985,6 +1032,17 @@ let guestRecovery={
   recovering:false
 };
 
+// 10分間、操作もゲーム通信もなければ自動切断。
+const IDLE_DISCONNECT_MS=10*60*1000;
+let lastSessionActivityAt=Date.now();
+let idleDisconnectTimer=null;
+let idleDisconnecting=false;
+
+// ゲーム中の誤操作によるページ離脱を防ぐ。
+let leaveGuardArmed=false;
+let leavePromptOpen=false;
+let allowPageLeave=false;
+
 const $=id=>document.getElementById(id);
 const els={
   statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
@@ -1017,6 +1075,8 @@ const els={
   tokenConfirmArea:$("tokenConfirmArea"),
   confirmTokenBtn:$("confirmTokenBtn"),nextPhaseNotice:$("nextPhaseNotice"),
   connectionDiagnostics:$("connectionDiagnostics"),connectionLog:$("connectionLog"),
+  leaveConfirmOverlay:$("leaveConfirmOverlay"),
+  stayGameBtn:$("stayGameBtn"),leaveGameBtn:$("leaveGameBtn"),
   disconnectBtn:$("disconnectBtn")
 };
 
@@ -1444,6 +1504,148 @@ function bindGuestPeerDiagnostics(peer){
   });
 }
 
+
+function isGameInProgress(){
+  if(role==="host"){
+    return !!(
+      gameState &&
+      (gameState.phase==="infoTokens" || gameState.phase==="play")
+    );
+  }
+
+  return !!(
+    currentView &&
+    (currentView.phase==="infoTokens" || currentView.phase==="play")
+  );
+}
+
+function hasLiveConnection(){
+  if(role==="host"){
+    for(const [,entry] of hostConnections){
+      if(entry?.channel?.readyState==="open"){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return role==="guest" && channel?.readyState==="open";
+}
+
+function clearIdleDisconnectTimer(){
+  if(idleDisconnectTimer){
+    clearTimeout(idleDisconnectTimer);
+    idleDisconnectTimer=null;
+  }
+}
+
+function scheduleIdleDisconnect(){
+  clearIdleDisconnectTimer();
+
+  if(!hasLiveConnection()){
+    return;
+  }
+
+  const elapsed=Date.now()-lastSessionActivityAt;
+  const remaining=Math.max(0,IDLE_DISCONNECT_MS-elapsed);
+
+  idleDisconnectTimer=setTimeout(
+    checkIdleDisconnect,
+    Math.min(remaining+50,IDLE_DISCONNECT_MS)
+  );
+}
+
+async function checkIdleDisconnect(){
+  clearIdleDisconnectTimer();
+
+  if(!hasLiveConnection() || idleDisconnecting){
+    return;
+  }
+
+  const elapsed=Date.now()-lastSessionActivityAt;
+
+  if(elapsed<IDLE_DISCONNECT_MS){
+    scheduleIdleDisconnect();
+    return;
+  }
+
+  idleDisconnecting=true;
+  addConnectionEvent("10分間無活動のため自動切断");
+
+  try{
+    await disconnect();
+    setStatus("10分間操作がなかったため接続を切りました","wait");
+  }finally{
+    idleDisconnecting=false;
+  }
+}
+
+function noteSessionActivity(){
+  lastSessionActivityAt=Date.now();
+  scheduleIdleDisconnect();
+}
+
+function noteUserActivity(){
+  if(!hasLiveConnection()){
+    return;
+  }
+
+  // バックグラウンド中に10分を超えていた場合、
+  // 復帰後の最初のタップで猶予をリセットしない。
+  if(Date.now()-lastSessionActivityAt>=IDLE_DISCONNECT_MS){
+    checkIdleDisconnect();
+    return;
+  }
+
+  noteSessionActivity();
+}
+
+function armLeaveGuard(){
+  if(leaveGuardArmed || !isGameInProgress()){
+    return;
+  }
+
+  leaveGuardArmed=true;
+  allowPageLeave=false;
+
+  try{
+    history.pushState(
+      {bombBustersLeaveGuard:true},
+      "",
+      location.href
+    );
+  }catch(_){}
+}
+
+function hideLeaveConfirm(){
+  leavePromptOpen=false;
+  els.leaveConfirmOverlay.classList.add("hidden");
+}
+
+function showLeaveConfirm(){
+  if(leavePromptOpen){
+    return;
+  }
+
+  leavePromptOpen=true;
+  els.leaveConfirmOverlay.classList.remove("hidden");
+}
+
+async function leaveGameFromBack(){
+  hideLeaveConfirm();
+  allowPageLeave=true;
+  leaveGuardArmed=false;
+
+  await disconnect();
+
+  // 戻る防止用の履歴と、このページの履歴をまとめて戻る。
+  setTimeout(()=>{
+    try{
+      history.go(-2);
+    }catch(_){}
+  },0);
+}
+
 function showRole(which){
   role=which;
   localPlayerKey=which==="host" ? "p0" : null;
@@ -1685,6 +1887,7 @@ function setupHostChannel(playerKey,ch,peer){
 
   ch.onopen=()=>{
     entry.connected=true;
+    noteSessionActivity();
     entry.recovering=false;
     clearRecoveryTimers(entry);
     hostConnections.set(playerKey,entry);
@@ -1722,6 +1925,11 @@ function setupHostChannel(playerKey,ch,peer){
   ch.onmessage=e=>{
     let msg;
     try{msg=JSON.parse(e.data)}catch(_){return}
+
+    if(msg.type!=="iceRestartAnswer" && msg.type!=="iceRestartOffer"){
+      noteSessionActivity();
+    }
+
     handleHostMessage(playerKey,msg);
   };
 
@@ -1758,6 +1966,7 @@ function setupGuestChannel(ch){
 
   channel.onopen=()=>{
     connectedOnce=true;
+    noteSessionActivity();
     guestRecovery.recovering=false;
     clearRecoveryTimers(guestRecovery);
 
@@ -1785,6 +1994,11 @@ function setupGuestChannel(ch){
   channel.onmessage=e=>{
     let msg;
     try{msg=JSON.parse(e.data)}catch(_){return}
+
+    if(msg.type!=="iceRestartAnswer" && msg.type!=="iceRestartOffer"){
+      noteSessionActivity();
+    }
+
     handleGuestMessage(msg);
   };
 }
@@ -2891,6 +3105,13 @@ function renderPlayerView(view){
   currentView=view;
   selectedInfoToken=null;
   actionState=null;
+
+  if(view.phase==="infoTokens" || view.phase==="play"){
+    armLeaveGuard();
+    scheduleIdleDisconnect();
+  }else{
+    leaveGuardArmed=false;
+  }
 
   // 新しい成功切断または誤答対象だけ、初回描画時に3回点滅。
   animateLatestCut=
@@ -4161,6 +4382,14 @@ function closeAllHostPeers(showStatus=true){
 }
 
 async function disconnect(){
+  clearIdleDisconnectTimer();
+  leaveGuardArmed=false;
+  leavePromptOpen=false;
+
+  if(els.leaveConfirmOverlay){
+    els.leaveConfirmOverlay.classList.add("hidden");
+  }
+
   await stopAllScanners();
 
   if(role==="host"){
@@ -4213,6 +4442,36 @@ els.selfCutBtn.onclick=()=>beginAction("self");
 els.cancelActionBtn.onclick=cancelAction;
 els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;
+els.stayGameBtn.onclick=hideLeaveConfirm;
+els.leaveGameBtn.onclick=leaveGameFromBack;
+
+["pointerdown","keydown","touchstart"].forEach(type=>{
+  window.addEventListener(type,noteUserActivity,{passive:true});
+});
+window.addEventListener("scroll",noteUserActivity,{passive:true});
+
+window.addEventListener("visibilitychange",()=>{
+  if(!document.hidden && hasLiveConnection()){
+    checkIdleDisconnect();
+  }
+});
+
+window.addEventListener("popstate",()=>{
+  if(!leaveGuardArmed || allowPageLeave || !isGameInProgress()){
+    return;
+  }
+
+  // 戻る操作を何回しても即離脱せず、確認画面を出す。
+  try{
+    history.pushState(
+      {bombBustersLeaveGuard:true},
+      "",
+      location.href
+    );
+  }catch(_){}
+
+  showLeaveConfirm();
+});
 
 window.addEventListener("online",()=>{
   addConnectionEvent("端末 online");
@@ -4225,21 +4484,12 @@ window.addEventListener("offline",()=>{
   renderConnectionDiagnostics();
 });
 
-window.addEventListener("beforeunload",()=>{
-  if(role==="host"){
-    for(const [,c] of hostConnections){
-      try{
-        if(c.channel&&c.channel.readyState==="open"){
-          c.channel.send(JSON.stringify({type:"disconnect"}));
-        }
-      }catch(_){}
-    }
-  }else{
-    try{
-      if(channel&&channel.readyState==="open"){
-        channel.send(JSON.stringify({type:"disconnect"}));
-      }
-    }catch(_){}
+window.addEventListener("beforeunload",e=>{
+  // 更新・タブを閉じる場合はブラウザ標準の離脱確認を使う。
+  // disconnectはここでは送らない。キャンセル時に通信だけ切れるのを防ぐため。
+  if(isGameInProgress() && !allowPageLeave){
+    e.preventDefault();
+    e.returnValue="";
   }
 });
 

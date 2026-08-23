@@ -1305,6 +1305,34 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   box-shadow:0 0 0 2px rgba(124,58,237,.22)
 }
 
+
+.equipmentChoicePanel{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5px;
+  margin:0 0 6px
+}
+.equipmentChoicePanel.hidden{display:none!important}
+.equipmentChoicePanel button{
+  min-height:36px;
+  padding:5px 4px;
+  border:1.5px solid #cbd5e1;
+  border-radius:8px;
+  background:#fff;
+  color:#334155;
+  font-size:.76rem;
+  font-weight:900
+}
+.equipmentChoicePanel button.selected{
+  border:3px solid #7c3aed;
+  background:#ede9fe;
+  color:#5b21b6
+}
+.equipmentItem.iceActive .equipmentCardFace{
+  outline:3px solid #60a5fa;
+  outline-offset:1px
+}
+
 </style>
 </head>
 <body>
@@ -1441,6 +1469,14 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
           <div class="small">使用しない場合は誰にも配られません。</div>
         </div>
         <div class="setupField">
+          <label for="equipmentCardsEnabledSelect">装備カード</label>
+          <select id="equipmentCardsEnabledSelect">
+            <option value="1" selected>使用する</option>
+            <option value="0">使用しない</option>
+          </select>
+          <div class="small">使用しない場合は装備カードを抽選しません。</div>
+        </div>
+        <div class="setupField">
           <label for="yellowCandidateSelect">黄タイル候補数</label>
           <select id="yellowCandidateSelect"></select>
           <div class="small">1.1～(最大値-1).1からランダムに候補を公開します。</div>
@@ -1506,6 +1542,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
       <div id="actionProgress" class="hidden">
         <div id="receivedTilePreview" class="receivedTilePreview hidden"></div>
+        <div id="equipmentChoicePanel" class="equipmentChoicePanel hidden"></div>
         <div class="actionControls">
           <button id="cancelActionBtn" class="secondary">やり直す</button>
           <button id="confirmActionBtn" class="primary" disabled>切断する</button>
@@ -1545,7 +1582,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。関係ラベルをタイル上側へ配置。
+    2〜6人対応。装備カード4種＋装備ON/OFFを追加。
   </footer>
 </div>
 
@@ -1635,6 +1672,7 @@ const els={
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
   maxNumberSelect:$("maxNumberSelect"),personalCardsEnabledSelect:$("personalCardsEnabledSelect"),
+  equipmentCardsEnabledSelect:$("equipmentCardsEnabledSelect"),
   yellowCandidateSelect:$("yellowCandidateSelect"),
   yellowUsedSelect:$("yellowUsedSelect"),redCandidateSelect:$("redCandidateSelect"),
   redUsedSelect:$("redUsedSelect"),setupPreview:$("setupPreview"),
@@ -1646,7 +1684,7 @@ const els={
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),personalCardBtn:$("personalCardBtn"),
-  receivedTilePreview:$("receivedTilePreview"),
+  receivedTilePreview:$("receivedTilePreview"),equipmentChoicePanel:$("equipmentChoicePanel"),
   confirmActionBtn:$("confirmActionBtn"),cancelActionBtn:$("cancelActionBtn"),
   personalCardChoiceArea:$("personalCardChoiceArea"),
   interruptCardArea:$("interruptCardArea"),interruptCardBtn:$("interruptCardBtn"),
@@ -3273,8 +3311,41 @@ function processNormalCut(
     return;
   }
 
-  // 相手の赤タイルを指定した瞬間にゲームオーバー。
+  // 相手の赤タイル。万能氷の保護中ならゲームオーバーを無効化。
   if(targetTile.kind==="red"){
+    if(consumeIceProtection(actor)){
+      const facts=gameState.publicBoardFacts[actor][myBoard];
+      const fact=publicBoardFactForTile(myTile);
+      if(!facts.includes(fact))facts.push(fact);
+      sortPublicFacts(facts);
+
+      gameState.lastCutId=(gameState.lastCutId||0)+1;
+      gameState.lastCutTiles=[{
+        playerKey:targetPlayer,
+        boardIndex:targetBoard,
+        position:targetPosition,
+        tileId:targetTile.id
+      }];
+
+      gameState.lastEvent={
+        kind:"failure",
+        iceProtected:true,
+        actorLabel:gameState.players[actor].label,
+        targetLabel:gameState.players[targetPlayer].label,
+        myKind:myTile.kind,
+        myNumber:myTile.number,
+        myBoard,
+        targetPlayer,
+        targetBoard,
+        targetPosition,
+        lives:gameState.lives
+      };
+
+      finishTurn(actor);
+      broadcastViews();
+      return;
+    }
+
     gameState.lastEvent={
       kind:"redBoom",
       actorLabel:gameState.players[actor].label,
@@ -3342,7 +3413,9 @@ function processNormalCut(
     };
   }
 
-  gameState.lives=Math.max(0,gameState.lives-1);
+  if(!consumeIceProtection(actor)){
+    gameState.lives=Math.max(0,gameState.lives-1);
+  }
 
   const facts=gameState.publicBoardFacts[actor][myBoard];
   const fact=publicBoardFactForTile(myTile);
@@ -3641,7 +3714,8 @@ function updateSetupPreview(){
     `配牌目安：${distribution}。 `+
     `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
     `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。 `+
-    `個人カード：${els.personalCardsEnabledSelect.value==="1"?"使用":"なし"}`;
+    `個人カード：${els.personalCardsEnabledSelect.value==="1"?"使用":"なし"}　`+
+    `装備カード：${els.equipmentCardsEnabledSelect.value==="1"?"使用":"なし"}`;
 }
 
 function readSetupSettings(){
@@ -3649,6 +3723,7 @@ function readSetupSettings(){
     playerCount:expectedPlayerCount,
     maxNumber:Number(els.maxNumberSelect.value),
     personalCardsEnabled:els.personalCardsEnabledSelect.value==="1",
+    equipmentCardsEnabled:els.equipmentCardsEnabledSelect.value==="1",
     yellowCandidateCount:Number(els.yellowCandidateSelect.value),
     yellowUsedCount:Number(els.yellowUsedSelect.value),
     redCandidateCount:Number(els.redCandidateSelect.value),
@@ -5471,6 +5546,32 @@ function processProbeCard(actor,cardType,payload){
   if(!consumePersonalCard(actor,cardType))return;
 
   if(targets.every(t=>t.kind==="red")){
+    if(consumeIceProtection(actor)){
+      addPublicFact(actor,payload.sourceBoard,source.number);
+      markLastResult([]);
+
+      gameState.recentProbe={
+        cardType,
+        sourceNumber:source.number,
+        targetPlayer,
+        targetBoard,
+        selectedTileIds:targets.map(t=>t.id),
+        displayTurnSerial:(gameState.turnSerial||0)+1
+      };
+
+      gameState.lastEvent={
+        kind:"failure",
+        cardType,
+        iceProtected:true,
+        lives:gameState.lives
+      };
+
+      gameState.cardFlow=null;
+      finishTurn(actor);
+      broadcastViews();
+      return;
+    }
+
     gameState.lastEvent={kind:"redBoom",actorLabel:gameState.players[actor].label,cardType};
     gameState.phase="gameover";
     gameState.turn=null;
@@ -5538,7 +5639,9 @@ function processResolveProbe(resolver,position){
         ? {type:"yellow"}
         : {type:"number",value:target.number,tileKind:target.kind};
 
-    gameState.lives=Math.max(0,gameState.lives-1);
+    if(!consumeIceProtection(flow.actor)){
+      gameState.lives=Math.max(0,gameState.lives-1);
+    }
     addPublicFact(flow.actor,flow.sourceBoard,flow.sourceNumber);
 
     // 全外れでは指定箇所すべてが橙枠で十分に分かる。
@@ -5583,6 +5686,26 @@ function processDotchiCard(actor,payload){
   if(!consumePersonalCard(actor,"dotchi"))return;
 
   if(target.kind==="red"){
+    if(consumeIceProtection(actor)){
+      addPublicFact(actor,src[0].boardIndex,t1.number);
+      addPublicFact(actor,src[0].boardIndex,t2.number);
+      markLastResult([{
+        playerKey:targetPlayer,
+        boardIndex:payload.targetBoard,
+        position:target.position,
+        tileId:target.id
+      }]);
+      gameState.lastEvent={
+        kind:"failure",
+        cardType:"dotchi",
+        iceProtected:true,
+        lives:gameState.lives
+      };
+      finishTurn(actor);
+      broadcastViews();
+      return;
+    }
+
     gameState.lastEvent={kind:"redBoom",actorLabel:gameState.players[actor].label,cardType:"dotchi"};
     gameState.phase="gameover";
     gameState.turn=null;
@@ -5611,7 +5734,9 @@ function processDotchiCard(actor,payload){
     addPublicFact(actor,src[0].boardIndex,t2.number);
 
     target.infoToken={type:"number",value:target.number,tileKind:target.kind};
-    gameState.lives=Math.max(0,gameState.lives-1);
+    if(!consumeIceProtection(actor)){
+      gameState.lives=Math.max(0,gameState.lives-1);
+    }
     markLastResult([
       {playerKey:targetPlayer,boardIndex:payload.targetBoard,position:target.position,tileId:target.id}
     ]);
@@ -6799,20 +6924,32 @@ function consumeEquipmentCard(type){
 }
 
 function createEquipmentCards(state){
+  if(state.config.equipmentCardsEnabled===false){
+    return [];
+  }
+
+  const availableOrder=EQUIPMENT_CARD_ORDER.filter(type=>{
+    // 個人カードOFF時は非常電池を抽選対象から除外。
+    if(type==="battery"&&state.config.personalCardsEnabled===false){
+      return false;
+    }
+    return true;
+  });
+
   const count=Math.min(
     Number(state.config.playerCount||state.seatOrder.length||2),
-    EQUIPMENT_CARD_ORDER.length
+    availableOrder.length
   );
 
   // 採用カード自体をランダム選定。
   const pickedSet=new Set(
-    shuffle([...EQUIPMENT_CARD_ORDER]).slice(0,count)
+    shuffle([...availableOrder]).slice(0,count)
   );
 
   // 同じ解放枚数グループ内では数字を重複させない。
   const byThreshold=new Map();
 
-  for(const type of EQUIPMENT_CARD_ORDER){
+  for(const type of availableOrder){
     if(!pickedSet.has(type))continue;
     const threshold=EQUIPMENT_CARDS[type].threshold;
     if(!byThreshold.has(threshold))byThreshold.set(threshold,[]);
@@ -6908,6 +7045,7 @@ const _equipmentBaseCreateGameState=createGameState;
 createGameState=function(settings){
   const state=_equipmentBaseCreateGameState(settings);
   state.version=10;
+  state.config.equipmentCardsEnabled=settings.equipmentCardsEnabled!==false;
   state.equipmentCards=createEquipmentCards(state);
   return state;
 };
@@ -6984,6 +7122,32 @@ function processEquipmentProbe(actor,payload){
   if(!consumeEquipmentCard(cardType))return;
 
   if(targets.every(t=>t.kind==="red")){
+    if(consumeIceProtection(actor)){
+      addPublicFact(actor,payload.sourceBoard,source.number);
+      markLastResult([]);
+
+      gameState.recentProbe={
+        cardType,
+        sourceNumber:source.number,
+        targetPlayer,
+        targetBoard,
+        selectedTileIds:targets.map(t=>t.id),
+        displayTurnSerial:(gameState.turnSerial||0)+1
+      };
+
+      gameState.lastEvent={
+        kind:"failure",
+        cardType,
+        iceProtected:true,
+        lives:gameState.lives
+      };
+
+      gameState.cardFlow=null;
+      finishTurn(actor);
+      broadcastViews();
+      return;
+    }
+
     gameState.lastEvent={
       kind:"redBoom",
       actorLabel:gameState.players[actor].label,
@@ -7078,6 +7242,29 @@ function processEquipmentDotchi(actor,payload){
   if(!consumeEquipmentCard("dotchi"))return;
 
   if(target.kind==="red"){
+    if(consumeIceProtection(actor)){
+      addPublicFact(actor,src[0].boardIndex,t1.number);
+      addPublicFact(actor,src[0].boardIndex,t2.number);
+
+      markLastResult([{
+        playerKey:targetPlayer,
+        boardIndex:payload.targetBoard,
+        position:target.position,
+        tileId:target.id
+      }]);
+
+      gameState.lastEvent={
+        kind:"failure",
+        cardType:"dotchi",
+        iceProtected:true,
+        lives:gameState.lives
+      };
+
+      finishTurn(actor);
+      broadcastViews();
+      return;
+    }
+
     gameState.lastEvent={
       kind:"redBoom",
       actorLabel:gameState.players[actor].label,
@@ -7142,10 +7329,12 @@ function processEquipmentDotchi(actor,payload){
       tileKind:target.kind
     };
 
-    gameState.lives=Math.max(
-      0,
-      gameState.lives-1
-    );
+    if(!consumeIceProtection(actor)){
+      gameState.lives=Math.max(
+        0,
+        gameState.lives-1
+      );
+    }
 
     markLastResult([
       {
@@ -8718,6 +8907,1101 @@ window.addEventListener("resize",()=>{
   }
 });
 
+
+/* ============================================================
+   装備カード拡張3：
+   万能氷 / いつでもコーヒー / スーパー探知機 / 非常電池
+   ============================================================ */
+
+EQUIPMENT_CARDS.ice={
+  name:"万能氷",
+  short:"万能氷",
+  threshold:2,
+  mode:"turn"
+};
+EQUIPMENT_CARDS.coffee={
+  name:"いつでもコーヒー",
+  short:"コーヒー",
+  threshold:2,
+  mode:"turn"
+};
+EQUIPMENT_CARDS.superProbe={
+  name:"スーパー探知機",
+  short:"スーパー",
+  threshold:2,
+  mode:"turn"
+};
+EQUIPMENT_CARDS.battery={
+  name:"非常電池",
+  short:"電池",
+  threshold:2,
+  mode:"instant"
+};
+
+["ice","coffee","superProbe","battery"].forEach(type=>{
+  if(!EQUIPMENT_CARD_ORDER.includes(type)){
+    EQUIPMENT_CARD_ORDER.push(type);
+  }
+});
+
+/* ------------------------------------------------------------
+   ゲーム状態
+   ------------------------------------------------------------ */
+const _v2BaseCreateGameState=createGameState;
+createGameState=function(settings){
+  const state=_v2BaseCreateGameState(settings);
+  state.version=12;
+  state.iceShield=null;
+  return state;
+};
+
+function hasIceProtection(actor){
+  return !!(
+    gameState?.iceShield &&
+    gameState.iceShield.actor===actor &&
+    Number(gameState.iceShield.turnSerial)===
+      Number(gameState.turnSerial||0)
+  );
+}
+
+function consumeIceProtection(actor){
+  if(!hasIceProtection(actor))return false;
+  gameState.iceShield=null;
+  return true;
+}
+
+function clearIceProtection(actor){
+  if(gameState?.iceShield?.actor===actor){
+    gameState.iceShield=null;
+  }
+}
+
+/* 手番が終われば、成功して未使用だった万能氷も消える */
+const _v2BaseFinishTurn=finishTurn;
+finishTurn=function(actor){
+  _v2BaseFinishTurn(actor);
+  clearIceProtection(actor);
+};
+
+/* ------------------------------------------------------------
+   View
+   ------------------------------------------------------------ */
+const _v2BaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+  const view=_v2BaseMakeViewFor(playerKey);
+  view.iceShieldActor=gameState?.iceShield?.actor||null;
+  return view;
+};
+
+/* ------------------------------------------------------------
+   万能氷
+   ------------------------------------------------------------ */
+function processUseIce(actor){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.turn!==actor ||
+    gameState.cardFlow ||
+    hasIceProtection(actor)
+  )return;
+
+  const card=equipmentCardState("ice");
+  if(!equipmentCardUsableState(card))return;
+  if(!consumeEquipmentCard("ice"))return;
+
+  gameState.iceShield={
+    actor,
+    turnSerial:gameState.turnSerial||0
+  };
+
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   いつでもコーヒー
+   ------------------------------------------------------------ */
+function coffeeCandidates(actor){
+  return gameState.turnOrder.filter(
+    key=>
+      key!==actor &&
+      playerHasUncut(key)
+  );
+}
+
+function processStartCoffee(actor){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.turn!==actor ||
+    gameState.cardFlow
+  )return;
+
+  const card=equipmentCardState("coffee");
+  if(!equipmentCardUsableState(card))return;
+
+  const candidates=coffeeCandidates(actor);
+  if(!candidates.length){
+    actionError(actor,"手番を渡せる相手がいません。");
+    broadcastViews();
+    return;
+  }
+
+  if(!consumeEquipmentCard("coffee"))return;
+
+  gameState.cardFlow={
+    type:"equipmentCoffee",
+    equipmentType:"coffee",
+    stage:"coffeeChoosePlayer",
+    actor,
+    resolver:actor,
+    candidates,
+    baseTurn:gameState.turn,
+    committed:true
+  };
+
+  broadcastViews();
+}
+
+function handoffTurnTo(actor,target){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    !playerHasUncut(target)
+  )return false;
+
+  clearIceProtection(actor);
+
+  gameState.turn=target;
+  gameState.turnSerial=(gameState.turnSerial||0)+1;
+
+  if(
+    gameState.recentProbe &&
+    (gameState.turnSerial||0)>
+      gameState.recentProbe.displayTurnSerial
+  ){
+    gameState.recentProbe=null;
+  }
+
+  return true;
+}
+
+function processCoffeeChoice(actor,target){
+  const flow=gameState?.cardFlow;
+
+  if(
+    !flow ||
+    flow.type!=="equipmentCoffee" ||
+    flow.stage!=="coffeeChoosePlayer" ||
+    flow.actor!==actor ||
+    !flow.candidates.includes(target)
+  )return;
+
+  gameState.cardFlow=null;
+
+  if(!handoffTurnTo(actor,target))return;
+
+  gameState.lastEvent={
+    kind:"coffee",
+    actorLabel:gameState.players[actor].label,
+    targetLabel:gameState.players[target].label
+  };
+
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   スーパー探知機
+   ------------------------------------------------------------ */
+function processEquipmentSuperProbe(actor,payload){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.turn!==actor ||
+    gameState.cardFlow
+  )return;
+
+  const card=equipmentCardState("superProbe");
+  if(!equipmentCardUsableState(card))return;
+
+  const source=getStateTile(
+    actor,
+    payload.sourceBoard,
+    payload.sourcePosition
+  );
+
+  if(
+    !source ||
+    source.cut ||
+    source.kind!=="normal"
+  ){
+    actionError(actor,"通常数字のタイルを選んでください。");
+    return;
+  }
+
+  const targetPlayer=payload.targetPlayer;
+  const targetBoard=payload.targetBoard;
+
+  if(
+    targetPlayer===actor ||
+    !validBoardIndexFor(targetPlayer,targetBoard)
+  )return;
+
+  const board=
+    gameState.players[targetPlayer].boards[targetBoard];
+
+  const uncut=board.filter(t=>!t.cut);
+
+  if(uncut.length<2){
+    actionError(actor,"残り1枚の台には使用できません。");
+    return;
+  }
+
+  if(!consumeEquipmentCard("superProbe"))return;
+
+  const matching=uncut.filter(
+    t=>
+      t.kind==="normal" &&
+      t.number===source.number
+  );
+
+  if(matching.length){
+    gameState.cardFlow={
+      type:"superProbe",
+      stage:"probeChooseCut",
+      actor,
+      resolver:targetPlayer,
+      sourceBoard:payload.sourceBoard,
+      sourceTileId:source.id,
+      sourceNumber:source.number,
+      targetPlayer,
+      targetBoard,
+      selectedTileIds:uncut.map(t=>t.id),
+      selectedPositions:uncut.map(t=>t.position),
+      allowedPositions:matching.map(t=>t.position),
+      sourceKind:"equipment"
+    };
+
+    broadcastViews();
+    return;
+  }
+
+  const infoCandidates=
+    uncut.filter(t=>t.kind!=="red");
+
+  if(infoCandidates.length){
+    gameState.cardFlow={
+      type:"superProbe",
+      stage:"probeChooseInfo",
+      actor,
+      resolver:targetPlayer,
+      sourceBoard:payload.sourceBoard,
+      sourceTileId:source.id,
+      sourceNumber:source.number,
+      targetPlayer,
+      targetBoard,
+      selectedTileIds:uncut.map(t=>t.id),
+      selectedPositions:uncut.map(t=>t.position),
+      allowedPositions:infoCandidates.map(t=>t.position),
+      sourceKind:"equipment"
+    };
+
+    broadcastViews();
+    return;
+  }
+
+  // 台の未切断がすべて赤など、情報トークンを置ける場所がない失敗。
+  if(!consumeIceProtection(actor)){
+    gameState.lives=Math.max(0,gameState.lives-1);
+  }
+
+  addPublicFact(
+    actor,
+    payload.sourceBoard,
+    source.number
+  );
+
+  markLastResult([]);
+
+  gameState.recentProbe={
+    cardType:"superProbe",
+    sourceNumber:source.number,
+    targetPlayer,
+    targetBoard,
+    selectedTileIds:uncut.map(t=>t.id),
+    displayTurnSerial:(gameState.turnSerial||0)+1
+  };
+
+  gameState.lastEvent={
+    kind:"failure",
+    cardType:"superProbe",
+    lives:gameState.lives
+  };
+
+  finishTurn(actor);
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   非常電池
+   ------------------------------------------------------------ */
+function personalCardNeedsRevive(playerKey){
+  const card=gameState.players[playerKey]?.personalCard;
+  return !!(
+    card &&
+    Number(card.usedCount||0)>0 &&
+    Number(card.remainingUses||0)<=0
+  );
+}
+
+function batteryOtherCandidates(actor){
+  return gameState.seatOrder.filter(
+    key=>
+      key!==actor &&
+      personalCardNeedsRevive(key)
+  );
+}
+
+function processStartBattery(actor){
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.cardFlow ||
+    gameState.config.personalCardsEnabled===false ||
+    !personalCardNeedsRevive(actor)
+  )return;
+
+  const card=equipmentCardState("battery");
+  if(!equipmentCardUsableState(card))return;
+  if(!consumeEquipmentCard("battery"))return;
+
+  // 使用者自身は使用宣言時点で復活。
+  gameState.players[actor].personalCard.remainingUses=
+    Number(
+      gameState.players[actor].personalCard.remainingUses||0
+    )+1;
+
+  const candidates=batteryOtherCandidates(actor);
+
+  if(!candidates.length){
+    broadcastViews();
+    return;
+  }
+
+  gameState.cardFlow={
+    type:"equipmentBattery",
+    equipmentType:"battery",
+    stage:"batteryChoosePlayer",
+    actor,
+    resolver:actor,
+    candidates,
+    baseTurn:gameState.turn,
+    committed:true
+  };
+
+  broadcastViews();
+}
+
+function processBatteryChoice(actor,target){
+  const flow=gameState?.cardFlow;
+
+  if(
+    !flow ||
+    flow.type!=="equipmentBattery" ||
+    flow.stage!=="batteryChoosePlayer" ||
+    flow.actor!==actor ||
+    !flow.candidates.includes(target) ||
+    !personalCardNeedsRevive(target)
+  )return;
+
+  gameState.players[target].personalCard.remainingUses=
+    Number(
+      gameState.players[target].personalCard.remainingUses||0
+    )+1;
+
+  gameState.cardFlow=null;
+  broadcastViews();
+}
+
+/* ------------------------------------------------------------
+   カード名表示
+   ------------------------------------------------------------ */
+const _v2BaseProbeShortName=probeShortName;
+probeShortName=function(cardType){
+  if(cardType==="superProbe"){
+    return "スーパー探知機";
+  }
+  return _v2BaseProbeShortName(cardType);
+};
+
+/* ------------------------------------------------------------
+   共有装備の使用可否
+   ------------------------------------------------------------ */
+const _v2BaseEquipmentClientCanUse=equipmentClientCanUse;
+equipmentClientCanUse=function(card,view){
+  if(
+    !card ||
+    !view ||
+    view.config?.equipmentCardsEnabled===false
+  )return false;
+
+  const base=_v2BaseEquipmentClientCanUse(card,view);
+  if(!base)return false;
+
+  if(card.type==="battery"){
+    return !!(
+      view.config?.personalCardsEnabled!==false &&
+      view.personalCard &&
+      Number(view.personalCard.usedCount||0)>0 &&
+      Number(view.personalCard.remainingUses||0)<=0
+    );
+  }
+
+  return true;
+};
+
+/* ------------------------------------------------------------
+   装備カード表示：万能氷発動中は雪印
+   ------------------------------------------------------------ */
+const _v2BaseRenderEquipmentCards=renderEquipmentCards;
+renderEquipmentCards=function(view){
+  _v2BaseRenderEquipmentCards(view);
+
+  if(
+    !view ||
+    view.config?.equipmentCardsEnabled===false
+  ){
+    els.equipmentSection?.classList.add("hidden");
+    return;
+  }
+
+  if(view.iceShieldActor===view.playerKey){
+    const cards=[
+      ...els.equipmentCards.querySelectorAll(
+        ".equipmentItem"
+      )
+    ];
+
+    const iceIndex=(view.equipmentCards||[])
+      .findIndex(c=>c.type==="ice");
+
+    if(iceIndex>=0&&cards[iceIndex]){
+      cards[iceIndex].classList.add("iceActive");
+      const mark=cards[iceIndex].querySelector(
+        ".equipmentUsedMark"
+      );
+      if(mark)mark.textContent="❄";
+    }
+  }
+};
+
+/* ------------------------------------------------------------
+   使用開始
+   ------------------------------------------------------------ */
+const _v2BaseBeginEquipmentCardAction=
+  beginEquipmentCardAction;
+
+beginEquipmentCardAction=function(type){
+  const card=currentEquipmentCard(type);
+
+  if(
+    !card ||
+    !equipmentClientCanUse(card,currentView)
+  )return;
+
+  if(type==="ice"){
+    const payload={type:"equipmentIce"};
+    if(role==="host"){
+      processUseIce(localPlayerKey);
+    }else{
+      send(payload);
+    }
+    return;
+  }
+
+  if(type==="coffee"){
+    const payload={type:"equipmentCoffeeStart"};
+    if(role==="host"){
+      processStartCoffee(localPlayerKey);
+    }else{
+      send(payload);
+    }
+    return;
+  }
+
+  if(type==="superProbe"){
+    if(currentView.turn!==currentView.playerKey)return;
+
+    actionState={
+      mode:"superProbe",
+      actionSource:"equipment",
+      equipmentType:"superProbe",
+      sourceBoard:null,
+      sourcePosition:null,
+      sourceNumber:null,
+      targetPlayer:null,
+      targetBoard:null
+    };
+
+    updateActionUi();
+    renderEquipmentCards(currentView);
+    rerenderBoardsOnly();
+    return;
+  }
+
+  if(type==="battery"){
+    requestStartEquipmentCard("battery");
+    return;
+  }
+
+  return _v2BaseBeginEquipmentCardAction(type);
+};
+
+/* ------------------------------------------------------------
+   startEquipmentCard：非常電池だけ独自処理
+   ------------------------------------------------------------ */
+const _v2BaseStartEquipmentCard=startEquipmentCard;
+startEquipmentCard=function(
+  actor,
+  type,
+  expectedTurnSerial=null,
+  expectedTurn=null
+){
+  if(type==="battery"){
+    if(
+      expectedTurnSerial!==null &&
+      Number(expectedTurnSerial)!==
+        Number(gameState?.turnSerial||0)
+    )return;
+
+    if(
+      expectedTurn!==null &&
+      expectedTurn!==gameState?.turn
+    )return;
+
+    processStartBattery(actor);
+    return;
+  }
+
+  return _v2BaseStartEquipmentCard(
+    actor,
+    type,
+    expectedTurnSerial,
+    expectedTurn
+  );
+};
+
+/* ------------------------------------------------------------
+   通信
+   ------------------------------------------------------------ */
+const _v2BaseHandleHostMessage=handleHostMessage;
+handleHostMessage=function(actorKey,msg){
+  if(msg.type==="equipmentIce"){
+    processUseIce(actorKey);
+    return;
+  }
+
+  if(msg.type==="equipmentCoffeeStart"){
+    processStartCoffee(actorKey);
+    return;
+  }
+
+  if(msg.type==="equipmentCoffeeChoose"){
+    processCoffeeChoice(
+      actorKey,
+      String(msg.targetPlayer||"")
+    );
+    return;
+  }
+
+  if(msg.type==="equipmentSuperProbe"){
+    processEquipmentSuperProbe(actorKey,msg);
+    return;
+  }
+
+  if(msg.type==="equipmentBatteryChoose"){
+    processBatteryChoice(
+      actorKey,
+      String(msg.targetPlayer||"")
+    );
+    return;
+  }
+
+  return _v2BaseHandleHostMessage(
+    actorKey,
+    msg
+  );
+};
+
+/* ------------------------------------------------------------
+   cardFlow公開
+   ------------------------------------------------------------ */
+const _v2BasePublicCardFlowFor=publicCardFlowFor;
+publicCardFlowFor=function(viewerKey){
+  const flow=gameState?.cardFlow;
+
+  if(
+    flow?.type==="equipmentCoffee" &&
+    flow.stage==="coffeeChoosePlayer"
+  ){
+    const common={
+      active:true,
+      type:flow.type,
+      actor:flow.actor,
+      actorLabel:gameState.players[flow.actor]?.label||"",
+      resolver:flow.actor,
+      resolverLabel:gameState.players[flow.actor]?.label||"",
+      stage:"resolving"
+    };
+
+    if(viewerKey===flow.actor){
+      return {
+        ...common,
+        stage:"coffeeChoosePlayer",
+        candidates:flow.candidates.map(key=>({
+          playerKey:key,
+          label:gameState.players[key]?.label||""
+        }))
+      };
+    }
+
+    return common;
+  }
+
+  if(
+    flow?.type==="equipmentBattery" &&
+    flow.stage==="batteryChoosePlayer"
+  ){
+    const common={
+      active:true,
+      type:flow.type,
+      actor:flow.actor,
+      actorLabel:gameState.players[flow.actor]?.label||"",
+      resolver:flow.actor,
+      resolverLabel:gameState.players[flow.actor]?.label||"",
+      stage:"resolving"
+    };
+
+    if(viewerKey===flow.actor){
+      return {
+        ...common,
+        stage:"batteryChoosePlayer",
+        candidates:flow.candidates.map(key=>({
+          playerKey:key,
+          label:gameState.players[key]?.label||""
+        }))
+      };
+    }
+
+    return common;
+  }
+
+  return _v2BasePublicCardFlowFor(viewerKey);
+};
+
+/* ------------------------------------------------------------
+   forced action
+   ------------------------------------------------------------ */
+const _v2BaseSyncForcedAction=syncForcedAction;
+syncForcedAction=function(view){
+  const flow=view?.cardFlow;
+
+  if(
+    flow?.actor===view.playerKey &&
+    flow.stage==="coffeeChoosePlayer"
+  ){
+    actionState={
+      mode:"coffeeChoice",
+      forced:true,
+      candidates:(flow.candidates||[]).map(x=>({...x})),
+      selectedPlayer:null
+    };
+    return;
+  }
+
+  if(
+    flow?.actor===view.playerKey &&
+    flow.stage==="batteryChoosePlayer"
+  ){
+    actionState={
+      mode:"batteryChoice",
+      forced:true,
+      candidates:(flow.candidates||[]).map(x=>({...x})),
+      selectedPlayer:null
+    };
+    return;
+  }
+
+  return _v2BaseSyncForcedAction(view);
+};
+
+/* ------------------------------------------------------------
+   スーパー探知機：タイル選択
+   ------------------------------------------------------------ */
+const _v2BaseCanSelectPlayTile=canSelectPlayTile;
+canSelectPlayTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  tile,
+  view
+){
+  if(actionState?.mode==="superProbe"){
+    if(
+      view.turn!==view.playerKey ||
+      view.cardFlow ||
+      tile.cut
+    )return false;
+
+    return (
+      !isOpponent &&
+      tile.kind==="normal"
+    );
+  }
+
+  return _v2BaseCanSelectPlayTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    tile,
+    view
+  );
+};
+
+const _v2BaseSelectPlayTile=selectPlayTile;
+selectPlayTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  position,
+  number,
+  tileKind
+){
+  if(actionState?.mode==="superProbe"){
+    if(isOpponent)return;
+
+    actionState.sourceBoard=boardIndex;
+    actionState.sourcePosition=position;
+    actionState.sourceNumber=number;
+    actionState.targetPlayer=null;
+    actionState.targetBoard=null;
+
+    updateActionUi();
+    rerenderBoardsOnly();
+    return;
+  }
+
+  return _v2BaseSelectPlayTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    position,
+    number,
+    tileKind
+  );
+};
+
+const _v2BaseIsSelectedCardTile=isSelectedCardTile;
+isSelectedCardTile=function(
+  isOpponent,
+  ownerKey,
+  boardIndex,
+  tile
+){
+  if(actionState?.mode==="superProbe"){
+    return (
+      !isOpponent &&
+      actionState.sourceBoard===boardIndex &&
+      actionState.sourcePosition===tile.position
+    );
+  }
+
+  return _v2BaseIsSelectedCardTile(
+    isOpponent,
+    ownerKey,
+    boardIndex,
+    tile
+  );
+};
+
+const _v2BaseIsBoardSelected=isBoardSelected;
+isBoardSelected=function(
+  isOpponent,
+  ownerKey,
+  boardIndex
+){
+  if(actionState?.mode==="superProbe"){
+    if(!isOpponent){
+      return actionState.sourceBoard===boardIndex;
+    }
+
+    return (
+      actionState.targetPlayer===ownerKey &&
+      actionState.targetBoard===boardIndex
+    );
+  }
+
+  return _v2BaseIsBoardSelected(
+    isOpponent,
+    ownerKey,
+    boardIndex
+  );
+};
+
+function selectSuperProbeTargetBoard(
+  ownerKey,
+  boardIndex
+){
+  if(
+    !actionState ||
+    actionState.mode!=="superProbe" ||
+    actionState.sourcePosition===null ||
+    ownerKey===currentView?.playerKey
+  )return;
+
+  const board=viewBoard(ownerKey,boardIndex);
+  if(
+    !board ||
+    board.filter(t=>!t.cut).length<2
+  )return;
+
+  actionState.targetPlayer=ownerKey;
+  actionState.targetBoard=boardIndex;
+
+  updateActionUi();
+  rerenderBoardsOnly();
+}
+
+/* ------------------------------------------------------------
+   実際に使われているrenderBoardsへ
+   スーパー探知機の台選択を追加
+   ------------------------------------------------------------ */
+const _v2BaseRenderBoards=renderBoards;
+renderBoards=function(
+  container,
+  boards,
+  isOpponent,
+  view,
+  owner
+){
+  _v2BaseRenderBoards(
+    container,
+    boards,
+    isOpponent,
+    view,
+    owner
+  );
+
+  if(
+    actionState?.mode!=="superProbe" ||
+    !isOpponent ||
+    actionState.sourcePosition===null
+  )return;
+
+  const wraps=[
+    ...container.querySelectorAll(
+      ":scope > .board"
+    )
+  ];
+
+  wraps.forEach((wrap,boardIndex)=>{
+    const board=boards[boardIndex];
+    if(
+      !board ||
+      board.filter(t=>!t.cut).length<2
+    )return;
+
+    wrap.classList.add("selectableBoard");
+    wrap.onclick=()=>{
+      selectSuperProbeTargetBoard(
+        owner.playerKey,
+        boardIndex
+      );
+    };
+  });
+};
+
+/* ------------------------------------------------------------
+   プレイヤー選択UI
+   ------------------------------------------------------------ */
+function renderEquipmentChoicePanel(){
+  if(!els.equipmentChoicePanel)return;
+
+  els.equipmentChoicePanel.innerHTML="";
+  els.equipmentChoicePanel.classList.add("hidden");
+
+  if(
+    !actionState ||
+    !["coffeeChoice","batteryChoice"].includes(
+      actionState.mode
+    )
+  )return;
+
+  for(const candidate of actionState.candidates||[]){
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.textContent=candidate.label;
+
+    if(
+      actionState.selectedPlayer===
+      candidate.playerKey
+    ){
+      btn.classList.add("selected");
+    }
+
+    btn.onclick=()=>{
+      actionState.selectedPlayer=
+        candidate.playerKey;
+      renderEquipmentChoicePanel();
+      updateActionUi();
+    };
+
+    els.equipmentChoicePanel.appendChild(btn);
+  }
+
+  els.equipmentChoicePanel.classList.remove("hidden");
+}
+
+/* ------------------------------------------------------------
+   action UI
+   ------------------------------------------------------------ */
+const _v2BaseUpdateActionUi=updateActionUi;
+updateActionUi=function(){
+  _v2BaseUpdateActionUi();
+
+  renderEquipmentChoicePanel();
+
+  if(actionState?.mode==="superProbe"){
+    els.confirmActionBtn.textContent="使用する";
+    els.confirmActionBtn.disabled=
+      actionState.sourcePosition===null ||
+      actionState.targetPlayer===null ||
+      actionState.targetBoard===null;
+  }
+
+  if(actionState?.mode==="coffeeChoice"){
+    els.confirmActionBtn.textContent="手番を渡す";
+    els.confirmActionBtn.disabled=
+      !actionState.selectedPlayer;
+  }
+
+  if(actionState?.mode==="batteryChoice"){
+    els.confirmActionBtn.textContent="復活させる";
+    els.confirmActionBtn.disabled=
+      !actionState.selectedPlayer;
+  }
+};
+
+/* ------------------------------------------------------------
+   confirm
+   ------------------------------------------------------------ */
+const _v2BaseConfirmPlayAction=confirmPlayAction;
+confirmPlayAction=function(){
+  if(
+    !actionState ||
+    !currentView ||
+    els.confirmActionBtn.disabled
+  ){
+    return _v2BaseConfirmPlayAction();
+  }
+
+  const s=JSON.parse(
+    JSON.stringify(actionState)
+  );
+
+  if(s.mode==="superProbe"){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentSuperProbe",
+      sourceBoard:s.sourceBoard,
+      sourcePosition:s.sourcePosition,
+      targetPlayer:s.targetPlayer,
+      targetBoard:s.targetBoard
+    };
+
+    if(role==="host"){
+      processEquipmentSuperProbe(
+        localPlayerKey,
+        payload
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  if(s.mode==="coffeeChoice"){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentCoffeeChoose",
+      targetPlayer:s.selectedPlayer
+    };
+
+    if(role==="host"){
+      processCoffeeChoice(
+        localPlayerKey,
+        payload.targetPlayer
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  if(s.mode==="batteryChoice"){
+    els.confirmActionBtn.disabled=true;
+
+    const payload={
+      type:"equipmentBatteryChoose",
+      targetPlayer:s.selectedPlayer
+    };
+
+    if(role==="host"){
+      processBatteryChoice(
+        localPlayerKey,
+        payload.targetPlayer
+      );
+    }else{
+      send(payload);
+    }
+
+    actionState=null;
+    setTimeout(
+      ()=>{els.confirmActionBtn.disabled=false},
+      250
+    );
+    return;
+  }
+
+  return _v2BaseConfirmPlayAction();
+};
+
+/* ------------------------------------------------------------
+   ゲーム画面描画時、装備OFFなら完全に隠す
+   ------------------------------------------------------------ */
+const _v2BaseRenderPlayerView=renderPlayerView;
+renderPlayerView=function(view){
+  _v2BaseRenderPlayerView(view);
+
+  if(view.config?.equipmentCardsEnabled===false){
+    els.equipmentSection?.classList.add("hidden");
+  }
+};
+
+
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;
 els.hostNameInput.oninput=updateHostName;
@@ -8750,6 +10034,7 @@ els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
 els.maxNumberSelect.onchange=updateSetupSelectors;
 els.personalCardsEnabledSelect.onchange=updateSetupPreview;
+els.equipmentCardsEnabledSelect.onchange=updateSetupPreview;
 els.yellowCandidateSelect.onchange=()=>updateYellowUsedSelector(true);
 els.yellowUsedSelect.onchange=updateSetupPreview;
 els.redCandidateSelect.onchange=()=>updateRedUsedSelector(true);

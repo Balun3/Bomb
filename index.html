@@ -926,6 +926,8 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   height:28px;
   margin:20px -7px 0;
   padding:0;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
   align-self:flex-start;
   border:0;
   border-radius:999px;
@@ -1262,7 +1264,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。個人カード使用有無を設定可能。
+    2〜6人対応。イレシー挿入は候補数に関係なく本人が選択。
   </footer>
 </div>
 
@@ -5439,10 +5441,15 @@ function processSwapGive(resolver,position){
 function processSwapInsert(resolver,layoutIndex){
   const flow=gameState?.cardFlow;
   if(!flow||flow.type!=="swap"||flow.stage!=="swapInsert"||flow.resolver!==resolver)return;
-  if(!flow.insertOptions.includes(layoutIndex))return;
+
+  const normalizedIndex=Number(layoutIndex);
+  if(!Number.isInteger(normalizedIndex))return;
+  if(!Array.isArray(flow.insertOptions)||!flow.insertOptions.includes(normalizedIndex))return;
+
   const tile=flow.heldTiles[flow.incomingKey];
   if(!tile)return;
-  insertHeldTile(resolver,flow.receiveBoard,tile,layoutIndex);
+
+  insertHeldTile(resolver,flow.receiveBoard,tile,normalizedIndex);
 
   if(flow.incomingKey==="actorTile"){
     const options=validInsertIndices(flow.actor,flow.actorBoard,flow.heldTiles.targetTile.number);
@@ -5682,8 +5689,13 @@ function selectSwapTargetBoard(ownerKey,boardIndex){
 }
 
 function selectInsertIndex(index){
-  if(!actionState||actionState.mode!=="swapInsert"||!actionState.insertOptions.includes(index))return;
-  actionState.insertIndex=index;
+  if(!actionState||actionState.mode!=="swapInsert")return;
+
+  const normalizedIndex=Number(index);
+  if(!Number.isInteger(normalizedIndex))return;
+  if(!actionState.insertOptions.includes(normalizedIndex))return;
+
+  actionState.insertIndex=normalizedIndex;
   updateActionUi();
   rerenderBoardsOnly();
 }
@@ -5942,7 +5954,9 @@ function syncForcedAction(view){
       forced:true,
       receiveBoard:flow.receiveBoard,
       insertOptions:options,
-      insertIndex:options.length===1?options[0]:null,
+      // 候補が1か所だけでも自動選択しない。
+      // 本人が矢印を押すまで「置く」は無効。
+      insertIndex:null,
       receivedTile:flow.receivedTile
     };
   }
@@ -6232,11 +6246,16 @@ window.addEventListener("offline",()=>{
 });
 
 window.addEventListener("beforeunload",e=>{
-  // 更新・タブを閉じる場合はブラウザ標準の離脱確認を使う。
-  // disconnectはここでは送らない。キャンセル時に通信だけ切れるのを防ぐため。
+  // ゲーム進行中だけ、更新・タブを閉じる・ページ移動に対して
+  // ブラウザ標準の離脱確認を要求する。
   if(isGameInProgress() && !allowPageLeave){
     e.preventDefault();
-    e.returnValue="";
+
+    // 互換性のため空文字ではなく真値を設定する。
+    // 表示文言はブラウザ側が決める。
+    e.returnValue=true;
+
+    return true;
   }
 });
 

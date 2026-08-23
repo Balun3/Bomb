@@ -1218,6 +1218,92 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   color:#5f4600
 }
 
+
+/* ============================================================
+   イコールラベル / コトナルラベル
+   ============================================================ */
+.tiles.relationLabelBoard{
+  position:relative
+}
+.relationLabelPlaced{
+  position:absolute;
+  height:17px;
+  box-sizing:border-box;
+  border-top:2px solid #64748b;
+  border-left:2px solid #64748b;
+  border-right:2px solid #64748b;
+  border-radius:5px 5px 0 0;
+  pointer-events:none;
+  z-index:18
+}
+.relationLabelPlaced.equal{border-color:#0f766e}
+.relationLabelPlaced.different{border-color:#6d28d9}
+.relationLabelPlaced .relationLabelSymbol{
+  position:absolute;
+  left:50%;
+  top:-10px;
+  transform:translateX(-50%);
+  min-width:23px;
+  height:18px;
+  padding:0 4px;
+  border-radius:6px;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:.82rem;
+  font-weight:1000;
+  line-height:1;
+  color:#475569;
+  box-shadow:0 0 0 1px #e2e8f0
+}
+.relationLabelPlaced.equal .relationLabelSymbol{color:#0f766e}
+.relationLabelPlaced.different .relationLabelSymbol{color:#6d28d9}
+.relationChoice{
+  position:absolute;
+  width:30px;
+  height:44px;
+  transform:translateX(-50%);
+  z-index:70;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none
+}
+.relationChoiceRadio{
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none
+}
+.relationChoiceSymbol{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:#fff;
+  border:2px solid #a78bfa;
+  color:#7c3aed;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:.88rem;
+  font-weight:1000;
+  line-height:1;
+  box-shadow:0 2px 5px rgba(15,23,42,.12);
+  pointer-events:none
+}
+.relationChoice.selected .relationChoiceSymbol,
+.relationChoiceRadio:checked + .relationChoiceSymbol{
+  background:#ede9fe;
+  border-color:#7c3aed;
+  box-shadow:0 0 0 2px rgba(124,58,237,.22)
+}
+
 </style>
 </head>
 <body>
@@ -1458,7 +1544,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イレシー挿入位置をnative選択化。
+    2〜6人対応。イコール／コトナルラベルを追加。
   </footer>
 </div>
 
@@ -7714,6 +7800,910 @@ rejectIfCardFlow=function(actor){
   return false;
 };
 
+
+
+/* ============================================================
+   装備カード拡張2：ヒント付箋 / 関係ラベル
+   ============================================================ */
+
+EQUIPMENT_CARDS.infoToken.name="ヒント付箋";
+EQUIPMENT_CARDS.infoToken.short="付箋";
+
+EQUIPMENT_CARDS.equalLabel={
+  name:"イコールラベル",
+  short:"＝ラベル",
+  threshold:2,
+  mode:"instant"
+};
+EQUIPMENT_CARDS.differentLabel={
+  name:"コトナルラベル",
+  short:"≠ラベル",
+  threshold:2,
+  mode:"instant"
+};
+
+if(!EQUIPMENT_CARD_ORDER.includes("equalLabel")){
+  EQUIPMENT_CARD_ORDER.push("equalLabel");
+}
+if(!EQUIPMENT_CARD_ORDER.includes("differentLabel")){
+  EQUIPMENT_CARD_ORDER.push("differentLabel");
+}
+
+function ensureLayoutSlotIds(state){
+  if(!state.nextLayoutSlotId)state.nextLayoutSlotId=1;
+
+  for(const key of state.seatOrder){
+    const layouts=state.boardLayouts?.[key]||[];
+    layouts.forEach(layout=>{
+      layout.forEach(item=>{
+        if(!item.slotId){
+          item.slotId=`枠${state.nextLayoutSlotId++}`;
+        }
+      });
+    });
+  }
+}
+
+const _labelBaseCreateGameState=createGameState;
+createGameState=function(settings){
+  const state=_labelBaseCreateGameState(settings);
+
+  state.version=11;
+  state.nextLayoutSlotId=1;
+  ensureLayoutSlotIds(state);
+
+  state.nextEquipmentLabelId=1;
+  state.equipmentLabels={};
+
+  for(const key of state.seatOrder){
+    state.equipmentLabels[key]=state.players[key].boards.map(()=>[]);
+  }
+
+  return state;
+};
+
+replaceTileWithHole=function(playerKey,boardIndex,tile){
+  const layout=gameState.boardLayouts[playerKey][boardIndex];
+  const idx=layout.findIndex(
+    x=>x.type==="tile"&&x.tileId===tile.id
+  );
+
+  if(idx>=0){
+    const slotId=
+      layout[idx].slotId ||
+      `枠${gameState.nextLayoutSlotId++}`;
+
+    layout.splice(
+      idx,
+      1,
+      {
+        type:"hole",
+        slotId,
+        tileId:tile.id,
+        exchangeTag:tile.exchangeTag
+      }
+    );
+  }
+
+  const board=gameState.players[playerKey].boards[boardIndex];
+  const bi=board.findIndex(x=>x.id===tile.id);
+
+  if(bi>=0)board.splice(bi,1);
+  board.forEach((t,i)=>t.position=i);
+};
+
+insertHeldTile=function(playerKey,boardIndex,tile,layoutIndex){
+  const layout=gameState.boardLayouts[playerKey][boardIndex];
+
+  layout.splice(
+    layoutIndex,
+    0,
+    {
+      type:"tile",
+      slotId:`枠${gameState.nextLayoutSlotId++}`,
+      tileId:tile.id
+    }
+  );
+
+  const board=gameState.players[playerKey].boards[boardIndex];
+  board.push(tile);
+
+  const map=new Map(board.map(t=>[t.id,t]));
+  const ordered=[];
+
+  for(const item of layout){
+    if(item.type!=="tile")continue;
+    const t=map.get(item.tileId);
+    if(t)ordered.push(t);
+  }
+
+  gameState.players[playerKey].boards[boardIndex]=ordered;
+  ordered.forEach((t,i)=>t.position=i);
+};
+
+layoutView=function(playerKey,boardIndex,viewerKey){
+  const layout=
+    gameState.boardLayouts?.[playerKey]?.[boardIndex]||[];
+
+  return layout.map(item=>{
+    if(item.type==="tile"){
+      return {
+        type:"tile",
+        slotId:item.slotId,
+        tileId:item.tileId
+      };
+    }
+
+    const found=findTileByIdAnywhere(item.tileId);
+    const exact=
+      found &&
+      tileNumberKnownTo(found.tile,viewerKey);
+
+    return {
+      type:"hole",
+      slotId:item.slotId,
+      tileId:item.tileId,
+      exchangeTag:item.exchangeTag,
+      label:
+        exact
+          ? formatTileNumber(found.tile.number)
+          : item.exchangeTag
+    };
+  });
+};
+
+function tileForLayoutItem(playerKey,boardIndex,item){
+  if(!item)return null;
+
+  if(item.type==="tile"){
+    return gameState.players[playerKey]
+      ?.boards?.[boardIndex]
+      ?.find(t=>t.id===item.tileId)||null;
+  }
+
+  if(item.type==="hole"){
+    return findTileByIdAnywhere(item.tileId)?.tile||null;
+  }
+
+  return null;
+}
+
+function validEquipmentLabelPairs(playerKey,type){
+  const wantEqual=type==="equalLabel";
+  const out=[];
+  const layouts=gameState.boardLayouts?.[playerKey]||[];
+
+  layouts.forEach((layout,boardIndex)=>{
+    for(let i=0;i<layout.length-1;i++){
+      const left=layout[i];
+      const right=layout[i+1];
+
+      const a=tileForLayoutItem(
+        playerKey,
+        boardIndex,
+        left
+      );
+      const b=tileForLayoutItem(
+        playerKey,
+        boardIndex,
+        right
+      );
+
+      if(
+        !a ||
+        !b ||
+        a.kind!=="normal" ||
+        b.kind!=="normal"
+      )continue;
+
+      const isEqual=a.number===b.number;
+
+      if(isEqual===wantEqual){
+        out.push({
+          boardIndex,
+          leftSlotId:left.slotId,
+          rightSlotId:right.slotId
+        });
+      }
+    }
+  });
+
+  return out;
+}
+
+function equipmentLabelView(){
+  const result={};
+
+  for(const key of gameState.seatOrder){
+    result[key]=(
+      gameState.equipmentLabels?.[key]||[]
+    ).map(board=>
+      board.map(label=>({...label}))
+    );
+  }
+
+  return result;
+}
+
+const _labelBaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+  const view=_labelBaseMakeViewFor(playerKey);
+  view.equipmentLabels=equipmentLabelView();
+  return view;
+};
+
+const _labelBaseEquipmentInstantHasLegalUse=
+  equipmentInstantHasLegalUse;
+
+equipmentInstantHasLegalUse=function(actor,type){
+  if(
+    type==="equalLabel" ||
+    type==="differentLabel"
+  ){
+    return validEquipmentLabelPairs(actor,type).length>0;
+  }
+
+  return _labelBaseEquipmentInstantHasLegalUse(
+    actor,
+    type
+  );
+};
+
+const _labelBaseStartEquipmentCard=startEquipmentCard;
+
+startEquipmentCard=function(
+  actor,
+  type,
+  expectedTurnSerial=null,
+  expectedTurn=null
+){
+  if(
+    type!=="equalLabel" &&
+    type!=="differentLabel"
+  ){
+    return _labelBaseStartEquipmentCard(
+      actor,
+      type,
+      expectedTurnSerial,
+      expectedTurn
+    );
+  }
+
+  if(
+    !gameState ||
+    gameState.phase!=="play" ||
+    gameState.cardFlow
+  )return;
+
+  if(
+    expectedTurnSerial!==null &&
+    Number(expectedTurnSerial)!==
+      Number(gameState.turnSerial||0)
+  )return;
+
+  if(
+    expectedTurn!==null &&
+    expectedTurn!==gameState.turn
+  )return;
+
+  const def=EQUIPMENT_CARDS[type];
+  const card=equipmentCardState(type);
+
+  if(
+    !def ||
+    def.mode!=="instant" ||
+    !equipmentCardUsableState(card)
+  )return;
+
+  const candidates=
+    validEquipmentLabelPairs(actor,type);
+
+  if(!candidates.length){
+    actionError(actor,"置ける場所がありません。");
+    broadcastViews();
+    return;
+  }
+
+  if(!consumeEquipmentCard(type))return;
+
+  gameState.cardFlow={
+    type:"equipmentLabel",
+    equipmentType:type,
+    stage:"equipmentLabelInput",
+    actor,
+    resolver:actor,
+    baseTurn:gameState.turn,
+    committed:true,
+    candidates,
+    sourceKind:"equipment"
+  };
+
+  broadcastViews();
+};
+
+function processEquipmentLabel(
+  actor,
+  boardIndex,
+  leftSlotId,
+  rightSlotId
+){
+  const flow=gameState?.cardFlow;
+
+  if(
+    !flow ||
+    flow.type!=="equipmentLabel" ||
+    flow.stage!=="equipmentLabelInput" ||
+    flow.actor!==actor
+  )return;
+
+  const type=flow.equipmentType;
+
+  if(
+    type!=="equalLabel" &&
+    type!=="differentLabel"
+  )return;
+
+  const valid=validEquipmentLabelPairs(
+    actor,
+    type
+  );
+
+  const pair=valid.find(
+    x=>
+      x.boardIndex===boardIndex &&
+      x.leftSlotId===leftSlotId &&
+      x.rightSlotId===rightSlotId
+  );
+
+  if(!pair)return;
+
+  const labels=
+    gameState.equipmentLabels[actor][boardIndex];
+
+  labels.push({
+    id:`関${gameState.nextEquipmentLabelId++}`,
+    type:
+      type==="equalLabel"
+        ? "equal"
+        : "different",
+    leftSlotId,
+    rightSlotId
+  });
+
+  gameState.cardFlow=null;
+  broadcastViews();
+}
+
+const _labelBasePublicCardFlowFor=publicCardFlowFor;
+
+publicCardFlowFor=function(viewerKey){
+  const flow=gameState?.cardFlow;
+
+  if(
+    flow?.type==="equipmentLabel" &&
+    flow.stage==="equipmentLabelInput"
+  ){
+    const common={
+      active:true,
+      type:"equipmentLabel",
+      equipmentType:flow.equipmentType,
+      actor:flow.actor,
+      actorLabel:
+        gameState.players[flow.actor]?.label||"",
+      resolver:flow.actor,
+      resolverLabel:
+        gameState.players[flow.actor]?.label||"",
+      stage:"resolving"
+    };
+
+    if(viewerKey===flow.actor){
+      return {
+        ...common,
+        stage:"equipmentLabelInput",
+        candidates:
+          (flow.candidates||[]).map(
+            x=>({...x})
+          )
+      };
+    }
+
+    return common;
+  }
+
+  return _labelBasePublicCardFlowFor(
+    viewerKey
+  );
+};
+
+const _labelBaseHandleHostMessage=handleHostMessage;
+
+handleHostMessage=function(actorKey,msg){
+  if(msg.type==="equipmentLabelApply"){
+    processEquipmentLabel(
+      actorKey,
+      Number(msg.boardIndex),
+      String(msg.leftSlotId||""),
+      String(msg.rightSlotId||"")
+    );
+    return;
+  }
+
+  return _labelBaseHandleHostMessage(
+    actorKey,
+    msg
+  );
+};
+
+const _labelBaseSyncForcedAction=syncForcedAction;
+
+syncForcedAction=function(view){
+  const flow=view?.cardFlow;
+
+  if(
+    flow?.actor===view.playerKey &&
+    flow.stage==="equipmentLabelInput"
+  ){
+    actionState={
+      mode:"equipmentLabel",
+      forced:true,
+      equipmentType:flow.equipmentType,
+      candidates:
+        (flow.candidates||[]).map(x=>({...x})),
+      selectedPair:null
+    };
+    return;
+  }
+
+  return _labelBaseSyncForcedAction(view);
+};
+
+function selectEquipmentLabelPair(
+  pair,
+  labelEl=null
+){
+  if(
+    !actionState ||
+    actionState.mode!=="equipmentLabel"
+  )return;
+
+  actionState.selectedPair={...pair};
+
+  document.querySelectorAll(
+    ".relationChoice.selected"
+  ).forEach(
+    el=>el.classList.remove("selected")
+  );
+
+  if(labelEl){
+    labelEl.classList.add("selected");
+
+    const radio=labelEl.querySelector(
+      ".relationChoiceRadio"
+    );
+
+    if(radio&&!radio.checked){
+      radio.checked=true;
+    }
+  }
+
+  updateActionUi();
+}
+
+const _labelBaseUpdateActionUi=updateActionUi;
+
+updateActionUi=function(){
+  _labelBaseUpdateActionUi();
+
+  if(actionState?.mode==="equipmentInfo"){
+    els.confirmActionBtn.textContent="付箋を置く";
+  }
+
+  if(
+    actionState?.mode==="equipmentLabel" &&
+    currentView
+  ){
+    els.confirmActionBtn.textContent="ラベルを置く";
+
+    const checked=document.querySelector(
+      ".relationChoiceRadio:checked"
+    );
+
+    els.confirmActionBtn.disabled=
+      !actionState.selectedPair &&
+      !checked;
+  }
+};
+
+const _labelBaseConfirmPlayAction=confirmPlayAction;
+
+confirmPlayAction=function(){
+  if(
+    actionState?.mode!=="equipmentLabel"
+  ){
+    return _labelBaseConfirmPlayAction();
+  }
+
+  if(
+    !currentView ||
+    els.confirmActionBtn.disabled
+  )return;
+
+  let pair=actionState.selectedPair
+    ? {...actionState.selectedPair}
+    : null;
+
+  const checked=document.querySelector(
+    ".relationChoiceRadio:checked"
+  );
+
+  if(checked){
+    const boardIndex=Number(
+      checked.dataset.boardIndex
+    );
+    const leftSlotId=
+      checked.dataset.leftSlotId;
+    const rightSlotId=
+      checked.dataset.rightSlotId;
+
+    if(
+      Number.isInteger(boardIndex) &&
+      leftSlotId &&
+      rightSlotId
+    ){
+      pair={
+        boardIndex,
+        leftSlotId,
+        rightSlotId
+      };
+    }
+  }
+
+  if(!pair)return;
+
+  els.confirmActionBtn.disabled=true;
+
+  const payload={
+    type:"equipmentLabelApply",
+    boardIndex:pair.boardIndex,
+    leftSlotId:pair.leftSlotId,
+    rightSlotId:pair.rightSlotId
+  };
+
+  if(role==="host"){
+    processEquipmentLabel(
+      localPlayerKey,
+      payload.boardIndex,
+      payload.leftSlotId,
+      payload.rightSlotId
+    );
+  }else{
+    send(payload);
+  }
+
+  actionState=null;
+
+  setTimeout(
+    ()=>{els.confirmActionBtn.disabled=false},
+    250
+  );
+};
+
+function equipmentLabelsForBoard(
+  view,
+  playerKey,
+  boardIndex
+){
+  return (
+    view?.equipmentLabels?.[playerKey]?.[boardIndex]||
+    []
+  );
+}
+
+function labelCandidatesForBoard(
+  playerKey,
+  boardIndex
+){
+  if(
+    !actionState ||
+    actionState.mode!=="equipmentLabel" ||
+    playerKey!==currentView?.playerKey
+  ){
+    return [];
+  }
+
+  return (
+    actionState.candidates||[]
+  ).filter(
+    x=>x.boardIndex===boardIndex
+  );
+}
+
+function placeRelationLabelElement(
+  tiles,
+  leftCol,
+  rightCol,
+  type,
+  lane
+){
+  const box=tiles.getBoundingClientRect();
+  const l=leftCol.getBoundingClientRect();
+  const r=rightCol.getBoundingClientRect();
+
+  const el=document.createElement("div");
+  el.className=
+    "relationLabelPlaced "+
+    (
+      type==="equal"
+        ? "equal"
+        : "different"
+    );
+
+  const symbol=document.createElement("span");
+  symbol.className="relationLabelSymbol";
+  symbol.textContent=
+    type==="equal"
+      ? "＝"
+      : "≠";
+
+  el.appendChild(symbol);
+
+  el.style.left=
+    `${l.left-box.left+1}px`;
+  el.style.width=
+    `${Math.max(24,r.right-l.left-2)}px`;
+  el.style.bottom=
+    `${lane*19}px`;
+
+  tiles.appendChild(el);
+}
+
+function placeRelationChoiceElement(
+  tiles,
+  leftCol,
+  rightCol,
+  pair,
+  symbolText
+){
+  const box=tiles.getBoundingClientRect();
+  const l=leftCol.getBoundingClientRect();
+  const r=rightCol.getBoundingClientRect();
+
+  const center=
+    (l.right+r.left)/2-box.left;
+
+  const label=document.createElement("label");
+  const radio=document.createElement("input");
+  const symbol=document.createElement("span");
+
+  label.className="relationChoice";
+  label.style.left=`${center}px`;
+  label.style.top="12px";
+
+  radio.type="radio";
+  radio.name="equipmentRelationChoice";
+  radio.className="relationChoiceRadio";
+  radio.dataset.boardIndex=
+    String(pair.boardIndex);
+  radio.dataset.leftSlotId=
+    pair.leftSlotId;
+  radio.dataset.rightSlotId=
+    pair.rightSlotId;
+
+  const selected=
+    actionState?.selectedPair &&
+    actionState.selectedPair.boardIndex===
+      pair.boardIndex &&
+    actionState.selectedPair.leftSlotId===
+      pair.leftSlotId &&
+    actionState.selectedPair.rightSlotId===
+      pair.rightSlotId;
+
+  radio.checked=!!selected;
+
+  symbol.className="relationChoiceSymbol";
+  symbol.textContent=symbolText;
+
+  radio.addEventListener("change",()=>{
+    if(radio.checked){
+      selectEquipmentLabelPair(
+        pair,
+        label
+      );
+    }
+  });
+
+  label.addEventListener("click",()=>{
+    setTimeout(()=>{
+      if(radio.checked){
+        selectEquipmentLabelPair(
+          pair,
+          label
+        );
+      }
+    },0);
+  });
+
+  label.appendChild(radio);
+  label.appendChild(symbol);
+
+  if(selected){
+    label.classList.add("selected");
+  }
+
+  tiles.appendChild(label);
+}
+
+function decorateRelationLabels(
+  container,
+  isOpponent,
+  view,
+  owner
+){
+  const layouts=
+    isOpponent
+      ? view.opponents.find(
+          x=>x.playerKey===owner.playerKey
+        )?.layouts
+      : view.myLayouts;
+
+  const boards=[
+    ...container.querySelectorAll(
+      ":scope > .board"
+    )
+  ];
+
+  boards.forEach((wrap,boardIndex)=>{
+    const tiles=wrap.querySelector(
+      ":scope > .tiles"
+    );
+
+    const layout=layouts?.[boardIndex];
+
+    if(
+      !tiles ||
+      !layout ||
+      !layout.length
+    )return;
+
+    const cols=[
+      ...tiles.querySelectorAll(
+        ":scope > .tileColumn"
+      )
+    ];
+
+    if(cols.length!==layout.length)return;
+
+    cols.forEach((col,index)=>{
+      const slotId=layout[index]?.slotId;
+      if(slotId)col.dataset.slotId=slotId;
+    });
+
+    const labels=equipmentLabelsForBoard(
+      view,
+      owner.playerKey,
+      boardIndex
+    );
+
+    const candidates=
+      !isOpponent
+        ? labelCandidatesForBoard(
+            owner.playerKey,
+            boardIndex
+          )
+        : [];
+
+    if(
+      !labels.length &&
+      !candidates.length
+    )return;
+
+    tiles.classList.add(
+      "relationLabelBoard"
+    );
+
+    if(labels.length){
+      tiles.style.paddingBottom=
+        `${labels.length*19+7}px`;
+    }
+
+    labels.forEach((label,lane)=>{
+      const leftIndex=layout.findIndex(
+        x=>x.slotId===label.leftSlotId
+      );
+      const rightIndex=layout.findIndex(
+        x=>x.slotId===label.rightSlotId
+      );
+
+      if(
+        leftIndex<0 ||
+        rightIndex<0 ||
+        !cols[leftIndex] ||
+        !cols[rightIndex]
+      )return;
+
+      placeRelationLabelElement(
+        tiles,
+        cols[leftIndex],
+        cols[rightIndex],
+        label.type,
+        lane
+      );
+    });
+
+    if(candidates.length){
+      const symbolText=
+        actionState.equipmentType==="equalLabel"
+          ? "＝"
+          : "≠";
+
+      candidates.forEach(pair=>{
+        const leftIndex=layout.findIndex(
+          x=>x.slotId===pair.leftSlotId
+        );
+        const rightIndex=layout.findIndex(
+          x=>x.slotId===pair.rightSlotId
+        );
+
+        if(
+          leftIndex<0 ||
+          rightIndex<0 ||
+          !cols[leftIndex] ||
+          !cols[rightIndex]
+        )return;
+
+        placeRelationChoiceElement(
+          tiles,
+          cols[leftIndex],
+          cols[rightIndex],
+          pair,
+          symbolText
+        );
+      });
+    }
+  });
+}
+
+const _labelBaseRenderBoards=renderBoards;
+
+renderBoards=function(
+  container,
+  boards,
+  isOpponent,
+  view,
+  owner
+){
+  _labelBaseRenderBoards(
+    container,
+    boards,
+    isOpponent,
+    view,
+    owner
+  );
+
+  decorateRelationLabels(
+    container,
+    isOpponent,
+    view,
+    owner
+  );
+};
+
+window.addEventListener("resize",()=>{
+  if(
+    currentView &&
+    currentView.phase==="play"
+  ){
+    clearTimeout(
+      window.__relationResizeTimer
+    );
+
+    window.__relationResizeTimer=
+      setTimeout(
+        ()=>rerenderBoardsOnly(),
+        80
+      );
+  }
+});
 
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;

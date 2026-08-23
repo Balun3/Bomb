@@ -920,12 +920,14 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 }
 .tile.hasExchangeTag{position:relative}
 .insertGap{
+  /* レイアウト上は14px程度だが、左右へ透明な判定を広げる */
   flex:0 0 14px;
-  width:14px;
-  min-width:14px;
-  height:28px;
-  margin:20px -7px 0;
-  padding:0;
+  width:34px;
+  min-width:34px;
+  height:64px;
+  margin:0 -17px 0 -17px;
+  padding:26px 0 0;
+  box-sizing:border-box;
   touch-action:manipulation;
   -webkit-tap-highlight-color:transparent;
   align-self:flex-start;
@@ -934,19 +936,38 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   background:transparent;
   cursor:pointer;
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:center;
   color:#7c3aed;
   font-weight:1000;
   font-size:1.05rem;
   line-height:1;
-  z-index:9;
+  z-index:50;
   position:relative
 }
 .insertGap.selected{
   background:#ede9fe;
   box-shadow:0 0 0 2px rgba(124,58,237,.28);
   color:#5b21b6
+}
+.tiles.swapInsertMode .tileColumn{
+  pointer-events:none
+}
+.tiles.swapInsertMode .insertGap{
+  pointer-events:auto
+}
+.insertGap.selected::after{
+  content:"";
+  position:absolute;
+  width:22px;
+  height:22px;
+  top:21px;
+  left:50%;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:rgba(124,58,237,.12);
+  box-shadow:0 0 0 2px rgba(124,58,237,.22);
+  pointer-events:none
 }
 .receivedTilePreview{
   position:absolute;
@@ -1264,7 +1285,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イレシー挿入は候補数に関係なく本人が選択。
+    2〜6人対応。イレシー挿入タップ判定改善版。
   </footer>
 </div>
 
@@ -5693,9 +5714,12 @@ function selectInsertIndex(index){
 
   const normalizedIndex=Number(index);
   if(!Number.isInteger(normalizedIndex))return;
-  if(!actionState.insertOptions.includes(normalizedIndex))return;
 
+  // ↑ は合法な候補位置にしか描画されない。
+  // ここで候補配列との型・同期差によって弾かない。
+  // 最終的な合法性は親機の processSwapInsert() で検証する。
   actionState.insertIndex=normalizedIndex;
+
   updateActionUi();
   rerenderBoardsOnly();
 }
@@ -5784,16 +5808,45 @@ renderBoards=function(container,boards,isOpponent,view,owner){
     const layout=(layouts?.[bi]&&layouts[bi].length)?layouts[bi]:board.map(t=>({type:"tile",tileId:t.id}));
     const byId=new Map(board.map(t=>[t.id,t]));
     const insertFlow=insertionFlowForBoard(view,owner.playerKey,bi);
-    const insertSet=new Set(insertFlow?.insertOptions||[]);
+
+    if(insertFlow){
+      tiles.classList.add("swapInsertMode");
+    }
+
+    const insertSet=new Set(
+      (insertFlow?.insertOptions||[])
+        .map(Number)
+        .filter(Number.isInteger)
+    );
 
     const appendInsertGap=index=>{
       if(!insertSet.has(index))return;
+
       const gap=document.createElement("button");
       gap.type="button";
-      gap.className="insertGap"+(actionState?.mode==="swapInsert"&&actionState.insertIndex===index?" selected":"");
+      gap.className=
+        "insertGap"+
+        (
+          actionState?.mode==="swapInsert" &&
+          Number(actionState.insertIndex)===Number(index)
+            ? " selected"
+            : ""
+        );
+
       gap.textContent="↑";
       gap.setAttribute("aria-label","ここに置く");
-      gap.onclick=e=>{e.stopPropagation();selectInsertIndex(index)};
+
+      const choose=e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        selectInsertIndex(index);
+      };
+
+      // Android等で細い要素のclickを取りこぼすケースに備え、
+      // pointerupでも選択する。
+      gap.addEventListener("pointerup",choose);
+      gap.addEventListener("click",choose);
+
       tiles.appendChild(gap);
     };
 
@@ -5948,7 +6001,10 @@ function syncForcedAction(view){
   }else if(flow.stage==="swapChooseGive"){
     actionState={mode:"swapGive",forced:true,targetBoard:flow.targetBoard,allowedPositions:[...flow.allowedPositions],targetPosition:null};
   }else if(flow.stage==="swapInsert"){
-    const options=[...flow.insertOptions];
+    const options=(flow.insertOptions||[])
+      .map(Number)
+      .filter(Number.isInteger);
+
     actionState={
       mode:"swapInsert",
       forced:true,

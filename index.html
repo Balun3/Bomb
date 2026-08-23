@@ -214,6 +214,21 @@ summary{font-weight:750;cursor:pointer}
   max-width:100%;
   box-sizing:border-box
 }
+.probeResolveBanner.recent{
+  background:#fffbeb;
+  border-color:#fbbf24;
+  color:#92400e
+}
+.tile.probeTargeted.lastCutTile{
+  outline:3px solid #2563eb;
+  outline-offset:1px;
+  box-shadow:inset 0 0 0 3px #f59e0b,0 0 0 1px rgba(245,158,11,.18)
+}
+.tile.probeTargeted.lastCutTile.playSelectedOwn,
+.tile.probeTargeted.lastCutTile.playSelectedTarget{
+  outline:3px solid #7c3aed;
+  box-shadow:0 0 0 2px rgba(124,58,237,.14)
+}
 .tile.playSelectedOwn,
 .tile.playSelectedTarget{
   z-index:6;
@@ -1338,7 +1353,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。探知機解決UI・ドチアタ公開情報改善版。
+    2〜6人対応。探知機の指定履歴を次の1手番まで表示。
   </footer>
 </div>
 
@@ -3869,19 +3884,21 @@ function renderBoards(container,boards,isOpponent,view,owner){
     if(infoDone)wrap.classList.add("done");
     if(isBoardSelected(isOpponent,owner.playerKey,bi))wrap.classList.add("boardSelected");
 
-    if(
-      !isOpponent &&
-      actionState?.mode==="probeResolve" &&
-      actionState.targetBoard===bi
-    ){
+    const probeDisplays=probeDisplaysForBoard(
+      view,
+      owner.playerKey,
+      bi
+    );
+
+    for(const display of probeDisplays){
       const probeBanner=document.createElement("div");
-      probeBanner.className="probeResolveBanner";
-      const shortName=
-        actionState.cardType==="mitsu"
-          ? "ミツたん"
-          : "フツたん";
+      probeBanner.className=
+        "probeResolveBanner"+
+        (display.phase==="recent"?" recent":"");
+
       probeBanner.textContent=
-        `${shortName}：${formatTileNumber(actionState.sourceNumber)}`;
+        `${probeShortName(display.cardType)}：${formatTileNumber(display.sourceNumber)}`;
+
       wrap.appendChild(probeBanner);
     }
 
@@ -4955,6 +4972,18 @@ function ownTileView(tile,viewerKey){
 function publicCardFlowFor(viewerKey){
   const flow=gameState.cardFlow;
   if(!flow)return null;
+
+  const isProbeFlow=["probeChooseCut","probeChooseInfo"].includes(flow.stage);
+  const probeDisplay=isProbeFlow
+    ? {
+        cardType:flow.type,
+        sourceNumber:flow.sourceNumber,
+        targetPlayer:flow.targetPlayer,
+        targetBoard:flow.targetBoard,
+        selectedTileIds:[...(flow.selectedTileIds||[])]
+      }
+    : null;
+
   const common={
     active:true,
     type:flow.type,
@@ -4962,7 +4991,8 @@ function publicCardFlowFor(viewerKey){
     actorLabel:gameState.players[flow.actor]?.label||"",
     resolver:flow.resolver||null,
     resolverLabel:flow.resolver?gameState.players[flow.resolver]?.label||"":null,
-    stage:"resolving"
+    stage:"resolving",
+    ...(probeDisplay?{probeDisplay}: {})
   };
 
   if(viewerKey!==flow.resolver && viewerKey!==flow.actor){
@@ -5028,12 +5058,13 @@ createGameState=function(settings){
   const state=_baseCreateGameState(settings);
   const personalCardsEnabled=settings.personalCardsEnabled!==false;
 
-  state.version=8;
+  state.version=9;
   state.config.personalCardsEnabled=personalCardsEnabled;
   state.phase=personalCardsEnabled?"personalCards":"infoTokens";
   state.infoTurn=personalCardsEnabled?null:state.captainKey;
   state.turn=null;
   state.cardFlow=null;
+  state.recentProbe=null;
   state.turnSerial=0;
   state.nextExchangeTag=1;
   state.boardLayouts={};
@@ -5096,6 +5127,15 @@ makeViewFor=function(playerKey){
     lastCutId:gameState.lastCutId||0,
     lastCutTiles:(gameState.lastCutTiles||[]).map(x=>({...x})),
     cardFlow:publicCardFlowFor(playerKey),
+    recentProbe:gameState.recentProbe
+      ? {
+          cardType:gameState.recentProbe.cardType,
+          sourceNumber:gameState.recentProbe.sourceNumber,
+          targetPlayer:gameState.recentProbe.targetPlayer,
+          targetBoard:gameState.recentProbe.targetBoard,
+          selectedTileIds:[...(gameState.recentProbe.selectedTileIds||[])]
+        }
+      : null,
     personalCardClaims:PERSONAL_CARD_ORDER.reduce((acc,type)=>{
       acc[type]=PERSONAL_CARDS[type].unique&&claims.has(type);
       return acc;
@@ -5115,9 +5155,22 @@ const _baseFinishTurnPersonalCards=finishTurn;
 finishTurn=function(actor){
   const beforeTurn=gameState?.turn;
   const beforePhase=gameState?.phase;
+
   _baseFinishTurnPersonalCards(actor);
+
   if(gameState&&(gameState.turn!==beforeTurn||gameState.phase!==beforePhase)){
     gameState.turnSerial=(gameState.turnSerial||0)+1;
+  }
+
+  if(gameState?.recentProbe){
+    // 探知機解決直後に始まった次の1手番までは残す。
+    // その手番が終了して turnSerial がさらに進んだら消す。
+    if(
+      gameState.phase!=="play" ||
+      (gameState.turnSerial||0)>gameState.recentProbe.displayTurnSerial
+    ){
+      gameState.recentProbe=null;
+    }
   }
 };
 
@@ -5301,6 +5354,18 @@ function processResolveProbe(resolver,position){
   }
 
   const actor=flow.actor;
+
+  // 「何番で、どのタイルを指定したか」を次の1手番だけ全員に残す。
+  // 当たり枚数・allowedPositions は保存しないため、正解候補数は漏れない。
+  gameState.recentProbe={
+    cardType:flow.type,
+    sourceNumber:flow.sourceNumber,
+    targetPlayer:flow.targetPlayer,
+    targetBoard:flow.targetBoard,
+    selectedTileIds:[...(flow.selectedTileIds||[])],
+    displayTurnSerial:(gameState.turnSerial||0)+1
+  };
+
   gameState.cardFlow=null;
   finishTurn(actor);
   broadcastViews();
@@ -5870,6 +5935,51 @@ function insertionFlowForBoard(view,ownerKey,boardIndex){
   return flow;
 }
 
+function probeDisplaysForBoard(view,ownerKey,boardIndex){
+  const displays=[];
+
+  const recent=view?.recentProbe;
+  if(
+    recent &&
+    recent.targetPlayer===ownerKey &&
+    recent.targetBoard===boardIndex
+  ){
+    displays.push({
+      ...recent,
+      phase:"recent"
+    });
+  }
+
+  const active=view?.cardFlow?.probeDisplay;
+  if(
+    active &&
+    active.targetPlayer===ownerKey &&
+    active.targetBoard===boardIndex
+  ){
+    displays.push({
+      ...active,
+      phase:"active"
+    });
+  }
+
+  return displays;
+}
+
+function isPublicProbeTarget(view,ownerKey,boardIndex,tileId){
+  if(!tileId)return false;
+
+  return probeDisplaysForBoard(view,ownerKey,boardIndex)
+    .some(display=>
+      Array.isArray(display.selectedTileIds) &&
+      display.selectedTileIds.includes(tileId)
+    );
+}
+
+function probeShortName(cardType){
+  return PERSONAL_CARDS[cardType]?.short ||
+    (cardType==="mitsu"?"ミツたん":"フツたん");
+}
+
 renderBoards=function(container,boards,isOpponent,view,owner){
   container.innerHTML="";
   const layouts=isOpponent
@@ -5980,10 +6090,12 @@ renderBoards=function(container,boards,isOpponent,view,owner){
       if(selectedSelfPosition(bi,tile.position)&&!isOpponent)el.classList.add("selfGroupSelected");
 
       if(
-        !isOpponent &&
-        actionState?.mode==="probeResolve" &&
-        actionState.targetBoard===bi &&
-        actionState.selectedPositions?.includes(tile.position)
+        isPublicProbeTarget(
+          view,
+          owner.playerKey,
+          bi,
+          tile.id
+        )
       ){
         el.classList.add("probeTargeted");
       }

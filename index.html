@@ -194,6 +194,26 @@ summary{font-weight:750;cursor:pointer}
   background:#f5f3ff;
   box-shadow:0 0 0 2px rgba(124,58,237,.12)
 }
+.tile.probeTargeted{
+  z-index:5;
+  outline:3px solid #f59e0b;
+  box-shadow:0 0 0 2px rgba(245,158,11,.16);
+  opacity:1
+}
+.probeResolveBanner{
+  margin:0 0 5px;
+  padding:3px 7px;
+  border:1px solid #f59e0b;
+  border-radius:7px;
+  background:#fff7ed;
+  color:#9a3412;
+  font-size:clamp(.66rem,2.6vw,.82rem);
+  font-weight:900;
+  line-height:1.15;
+  width:max-content;
+  max-width:100%;
+  box-sizing:border-box
+}
 .tile.playSelectedOwn,
 .tile.playSelectedTarget{
   z-index:6;
@@ -390,6 +410,11 @@ summary{font-weight:750;cursor:pointer}
 .tile.yellowTile{background:#fef08a;border-color:#eab308;color:#854d0e}
 .tile.yellowTile.cut{background:#fef9c3;border-color:#ca8a04;color:#713f12;opacity:.82}
 .infoTokenBadge.yellowNumberToken{background:#fef08a;border-color:#eab308;color:#854d0e}
+.infoTokenBadge.yellowKindToken{
+  background:#fef08a;
+  border-color:#eab308;
+  color:#854d0e
+}
 .board{overflow-x:hidden}
 .tiles,.infoTokenRow{width:100%;min-width:0}
 
@@ -1313,7 +1338,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イレシー交換跡表示改善版。
+    2〜6人対応。探知機解決UI・ドチアタ公開情報改善版。
   </footer>
 </div>
 
@@ -3844,6 +3869,22 @@ function renderBoards(container,boards,isOpponent,view,owner){
     if(infoDone)wrap.classList.add("done");
     if(isBoardSelected(isOpponent,owner.playerKey,bi))wrap.classList.add("boardSelected");
 
+    if(
+      !isOpponent &&
+      actionState?.mode==="probeResolve" &&
+      actionState.targetBoard===bi
+    ){
+      const probeBanner=document.createElement("div");
+      probeBanner.className="probeResolveBanner";
+      const shortName=
+        actionState.cardType==="mitsu"
+          ? "ミツたん"
+          : "フツたん";
+      probeBanner.textContent=
+        `${shortName}：${formatTileNumber(actionState.sourceNumber)}`;
+      wrap.appendChild(probeBanner);
+    }
+
     const facts=owner.boardFacts?.[bi];
     if(facts&&facts.length){
       const factsRow=document.createElement("div");
@@ -4940,6 +4981,8 @@ function publicCardFlowFor(viewerKey){
       stage:"probeResolve",
       resolution:"cut",
       targetBoard:flow.targetBoard,
+      sourceNumber:flow.sourceNumber,
+      selectedPositions:[...(flow.selectedPositions||[])],
       allowedPositions:[...flow.allowedPositions]
     };
   }
@@ -4949,6 +4992,8 @@ function publicCardFlowFor(viewerKey){
       stage:"probeResolve",
       resolution:"info",
       targetBoard:flow.targetBoard,
+      sourceNumber:flow.sourceNumber,
+      selectedPositions:[...(flow.selectedPositions||[])],
       allowedPositions:[...flow.allowedPositions]
     };
   }
@@ -5197,9 +5242,11 @@ function processProbeCard(actor,cardType,payload){
       resolver:targetPlayer,
       sourceBoard:payload.sourceBoard,
       sourceTileId:source.id,
+      sourceNumber:source.number,
       targetPlayer,
       targetBoard,
       selectedTileIds:targets.map(t=>t.id),
+      selectedPositions:targets.map(t=>t.position),
       allowedPositions:matching.map(t=>t.position)
     };
   }else{
@@ -5214,6 +5261,7 @@ function processProbeCard(actor,cardType,payload){
       targetPlayer,
       targetBoard,
       selectedTileIds:targets.map(t=>t.id),
+      selectedPositions:targets.map(t=>t.position),
       allowedPositions:targets.filter(t=>t.kind!=="red").map(t=>t.position)
     };
   }
@@ -5237,7 +5285,13 @@ function processResolveProbe(resolver,position){
     ]);
     gameState.lastEvent={kind:"success",cardType:flow.type};
   }else{
-    target.infoToken={type:"number",value:target.number,tileKind:target.kind};
+    // 探知機で黄色へ置く場合は、具体的な小数値を公開せず
+    // 「黄色である」ことだけを公開する。
+    target.infoToken=
+      target.kind==="yellow"
+        ? {type:"yellow"}
+        : {type:"number",value:target.number,tileKind:target.kind};
+
     gameState.lives=Math.max(0,gameState.lives-1);
     addPublicFact(flow.actor,flow.sourceBoard,flow.sourceNumber);
     markLastResult([
@@ -5267,9 +5321,6 @@ function processDotchiCard(actor,payload){
   if(targetPlayer===actor||!target||target.cut)return;
   if(!consumePersonalCard(actor,"dotchi"))return;
 
-  addPublicFact(actor,src[0].boardIndex,t1.number);
-  addPublicFact(actor,src[0].boardIndex,t2.number);
-
   if(target.kind==="red"){
     gameState.lastEvent={kind:"redBoom",actorLabel:gameState.players[actor].label,cardType:"dotchi"};
     gameState.phase="gameover";
@@ -5280,6 +5331,12 @@ function processDotchiCard(actor,payload){
 
   const hit=target.kind==="normal"?[t1,t2].find(t=>t.number===target.number):null;
   if(hit){
+    // 当たった数字は宣言元タイルも切断されるため、
+    // 「この台にまだ存在する」公開情報にはしない。
+    // 外れた方の数字だけを公開情報として残す。
+    const missed=t1===hit?t2:t1;
+    addPublicFact(actor,src[0].boardIndex,missed.number);
+
     hit.cut=true;
     target.cut=true;
     markLastResult([
@@ -5288,6 +5345,10 @@ function processDotchiCard(actor,payload){
     ]);
     gameState.lastEvent={kind:"success",cardType:"dotchi"};
   }else{
+    // 両方外れなら、宣言した2数字はいずれもその台に残っている。
+    addPublicFact(actor,src[0].boardIndex,t1.number);
+    addPublicFact(actor,src[0].boardIndex,t2.number);
+
     target.infoToken={type:"number",value:target.number,tileKind:target.kind};
     gameState.lives=Math.max(0,gameState.lives-1);
     markLastResult([
@@ -5770,6 +5831,9 @@ function renderTokenSlot(tile){
         badge.classList.add("yellowNumberToken");
       }
       badge.textContent=formatTileNumber(value);
+    }else if(type==="yellow"){
+      badge.classList.add("yellowKindToken");
+      badge.textContent="黄";
     }else if(type==="even"){
       badge.classList.add("evenToken");
       badge.textContent="偶";
@@ -5914,6 +5978,16 @@ renderBoards=function(container,boards,isOpponent,view,owner){
         if(isOpponent&&actionState.targetPlayer===owner.playerKey&&actionState.targetBoard===bi&&actionState.targetPosition===tile.position)el.classList.add("playSelectedTarget");
       }
       if(selectedSelfPosition(bi,tile.position)&&!isOpponent)el.classList.add("selfGroupSelected");
+
+      if(
+        !isOpponent &&
+        actionState?.mode==="probeResolve" &&
+        actionState.targetBoard===bi &&
+        actionState.selectedPositions?.includes(tile.position)
+      ){
+        el.classList.add("probeTargeted");
+      }
+
       if(isSelectedCardTile(isOpponent,owner.playerKey,bi,tile))el.classList.add(isOpponent?"playSelectedTarget":"playSelectedOwn");
 
       col.appendChild(el);col.appendChild(renderTokenSlot(tile));tiles.appendChild(col);
@@ -6025,7 +6099,17 @@ function syncForcedAction(view){
   }
   if(flow.resolver!==view.playerKey)return;
   if(flow.stage==="probeResolve"){
-    actionState={mode:"probeResolve",forced:true,resolution:flow.resolution,targetBoard:flow.targetBoard,allowedPositions:[...flow.allowedPositions],targetPosition:null};
+    actionState={
+      mode:"probeResolve",
+      forced:true,
+      cardType:flow.type,
+      resolution:flow.resolution,
+      targetBoard:flow.targetBoard,
+      sourceNumber:flow.sourceNumber,
+      selectedPositions:[...(flow.selectedPositions||[])],
+      allowedPositions:[...flow.allowedPositions],
+      targetPosition:null
+    };
   }else if(flow.stage==="swapChooseGive"){
     actionState={mode:"swapGive",forced:true,targetBoard:flow.targetBoard,allowedPositions:[...flow.allowedPositions],targetPosition:null};
   }else if(flow.stage==="swapInsert"){
@@ -6122,6 +6206,7 @@ function renderReceivedTilePreview(tile){
     const value=typeof tile.infoToken==="object"?tile.infoToken.value:tile.number;
     token.textContent=
       type==="number" ? formatTileNumber(value) :
+      type==="yellow" ? "黄" :
       type==="even" ? "偶" :
       type==="count" ? `${value}枚` : "?";
     card.appendChild(token);

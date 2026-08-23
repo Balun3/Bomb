@@ -988,10 +988,6 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 }
 .tile.hasExchangeTag{position:relative}
 .insertGap{
-  /*
-    タイルへ重ねず、矢印専用の実幅を確保する。
-    中央の隙間でも左右のタイルにタップを奪われない。
-  */
   flex:0 0 22px;
   width:22px;
   min-width:22px;
@@ -1014,9 +1010,29 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   font-size:1.08rem;
   line-height:1;
   z-index:50;
-  position:relative
+  position:relative;
+  user-select:none
 }
-.insertGap.selected{
+.insertGapRadio{
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none
+}
+.insertGapArrow{
+  position:relative;
+  z-index:2;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  pointer-events:none
+}
+.insertGap.selected .insertGapArrow,
+.insertGapRadio:checked + .insertGapArrow{
   background:#ede9fe;
   box-shadow:0 0 0 2px rgba(124,58,237,.28);
   color:#5b21b6
@@ -1030,19 +1046,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 .tiles.swapInsertMode .insertGap{
   pointer-events:auto
 }
-.insertGap.selected::after{
-  content:"";
-  position:absolute;
-  width:22px;
-  height:22px;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  background:rgba(124,58,237,.12);
-  box-shadow:0 0 0 2px rgba(124,58,237,.22);
-  pointer-events:none
-}
+
 .receivedTilePreview{
   position:absolute;
   left:50%;
@@ -1454,7 +1458,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
 
 
   <footer>
-    2〜6人対応。イレシー中央挿入のタップ処理を改善。
+    2〜6人対応。イレシー挿入位置をnative選択化。
   </footer>
 </div>
 
@@ -5968,29 +5972,27 @@ function selectSwapTargetBoard(ownerKey,boardIndex){
   rerenderBoardsOnly();
 }
 
-function selectInsertIndex(index,buttonEl=null){
+function selectInsertIndex(index,gapEl=null){
   if(!actionState||actionState.mode!=="swapInsert")return;
 
   const normalizedIndex=Number(index);
   if(!Number.isInteger(normalizedIndex))return;
 
-  // ↑ は合法な候補位置にしか描画されない。
-  // 最終的な合法性は親機の processSwapInsert() でも再検証する。
   actionState.insertIndex=normalizedIndex;
 
-  // タップ直後に盤面DOMを作り直さない。
-  // 中央の隙間で pointerup → DOM再生成 → click が不安定になるのを防ぐ。
   document.querySelectorAll(".insertGap.selected")
     .forEach(el=>el.classList.remove("selected"));
 
-  const targetButton=
-    buttonEl ||
+  const targetGap=
+    gapEl ||
     document.querySelector(
       `.insertGap[data-insert-index="${normalizedIndex}"]`
     );
 
-  if(targetButton){
-    targetButton.classList.add("selected");
+  if(targetGap){
+    targetGap.classList.add("selected");
+    const radio=targetGap.querySelector(".insertGapRadio");
+    if(radio&&!radio.checked)radio.checked=true;
   }
 
   updateActionUi();
@@ -6163,9 +6165,10 @@ renderBoards=function(container,boards,isOpponent,view,owner){
       if(!insertSet.has(index))return;
 
       const normalizedIndex=Number(index);
-      const gap=document.createElement("button");
+      const gap=document.createElement("label");
+      const radio=document.createElement("input");
+      const arrow=document.createElement("span");
 
-      gap.type="button";
       gap.dataset.insertIndex=String(normalizedIndex);
       gap.className=
         "insertGap"+
@@ -6175,35 +6178,39 @@ renderBoards=function(container,boards,isOpponent,view,owner){
             ? " selected"
             : ""
         );
-
-      gap.textContent="↑";
       gap.setAttribute("aria-label","ここに置く");
 
-      const choose=e=>{
-        e.preventDefault();
-        e.stopPropagation();
-        selectInsertIndex(normalizedIndex,gap);
-      };
+      // ブラウザ標準のradio選択を使う。
+      // JavaScriptのpointerイベントだけに依存しない。
+      radio.type="radio";
+      radio.className="insertGapRadio";
+      radio.name=`swapInsertChoice-${owner.playerKey}-${bi}`;
+      radio.value=String(normalizedIndex);
+      radio.checked=
+        actionState?.mode==="swapInsert" &&
+        Number(actionState.insertIndex)===normalizedIndex;
 
-      // pointerdownで即座に選択。
-      // clickはキーボード操作等のフォールバックとして残す。
-      let pointerHandled=false;
+      arrow.className="insertGapArrow";
+      arrow.textContent="↑";
 
-      gap.addEventListener("pointerdown",e=>{
-        pointerHandled=true;
-        choose(e);
-      });
-
-      gap.addEventListener("click",e=>{
-        if(pointerHandled){
-          pointerHandled=false;
-          e.preventDefault();
-          e.stopPropagation();
-          return;
+      radio.addEventListener("change",()=>{
+        if(radio.checked){
+          selectInsertIndex(normalizedIndex,gap);
         }
-        choose(e);
       });
 
+      // 一部モバイルブラウザ向けの補助。
+      // labelタップ後、native radioのchecked状態を次tickで確認する。
+      gap.addEventListener("click",()=>{
+        setTimeout(()=>{
+          if(radio.checked){
+            selectInsertIndex(normalizedIndex,gap);
+          }
+        },0);
+      });
+
+      gap.appendChild(radio);
+      gap.appendChild(arrow);
       tiles.appendChild(gap);
     };
 
@@ -6551,7 +6558,15 @@ updateActionUi=function(){
     els.confirmActionBtn.disabled=actionState.targetPosition===null;
   }else if(actionState.mode==="swapInsert"){
     els.confirmActionBtn.textContent="置く";
-    els.confirmActionBtn.disabled=actionState.insertIndex===null;
+
+    const checked=document.querySelector(
+      ".insertGapRadio:checked"
+    );
+    const hasNativeSelection=!!checked;
+
+    els.confirmActionBtn.disabled=
+      actionState.insertIndex===null &&
+      !hasNativeSelection;
   }
 };
 
@@ -6582,7 +6597,33 @@ confirmPlayAction=function(){
   }else if(s.mode==="swapGive"){
     const p={type:"resolveSwapGive",position:s.targetPosition};dispatch(p,()=>processSwapGive(localPlayerKey,p.position));
   }else if(s.mode==="swapInsert"){
-    const p={type:"resolveSwapInsert",insertIndex:s.insertIndex};dispatch(p,()=>processSwapInsert(localPlayerKey,p.insertIndex));
+    let insertIndex=s.insertIndex;
+
+    // native radioの選択を最終ソースとして再確認する。
+    const checked=document.querySelector(
+      ".insertGapRadio:checked"
+    );
+    if(checked){
+      const nativeIndex=Number(checked.value);
+      if(Number.isInteger(nativeIndex))insertIndex=nativeIndex;
+    }
+
+    if(!Number.isInteger(Number(insertIndex))){
+      els.confirmActionBtn.disabled=true;
+      return;
+    }
+
+    const p={
+      type:"resolveSwapInsert",
+      insertIndex:Number(insertIndex)
+    };
+    dispatch(
+      p,
+      ()=>processSwapInsert(
+        localPlayerKey,
+        p.insertIndex
+      )
+    );
   }
   actionState=null;
   setTimeout(()=>{els.confirmActionBtn.disabled=false},250);

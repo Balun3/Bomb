@@ -4491,6 +4491,7 @@ actor:flow.actor,
 actorLabel:gameState.players[flow.actor]?.label||"",
 resolver:flow.resolver||null,
 resolverLabel:flow.resolver?gameState.players[flow.resolver]?.label||"":null,
+flowId:flow.flowId||null,
 stage:"resolving",
 ...(probeDisplay?{probeDisplay}: {})
 };
@@ -4539,6 +4540,7 @@ return {
 ...common,
 stage:"swapInsert",
 receiveBoard:flow.receiveBoard,
+swapLeg:flow.incomingKey||null,
 insertOptions:[...flow.insertOptions],
 receivedTile:tile?{
 kind:tile.kind,
@@ -4866,13 +4868,16 @@ broadcastViews();
 return;
 }
 if(!consumePersonalCard(actor,card.type))return;
+const flowId=
+gameState.nextCardFlowId++;
 gameState.cardFlow={
 type:card.type,
 stage:card.type==="radar"?"radarInput":"swapInput",
 actor,
 resolver:actor,
 baseTurn:gameState.turn,
-committed:true
+committed:true,
+flowId
 };
 broadcastViews();
 }
@@ -4965,7 +4970,8 @@ actorTileId:own.id,
 targetPlayer,
 targetBoard:payload.targetBoard,
 allowedPositions:candidates.map(t=>t.position),
-baseTurn:flow.baseTurn
+baseTurn:flow.baseTurn,
+flowId:flow.flowId
 };
 broadcastViews();
 }
@@ -5000,7 +5006,8 @@ receiveBoard:flow.targetBoard,
 incomingKey:"actorTile",
 insertOptions:targetOptions,
 heldTiles,
-baseTurn:flow.baseTurn
+baseTurn:flow.baseTurn,
+flowId:flow.flowId
 };
 broadcastViews();
 }
@@ -5220,6 +5227,21 @@ rerenderBoardsOnly();
 }
 function selectInsertIndex(index,gapEl=null){
 if(!actionState||actionState.mode!=="swapInsert")return;
+
+const activeFlow=currentView?.cardFlow;
+if(
+!activeFlow ||
+activeFlow.stage!=="swapInsert" ||
+activeFlow.resolver!==currentView.playerKey ||
+actionState.flowId!==activeFlow.flowId ||
+actionState.swapLeg!==activeFlow.swapLeg
+){
+syncForcedAction(currentView);
+updateActionUi();
+rerenderBoardsOnly();
+return;
+}
+
 const normalizedIndex=Number(index);
 if(!Number.isInteger(normalizedIndex))return;
 
@@ -5402,64 +5424,148 @@ els.phaseHelp.textContent="";
 }
 };
 function syncForcedAction(view){
-const flow=view.cardFlow;
-if(!flow)return;
-if(flow.actor===view.playerKey&&flow.stage==="radarInput"){
-actionState={mode:"radar",forced:true,selectedNumber:null};return;
+const flow=view?.cardFlow;
+
+if(!flow){
+actionState=null;
+return;
 }
-if(flow.actor===view.playerKey&&flow.stage==="swapInput"){
-actionState={mode:"swap",forced:true,myBoard:null,myPosition:null,targetPlayer:null,targetBoard:null};return;
+
+const previous=
+actionState
+? {...actionState}
+: null;
+
+if(
+flow.actor===view.playerKey &&
+flow.stage==="radarInput"
+){
+actionState={
+mode:"radar",
+forced:true,
+flowId:flow.flowId||null,
+selectedNumber:
+previous?.mode==="radar" &&
+previous.flowId===flow.flowId
+? previous.selectedNumber
+: null
+};
+return;
 }
-if(flow.resolver!==view.playerKey)return;
+
+if(
+flow.actor===view.playerKey &&
+flow.stage==="swapInput"
+){
+const same=
+previous?.mode==="swap" &&
+previous.flowId===flow.flowId;
+
+actionState={
+mode:"swap",
+forced:true,
+flowId:flow.flowId||null,
+myBoard:same?previous.myBoard:null,
+myPosition:same?previous.myPosition:null,
+targetPlayer:same?previous.targetPlayer:null,
+targetBoard:same?previous.targetBoard:null
+};
+return;
+}
+
+if(flow.resolver!==view.playerKey){
+actionState=null;
+return;
+}
+
 if(flow.stage==="probeResolve"){
+const same=
+previous?.mode==="probeResolve" &&
+previous.flowId===flow.flowId;
+
 actionState={
 mode:"probeResolve",
 forced:true,
+flowId:flow.flowId||null,
 cardType:flow.type,
 resolution:flow.resolution,
 targetBoard:flow.targetBoard,
 sourceNumber:flow.sourceNumber,
 selectedPositions:[...(flow.selectedPositions||[])],
 allowedPositions:[...flow.allowedPositions],
-targetPosition:null
+targetPosition:
+same &&
+flow.allowedPositions?.includes(previous.targetPosition)
+? previous.targetPosition
+: null
 };
-}else if(flow.stage==="swapChooseGive"){
-actionState={mode:"swapGive",forced:true,targetBoard:flow.targetBoard,allowedPositions:[...flow.allowedPositions],targetPosition:null};
-}else if(flow.stage==="swapInsert"){
+return;
+}
+
+if(flow.stage==="swapChooseGive"){
+const same=
+previous?.mode==="swapGive" &&
+previous.flowId===flow.flowId;
+
+actionState={
+mode:"swapGive",
+forced:true,
+flowId:flow.flowId||null,
+targetBoard:flow.targetBoard,
+allowedPositions:[...flow.allowedPositions],
+targetPosition:
+same &&
+flow.allowedPositions?.includes(previous.targetPosition)
+? previous.targetPosition
+: null
+};
+return;
+}
+
+if(flow.stage==="swapInsert"){
 const options=(flow.insertOptions||[])
 .map(Number)
 .filter(Number.isInteger);
+
 const sameInsertFlow=
-actionState?.mode==="swapInsert" &&
-actionState.receiveBoard===flow.receiveBoard;
+previous?.mode==="swapInsert" &&
+previous.flowId===flow.flowId &&
+previous.swapLeg===flow.swapLeg &&
+previous.receiveBoard===flow.receiveBoard;
+
 const previousIndex=
 sameInsertFlow
-? Number(actionState.insertIndex)
+? Number(previous.insertIndex)
 : NaN;
-const previousChoice=
-sameInsertFlow &&
-actionState.insertChoice &&
-Number(actionState.insertChoice.index)===previousIndex
-? {...actionState.insertChoice}
-: null;
+
 const keptIndex=
 Number.isInteger(previousIndex) &&
 options.includes(previousIndex)
 ? previousIndex
 : null;
+
+const previousChoice=
+keptIndex!==null &&
+previous.insertChoice &&
+Number(previous.insertChoice.index)===keptIndex
+? {...previous.insertChoice}
+: null;
+
 actionState={
 mode:"swapInsert",
 forced:true,
+flowId:flow.flowId||null,
+swapLeg:flow.swapLeg||null,
 receiveBoard:flow.receiveBoard,
 insertOptions:options,
 insertIndex:keptIndex,
-insertChoice:
-keptIndex!==null
-? previousChoice
-: null,
+insertChoice:previousChoice,
 receivedTile:flow.receivedTile
 };
+return;
 }
+
+actionState=null;
 }
 function renderInterruptButton(view){
 els.interruptCardArea.classList.add("hidden");
@@ -5546,6 +5652,20 @@ swapInsertSubmitting ||
 actionState.mode!=="swapInsert" ||
 !currentView
 )return false;
+const activeFlow=currentView?.cardFlow;
+if(
+!activeFlow ||
+activeFlow.stage!=="swapInsert" ||
+activeFlow.resolver!==currentView.playerKey ||
+actionState.flowId!==activeFlow.flowId ||
+actionState.swapLeg!==activeFlow.swapLeg
+){
+syncForcedAction(currentView);
+updateActionUi();
+rerenderBoardsOnly();
+return false;
+}
+
 const choice=currentSwapInsertChoice();
 if(!choice){
 actionError(
@@ -8812,6 +8932,7 @@ state.cardFlow=null;
 state.recentProbe=null;
 state.turnSerial=0;
 state.nextExchangeTag=1;
+state.nextCardFlowId=1;
 state.boardLayouts={};
 for(const key of state.seatOrder){
 const player=state.players[key];
@@ -9084,7 +9205,13 @@ view:makeViewFor(key)
 function renderCorePlayerView(view){
 currentView=view;
 selectedInfoToken=null;
+
+if(view.cardFlow){
+syncForcedAction(view);
+}else{
 actionState=null;
+}
+
 if(view.phase==="infoTokens" || view.phase==="play"){
 armLeaveGuard();
 scheduleIdleDisconnect();
@@ -9385,19 +9512,6 @@ view.personalCard,
 );
 renderPersonalCardChoice(view);
 renderInterruptButton(view);
-if(view.cardFlow){
-const keepSwapInsert=
-actionState?.mode==="swapInsert";
-
-if(!keepSwapInsert){
-actionState=null;
-}
-
-syncForcedAction(view);
-updateActionUi();
-renderNumberTracker(view);
-rerenderBoardsOnly();
-}
 renderEquipmentCards(view);
 if(
 view.config?.equipmentCardsEnabled===false
@@ -9924,7 +10038,8 @@ gameState.cardFlow={...flow,
 resolver:flow.actor,
 receiveBoard:flow.actorBoard,
 incomingKey:"targetTile",
-insertOptions:options
+insertOptions:options,
+flowId:flow.flowId
 };
 broadcastViews();
 return true;

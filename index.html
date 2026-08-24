@@ -1397,6 +1397,8 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
       <button id="createOfferBtn" class="primary">2人目の接続QRを作る</button>
       <div id="offerQrArea" class="hidden">
         <div id="offerQr" class="qrWrap"></div>
+        <button id="copyGuestLinkBtn" class="secondary" style="width:100%">QRが読めない子機用リンクをコピー</button>
+        <div class="small" style="margin-top:6px">子機でリンクを開くと返答QRを自動作成します。</div>
       </div>
     </div>
     <div class="step">
@@ -1667,6 +1669,7 @@ const els={
   answerWait:$("answerWait"),hostScannerWrap:$("hostScannerWrap"),guestScannerWrap:$("guestScannerWrap"),
   offerOut:$("offerOut"),offerIn:$("offerIn"),answerOut:$("answerOut"),answerIn:$("answerIn"),
   copyOfferBtn:$("copyOfferBtn"),copyAnswerBtn:$("copyAnswerBtn"),
+  copyGuestLinkBtn:$("copyGuestLinkBtn"),
   createAnswerBtn:$("createAnswerBtn"),applyAnswerBtn:$("applyAnswerBtn"),
   startGameBtn:$("startGameBtn"),redealBtn:$("redealBtn"),
   maxNumberSelect:$("maxNumberSelect"),personalCardsEnabledSelect:$("personalCardsEnabledSelect"),
@@ -4689,11 +4692,15 @@ function base64UrlToBytes(text){
   return bytes;
 }
 function compactCandidateLine(line){
-  // 同一LAN用のUDP host candidateは、必須部分だけ残せる。
-  const m=line.match(/^a=candidate:(\S+)\s+(\d+)\s+(udp)\s+(\d+)\s+(\S+)\s+(\d+)\s+typ\s+host\b/i);
+  // host候補は接続に不要な付加情報を落とす。
+  const m=line.match(
+    /^a=candidate:(\S+)\s+(\d+)\s+(udp)\s+(\d+)\s+(\S+)\s+(\d+)\s+typ\s+host\b/i
+  );
+
   if(m){
     return `a=candidate:${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]} ${m[6]} typ host`;
   }
+
   return line;
 }
 
@@ -4702,18 +4709,34 @@ function candidateCost(line){
   return m ? Number(m[1]) : 100;
 }
 
-function minimizeSdp(sdp){
+/*
+  QR用ICE候補：
+  - 外部ネットワーク用 srflx 最大1本
+  - 同一LAN用 host 最大1本
+*/
+function selectQrCandidates(sdp){
   const lines=sdp.split(/\r?\n/).filter(Boolean);
+  const candidates=
+    lines.filter(l=>l.startsWith("a=candidate:"));
 
-  // QRサイズは抑えつつ、以前より候補を増やして経路切替の余地を持たせる。
-  // srflx 最大2本 + host 最大2本を残す。
-  const candidates=lines.filter(l=>l.startsWith("a=candidate:"));
-  const udp=candidates.filter(l=>/\sudp\s/i.test(l));
+  const udp=
+    candidates.filter(l=>/\sudp\s/i.test(l));
 
   const preferIpv4=(a,b)=>{
-    const a4=/\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(a) ? 0 : 1;
-    const b4=/\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(b) ? 0 : 1;
-    return a4-b4 || candidateCost(a)-candidateCost(b);
+    const a4=
+      /\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(a)
+        ? 0
+        : 1;
+
+    const b4=
+      /\s(?:\d{1,3}\.){3}\d{1,3}\s+\d+\s+typ\s+/i.test(b)
+        ? 0
+        : 1;
+
+    return (
+      a4-b4 ||
+      candidateCost(a)-candidateCost(b)
+    );
   };
 
   const srflx=udp
@@ -4726,25 +4749,40 @@ function minimizeSdp(sdp){
 
   const chosen=[];
 
-  for(const line of srflx.slice(0,2)){
-    if(!chosen.includes(line))chosen.push(line);
+  if(srflx[0]){
+    chosen.push(srflx[0]);
   }
 
-  for(const line of host.slice(0,2)){
-    const compact=compactCandidateLine(line);
-    if(!chosen.includes(compact))chosen.push(compact);
+  if(host[0]){
+    const compact=compactCandidateLine(host[0]);
+    if(!chosen.includes(compact)){
+      chosen.push(compact);
+    }
   }
 
-  // srflx/hostが少ない端末では、他のUDP候補で最大4本まで補う。
-  for(const line of udp){
-    if(chosen.length>=4)break;
-    if(!chosen.includes(line))chosen.push(line);
-  }
-
-  // UDP候補自体が取れない場合だけ、候補全体から最大4本残す。
+  // 将来候補形式が変わった場合のBB3フォールバック用。
   if(!chosen.length){
-    chosen.push(...candidates.slice(0,4));
+    for(const line of udp.slice(0,2)){
+      if(!chosen.includes(line)){
+        chosen.push(line);
+      }
+    }
   }
+
+  if(!chosen.length){
+    chosen.push(...candidates.slice(0,2));
+  }
+
+  return chosen;
+}
+
+/*
+  BB3フォールバック用の最小SDP。
+  BB4に詰められない特殊なブラウザでも接続可能性を残す。
+*/
+function minimizeSdp(sdp){
+  const lines=sdp.split(/\r?\n/).filter(Boolean);
+  const chosen=selectQrCandidates(sdp);
 
   const wantedPrefixes=[
     "v=",
@@ -4765,7 +4803,9 @@ function minimizeSdp(sdp){
   ];
 
   const kept=lines.filter(line=>
-    wantedPrefixes.some(prefix=>line.startsWith(prefix))
+    wantedPrefixes.some(
+      prefix=>line.startsWith(prefix)
+    )
   );
 
   kept.push(...chosen);
@@ -4777,38 +4817,377 @@ function minimizeSdp(sdp){
   return kept.join("\r\n")+"\r\n";
 }
 
+/*
+  ICE candidateをBB4用の最小フィールドへ。
+  foundation / component / UDP / typ 等は受信側で復元する。
+*/
+function packBb4Candidate(line){
+  const m=line.match(
+    /^a=candidate:\S+\s+(\d+)\s+udp\s+(\d+)\s+(\S+)\s+(\d+)\s+typ\s+(host|srflx)\b(.*)$/i
+  );
+
+  if(!m || m[1]!=="1"){
+    return null;
+  }
+
+  const type=m[5].toLowerCase();
+
+  const parts=[
+    type==="host" ? "h" : "s",
+    Number(m[2]).toString(36),
+    m[3],
+    Number(m[4]).toString(36)
+  ];
+
+  if(type==="srflx"){
+    const rel=m[6].match(
+      /\braddr\s+(\S+)\s+rport\s+(\d+)/i
+    );
+
+    if(rel){
+      parts.push(
+        rel[1],
+        Number(rel[2]).toString(36)
+      );
+    }
+  }
+
+  return parts.join(",");
+}
+
+function unpackBb4Candidate(text,index){
+  const parts=String(text||"").split(",");
+
+  if(parts.length<4){
+    throw new Error("BB4候補データが不正です。");
+  }
+
+  const type=
+    parts[0]==="h"
+      ? "host"
+      : parts[0]==="s"
+        ? "srflx"
+        : null;
+
+  if(!type){
+    throw new Error("BB4候補形式が不正です。");
+  }
+
+  const priority=parseInt(parts[1],36);
+  const address=parts[2];
+  const port=parseInt(parts[3],36);
+
+  if(
+    !Number.isFinite(priority) ||
+    !address ||
+    !Number.isFinite(port)
+  ){
+    throw new Error("BB4候補データが不正です。");
+  }
+
+  // foundationは候補の識別に使われるだけなので、
+  // QRには保存せず小さな固定値で復元する。
+  let line=
+    `a=candidate:${index+1} 1 UDP ${priority} ${address} ${port} typ ${type}`;
+
+  if(
+    type==="srflx" &&
+    parts[4] &&
+    parts[5]
+  ){
+    const relatedPort=parseInt(parts[5],36);
+
+    if(Number.isFinite(relatedPort)){
+      line+=
+        ` raddr ${parts[4]} rport ${relatedPort}`;
+    }
+  }
+
+  return line;
+}
+
+/*
+  BB4 = SDPの定型文をQRへ保存しない。
+  保存するのは以下だけ：
+  offer/answer, ice-ufrag, ice-pwd, fingerprint, ICE候補。
+*/
+function makeBb4Payload(desc){
+  const lines=
+    desc.sdp.split(/\r?\n/).filter(Boolean);
+
+  const valueAfter=prefix=>{
+    const line=
+      lines.find(l=>l.startsWith(prefix));
+    return line
+      ? line.slice(prefix.length)
+      : "";
+  };
+
+  const ufrag=valueAfter("a=ice-ufrag:");
+  const pwd=valueAfter("a=ice-pwd:");
+
+  const fingerprintLine=
+    lines.find(
+      l=>l.startsWith("a=fingerprint:")
+    )||"";
+
+  const fingerprintMatch=
+    fingerprintLine.match(
+      /^a=fingerprint:sha-256\s+([0-9a-f:]+)$/i
+    );
+
+  if(
+    !ufrag ||
+    !pwd ||
+    !fingerprintMatch ||
+    !["offer","answer"].includes(desc.type)
+  ){
+    return null;
+  }
+
+  const fingerprint=
+    fingerprintMatch[1]
+      .replace(/:/g,"")
+      .toLowerCase();
+
+  if(fingerprint.length!==64){
+    return null;
+  }
+
+  const candidates=
+    selectQrCandidates(desc.sdp);
+
+  if(!candidates.length){
+    return null;
+  }
+
+  const packedCandidates=
+    candidates.map(packBb4Candidate);
+
+  // relay/TCP等、BB4で想定外の候補ならBB3へ退避。
+  if(
+    packedCandidates.some(v=>!v)
+  ){
+    return null;
+  }
+
+  return [
+    desc.type==="offer" ? "o" : "a",
+    ufrag,
+    pwd,
+    fingerprint,
+    packedCandidates.join(";")
+  ].join("|");
+}
+
+function restoreBb4Desc(payload){
+  const parts=String(payload||"").split("|");
+
+  if(parts.length!==5){
+    throw new Error("BB4接続コードが不正です。");
+  }
+
+  const [
+    typeCode,
+    ufrag,
+    pwd,
+    fingerprintCompact,
+    candidateText
+  ]=parts;
+
+  const type=
+    typeCode==="o"
+      ? "offer"
+      : typeCode==="a"
+        ? "answer"
+        : null;
+
+  if(
+    !type ||
+    !ufrag ||
+    !pwd ||
+    !/^[0-9a-f]{64}$/i.test(
+      fingerprintCompact
+    )
+  ){
+    throw new Error("BB4接続コードが不正です。");
+  }
+
+  const fingerprint=
+    (
+      fingerprintCompact
+        .match(/.{2}/g)||[]
+    )
+      .join(":")
+      .toUpperCase();
+
+  const candidateLines=
+    candidateText
+      ? candidateText
+          .split(";")
+          .filter(Boolean)
+          .map(unpackBb4Candidate)
+      : [];
+
+  if(!candidateLines.length){
+    throw new Error("BB4 ICE候補がありません。");
+  }
+
+  /*
+    以下はWebRTC DataChannelで毎回同じ定型部。
+    QRへは保存せず、ここで復元する。
+  */
+  const sdpLines=[
+    "v=0",
+    "o=- 0 0 IN IP4 127.0.0.1",
+    "s=-",
+    "t=0 0",
+    "a=group:BUNDLE 0",
+    "m=application 9 UDP/DTLS/SCTP webrtc-datachannel",
+    "c=IN IP4 0.0.0.0",
+    `a=ice-ufrag:${ufrag}`,
+    `a=ice-pwd:${pwd}`,
+    "a=ice-options:trickle",
+    `a=fingerprint:sha-256 ${fingerprint}`,
+    `a=setup:${type==="offer"?"actpass":"active"}`,
+    "a=mid:0",
+    "a=sctp-port:5000",
+    "a=max-message-size:262144",
+    ...candidateLines,
+    "a=end-of-candidates"
+  ];
+
+  return {
+    type,
+    sdp:sdpLines.join("\r\n")+"\r\n"
+  };
+}
+
 function encodeDesc(desc){
-  if(typeof pako==="undefined")throw new Error("圧縮ライブラリを読み込めませんでした。");
+  if(typeof pako==="undefined"){
+    throw new Error(
+      "圧縮ライブラリを読み込めませんでした。"
+    );
+  }
 
+  /*
+    まずBB4を試す。
+    定型SDPを捨てて可変部分だけdeflateRawする。
+  */
+  const bb4=makeBb4Payload(desc);
+
+  if(bb4){
+    const utf8=
+      new TextEncoder().encode(bb4);
+
+    const compressed=
+      pako.deflateRaw(
+        utf8,
+        {level:9}
+      );
+
+    return (
+      "BB4:"+
+      bytesToBase64Url(compressed)
+    );
+  }
+
+  /*
+    想定外のSDP形式では従来BB3へ自動フォールバック。
+  */
   const minimal=minimizeSdp(desc.sdp);
-  const json=JSON.stringify({t:desc.type,s:minimal});
-  const utf8=new TextEncoder().encode(json);
-  const compressed=pako.deflate(utf8,{level:9});
 
-  return "BB3:"+bytesToBase64Url(compressed);
+  const json=JSON.stringify({
+    t:desc.type,
+    s:minimal
+  });
+
+  const utf8=
+    new TextEncoder().encode(json);
+
+  const compressed=
+    pako.deflate(
+      utf8,
+      {level:9}
+    );
+
+  return (
+    "BB3:"+
+    bytesToBase64Url(compressed)
+  );
 }
 
 function decodeDesc(text){
   const t=text.trim();
 
-  if(t.startsWith("BB3:") || t.startsWith("BB2:")){
-    if(typeof pako==="undefined")throw new Error("圧縮ライブラリを読み込めませんでした。");
-    const compressed=base64UrlToBytes(t.slice(4));
-    const utf8=pako.inflate(compressed);
-    const json=new TextDecoder().decode(utf8);
+  if(t.startsWith("BB4:")){
+    if(typeof pako==="undefined"){
+      throw new Error(
+        "圧縮ライブラリを読み込めませんでした。"
+      );
+    }
+
+    const compressed=
+      base64UrlToBytes(t.slice(4));
+
+    const utf8=
+      pako.inflateRaw(compressed);
+
+    const payload=
+      new TextDecoder().decode(utf8);
+
+    return restoreBb4Desc(payload);
+  }
+
+  if(
+    t.startsWith("BB3:") ||
+    t.startsWith("BB2:")
+  ){
+    if(typeof pako==="undefined"){
+      throw new Error(
+        "圧縮ライブラリを読み込めませんでした。"
+      );
+    }
+
+    const compressed=
+      base64UrlToBytes(t.slice(4));
+
+    const utf8=
+      pako.inflate(compressed);
+
+    const json=
+      new TextDecoder().decode(utf8);
+
     const obj=JSON.parse(json);
-    if(!obj.t||!obj.s)throw new Error("接続コードが不正です。");
-    return {type:obj.t,sdp:obj.s};
+
+    if(!obj.t||!obj.s){
+      throw new Error(
+        "接続コードが不正です。"
+      );
+    }
+
+    return {
+      type:obj.t,
+      sdp:obj.s
+    };
   }
 
   // 旧BB1形式も読めるように残す
   if(t.startsWith("BB1:")){
     const obj=JSON.parse(t.slice(4));
-    if(!obj.type||!obj.sdp)throw new Error("接続コードが不正です。");
+
+    if(!obj.type||!obj.sdp){
+      throw new Error(
+        "接続コードが不正です。"
+      );
+    }
+
     return obj;
   }
 
-  throw new Error("Bomb Busters用の接続コードではありません。");
+  throw new Error(
+    "「何切る？」用の接続コードではありません。"
+  );
 }
 
 function renderQr(target,text){
@@ -5016,6 +5395,139 @@ async function copyText(el){
   try{await navigator.clipboard.writeText(el.value);alert("コピーしました。")}
   catch(_){el.focus();el.select();document.execCommand("copy");alert("コピーしました。")}
 }
+
+function createGuestJoinLink(code){
+  const clean=String(code||"").trim();
+
+  if(!clean){
+    throw new Error(
+      "先に子機用QRを作成してください。"
+    );
+  }
+
+  // 接続情報はサーバーへ送らずURLフラグメントだけに入れる。
+  const base=
+    location.origin+
+    location.pathname+
+    location.search;
+
+  return `${base}#join=${clean}`;
+}
+
+async function copyStringValue(text,message){
+  const value=String(text||"");
+
+  if(!value){
+    alert("コピーする内容がありません。");
+    return;
+  }
+
+  try{
+    await navigator.clipboard.writeText(value);
+    alert(message||"コピーしました。");
+    return;
+  }catch(_){}
+
+  const temp=document.createElement("textarea");
+  temp.value=value;
+  temp.style.position="fixed";
+  temp.style.left="-9999px";
+  document.body.appendChild(temp);
+  temp.focus();
+  temp.select();
+
+  try{
+    document.execCommand("copy");
+    alert(message||"コピーしました。");
+  }finally{
+    temp.remove();
+  }
+}
+
+async function copyGuestJoinLink(){
+  try{
+    const code=els.offerOut.value.trim();
+    const link=createGuestJoinLink(code);
+
+    await copyStringValue(
+      link,
+      "子機用接続リンクをコピーしました。"
+    );
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+function guestJoinCodeFromLocation(){
+  const hash=location.hash||"";
+
+  if(!hash.startsWith("#")){
+    return "";
+  }
+
+  const params=
+    new URLSearchParams(hash.slice(1));
+
+  return (
+    params.get("join")||""
+  ).trim();
+}
+
+async function autoJoinFromGuestLink(){
+  const code=guestJoinCodeFromLocation();
+
+  if(!code){
+    return;
+  }
+
+  try{
+    /*
+      URLに接続情報を残し続けない。
+      読み込んだ直後にアドレス欄から消す。
+    */
+    try{
+      history.replaceState(
+        history.state,
+        "",
+        location.pathname+
+          location.search
+      );
+    }catch(_){}
+
+    showRole("guest");
+    els.offerIn.value=code;
+
+    setStatus(
+      "接続リンクから返答QRを作成中…",
+      "wait"
+    );
+
+    await buildAnswerFromCode(code);
+
+    setTimeout(()=>{
+      try{
+        els.answerQrArea.scrollIntoView({
+          behavior:"smooth",
+          block:"center"
+        });
+      }catch(_){}
+    },100);
+
+  }catch(e){
+    console.error(e);
+
+    setStatus(
+      "接続リンクの処理に失敗しました",
+      "bad"
+    );
+
+    alert(
+      "子機用接続リンクを処理できませんでした。\n"+
+      e.message
+    );
+  }
+}
+
 
 function closeAllHostPeers(showStatus=true){
   for(const [key,c] of hostConnections){
@@ -10028,6 +10540,7 @@ els.applyAnswerBtn.onclick=async()=>{
 };
 els.copyOfferBtn.onclick=()=>copyText(els.offerOut);
 els.copyAnswerBtn.onclick=()=>copyText(els.answerOut);
+els.copyGuestLinkBtn.onclick=copyGuestJoinLink;
 els.startGameBtn.onclick=startOrRedeal;
 els.redealBtn.onclick=startOrRedeal;
 els.maxNumberSelect.onchange=updateSetupSelectors;
@@ -10047,6 +10560,11 @@ els.confirmActionBtn.onclick=confirmPlayAction;
 els.disconnectBtn.onclick=disconnect;
 els.stayGameBtn.onclick=hideLeaveConfirm;
 els.leaveGameBtn.onclick=leaveGameFromBack;
+
+/* 子機用リンクで開かれた場合はQR読取操作を省略 */
+setTimeout(()=>{
+  autoJoinFromGuestLink();
+},0);
 
 ["pointerdown","keydown","touchstart"].forEach(type=>{
   window.addEventListener(type,noteUserActivity,{passive:true});

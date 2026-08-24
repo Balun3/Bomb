@@ -1333,6 +1333,40 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   outline-offset:1px
 }
 
+
+.recentActionBanner{
+  margin-top:6px;
+  padding:7px 10px;
+  border-radius:9px;
+  background:#f8fafc;
+  border:1.5px solid #cbd5e1;
+  color:#334155;
+  font-size:.82rem;
+  font-weight:850;
+  line-height:1.35
+}
+.recentActionBanner.hidden{display:none!important}
+.recentActionBanner.success{
+  background:#f0fdf4;
+  border-color:#86efac;
+  color:#166534
+}
+.recentActionBanner.failure{
+  background:#fff7ed;
+  border-color:#fdba74;
+  color:#9a3412
+}
+.recentActionBanner.card{
+  background:#f5f3ff;
+  border-color:#c4b5fd;
+  color:#5b21b6
+}
+.recentActionBanner.danger{
+  background:#fef2f2;
+  border-color:#fca5a5;
+  color:#b91c1c
+}
+
 </style>
 </head>
 <body>
@@ -1526,6 +1560,7 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     <div id="phaseBox">
       <div id="phaseTitle" class="phaseTitle">情報トークン配置</div>
       <div id="turnBanner" class="turnBanner">準備中</div>
+      <div id="recentActionBanner" class="recentActionBanner hidden"></div>
       <div id="phaseHelp" class="tokenHelp"></div>
     </div>
 
@@ -1681,7 +1716,8 @@ const els={
   specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
   equipmentSection:$("equipmentSection"),equipmentCards:$("equipmentCards"),
   myPlayerHeading:$("myPlayerHeading"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
-  phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),phaseHelp:$("phaseHelp"),
+  phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),
+  recentActionBanner:$("recentActionBanner"),phaseHelp:$("phaseHelp"),
   lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
   playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
   normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),personalCardBtn:$("personalCardBtn"),
@@ -3315,10 +3351,11 @@ function processNormalCut(
   // 相手の赤タイル。万能氷の保護中ならゲームオーバーを無効化。
   if(targetTile.kind==="red"){
     if(consumeIceProtection(actor)){
-      const facts=gameState.publicBoardFacts[actor][myBoard];
-      const fact=publicBoardFactForTile(myTile);
-      if(!facts.includes(fact))facts.push(fact);
-      sortPublicFacts(facts);
+      addPublicFact(
+        actor,
+        myBoard,
+        publicBoardFactForTile(myTile)
+      );
 
       gameState.lastCutId=(gameState.lastCutId||0)+1;
       gameState.lastCutTiles=[{
@@ -3418,13 +3455,11 @@ function processNormalCut(
     gameState.lives=Math.max(0,gameState.lives-1);
   }
 
-  const facts=gameState.publicBoardFacts[actor][myBoard];
-  const fact=publicBoardFactForTile(myTile);
-
-  if(!facts.includes(fact)){
-    facts.push(fact);
-  }
-  sortPublicFacts(facts);
+  addPublicFact(
+    actor,
+    myBoard,
+    publicBoardFactForTile(myTile)
+  );
 
   // 誤答時は、狙われた相手側の位置だけを公開ハイライトする。
   // 切る側の具体的な位置は公開しない。
@@ -5733,7 +5768,6 @@ function publicTileForViewer(tile,viewerKey){
 }
 
 function ownTileView(tile,viewerKey){
-  const exchangedHidden=!!(tile.exchangeTag&&!tile.cut);
   return {
     id:tile.id,
     kind:tile.kind,
@@ -5742,8 +5776,11 @@ function ownTileView(tile,viewerKey){
     cut:tile.cut,
     infoToken:tile.infoToken,
     exchangeTag:tile.exchangeTag||null,
-    exchangeInfo:exchangedHidden?privateExchangeInfoFor(tile,viewerKey):null,
-    faceHidden:exchangedHidden
+
+    // 自分の手札は常に数字を見せる。
+    // 交換で知っているという補助表示も、自分自身には不要。
+    exchangeInfo:null,
+    faceHidden:false
   };
 }
 
@@ -6940,7 +6977,11 @@ renderBoards=function(container,boards,isOpponent,view,owner){
     layout.forEach((item,layoutIndex)=>{
       if(item.type==="hole"){
         const col=document.createElement("div");col.className="tileColumn placeholderCol";
-        const hole=document.createElement("div");hole.className="exchangeHole";hole.textContent=item.label||item.exchangeTag||"替";
+        const hole=document.createElement("div");hole.className="exchangeHole";
+        hole.textContent=
+          item.permanentBlank
+            ? ""
+            : (item.label ?? item.exchangeTag ?? "替");
         col.appendChild(hole);col.appendChild(renderTokenSlot(null));tiles.appendChild(col);
         appendInsertGap(layoutIndex+1);return;
       }
@@ -7015,9 +7056,25 @@ renderOpponents=function(view){
     if(isInfoTurn)heading.classList.add("activeInfoLabel");
     heading.innerHTML=cardHeadingHtml(opponent.label,opponent.personalCard,isPlayTurn?"【手番】":isInfoTurn?"【情報】":"");
     group.appendChild(heading);
-    const boards=document.createElement("div");group.appendChild(boards);
-    renderBoards(boards,opponent.boards,true,view,{playerKey:opponent.playerKey,label:opponent.label,infoPlaced:opponent.infoPlaced,boardFacts:opponent.boardFacts});
+    const boards=document.createElement("div");
+    group.appendChild(boards);
+
+    // 先に実DOMへ追加してから盤面を描画する。
+    // 関係ラベルはタイル位置を実測するため、detached DOMでは座標が0になる。
     els.oppBoards.appendChild(group);
+
+    renderBoards(
+      boards,
+      opponent.boards,
+      true,
+      view,
+      {
+        playerKey:opponent.playerKey,
+        label:opponent.label,
+        infoPlaced:opponent.infoPlaced,
+        boardFacts:opponent.boardFacts
+      }
+    );
   }
 };
 
@@ -7181,7 +7238,13 @@ function renderReceivedTilePreview(tile){
 
   const card=document.createElement("div");
   card.className="receivedTilePreviewCard";
-  card.textContent="?";
+  card.textContent=formatTileNumber(tile.number);
+
+  if(tile.kind==="yellow"){
+    card.classList.add("yellowTile");
+  }else if(tile.kind==="red"){
+    card.classList.add("redTile");
+  }
 
   if(tile.exchangeTag){
     const tag=document.createElement("span");
@@ -7190,14 +7253,10 @@ function renderReceivedTilePreview(tile){
     card.appendChild(tag);
   }
 
-  const privateBadge=document.createElement("div");
-  privateBadge.className="receivedTilePreviewKnowledge";
-  privateBadge.textContent=`↔${formatTileNumber(tile.number)}`;
-  card.appendChild(privateBadge);
-
   if(tile.infoToken){
     const token=document.createElement("div");
     token.className="receivedTilePreviewToken";
+    token.style.top="calc(100% + 3px)";
     const type=typeof tile.infoToken==="object"?tile.infoToken.type:"number";
     const value=typeof tile.infoToken==="object"?tile.infoToken.value:tile.number;
     token.textContent=
@@ -9125,9 +9184,10 @@ function placeRelationLabelElement(
   type,
   lane
 ){
-  const box=tiles.getBoundingClientRect();
-  const l=leftCol.getBoundingClientRect();
-  const r=rightCol.getBoundingClientRect();
+  // tilesを基準にした相対位置を直接使う。
+  // 自分・相手・スクロール位置に依存しない。
+  const left=leftCol.offsetLeft;
+  const right=rightCol.offsetLeft+rightCol.offsetWidth;
 
   const el=document.createElement("div");
   el.className=
@@ -9148,9 +9208,9 @@ function placeRelationLabelElement(
   el.appendChild(symbol);
 
   el.style.left=
-    `${l.left-box.left+1}px`;
+    `${left+1}px`;
   el.style.width=
-    `${Math.max(24,r.right-l.left-2)}px`;
+    `${Math.max(24,right-left-2)}px`;
 
   // タイル列の上側に確保したラベル専用領域へ配置。
   el.style.top=
@@ -9167,12 +9227,12 @@ function placeRelationChoiceElement(
   symbolText,
   lane=0
 ){
-  const box=tiles.getBoundingClientRect();
-  const l=leftCol.getBoundingClientRect();
-  const r=rightCol.getBoundingClientRect();
+  const leftRightEdge=
+    leftCol.offsetLeft+leftCol.offsetWidth;
+  const rightLeftEdge=rightCol.offsetLeft;
 
   const center=
-    (l.right+r.left)/2-box.left;
+    (leftRightEdge+rightLeftEdge)/2;
 
   const label=document.createElement("label");
   const radio=document.createElement("input");
@@ -10509,6 +10569,1126 @@ renderPlayerView=function(view){
   if(view.config?.equipmentCardsEnabled===false){
     els.equipmentSection?.classList.add("hidden");
   }
+};
+
+
+
+/* ============================================================
+   一時公開情報 / 直前の行動 / 交換跡の寿命
+   ============================================================ */
+
+const _transientBaseCreateGameState=createGameState;
+createGameState=function(settings){
+  const state=_transientBaseCreateGameState(settings);
+  state.version=13;
+
+  state.publicBoardFactExpiry={};
+  for(const key of state.seatOrder){
+    state.publicBoardFactExpiry[key]=
+      state.players[key].boards.map(()=>({}));
+  }
+
+  state.lastCutExpiry=null;
+  state.recentAction=null;
+  state._announcedLastEvent=null;
+  state._announcedFlowKey=null;
+
+  return state;
+};
+
+function transientUntilNextTurnEnds(){
+  return Number(gameState?.turnSerial||0)+1;
+}
+
+function playerLabel(key){
+  return gameState?.players?.[key]?.label || key || "";
+}
+
+function publicDeclaredLabel(kind,number){
+  if(kind==="yellow")return "黄";
+  if(kind==="red")return "赤";
+  return `数字の${formatTileNumber(number)}`;
+}
+
+function actionCardName(type){
+  if(type==="equipmentInfo")return "ヒント付箋";
+  if(type==="equipmentLabel")return "ラベル";
+  if(type==="superProbe")return "スーパー探知機";
+  if(type==="equipmentCoffee")return "いつでもコーヒー";
+  if(type==="equipmentBattery")return "非常電池";
+
+  return (
+    PERSONAL_CARDS?.[type]?.name ||
+    EQUIPMENT_CARDS?.[type]?.name ||
+    type
+  );
+}
+
+function setRecentAction(text,tone="card",until=null){
+  if(!gameState||!text)return;
+
+  gameState.recentAction={
+    text:String(text),
+    tone,
+    expiresTurnSerial:
+      until===null
+        ? transientUntilNextTurnEnds()
+        : Number(until)
+  };
+}
+
+function clearExpiredRecentAction(){
+  if(!gameState?.recentAction)return;
+
+  if(
+    gameState.phase!=="play" &&
+    gameState.phase!=="clear" &&
+    gameState.phase!=="gameover"
+  ){
+    gameState.recentAction=null;
+    return;
+  }
+
+  if(
+    gameState.phase==="play" &&
+    Number(gameState.turnSerial||0)>
+      Number(gameState.recentAction.expiresTurnSerial)
+  ){
+    gameState.recentAction=null;
+  }
+}
+
+/* ------------------------------------------------------------
+   公開推理情報：各情報ごとに寿命を持たせる
+   ------------------------------------------------------------ */
+const _transientBaseAddPublicFact=addPublicFact;
+addPublicFact=function(playerKey,boardIndex,value){
+  _transientBaseAddPublicFact(
+    playerKey,
+    boardIndex,
+    value
+  );
+
+  if(!gameState?.publicBoardFactExpiry)return;
+
+  const expiry=
+    gameState.publicBoardFactExpiry
+      ?. [playerKey]
+      ?. [boardIndex];
+
+  if(expiry){
+    expiry[String(value)]=
+      transientUntilNextTurnEnds();
+  }
+};
+
+function clearExpiredPublicFacts(){
+  if(!gameState?.publicBoardFactExpiry)return;
+
+  const serial=Number(gameState.turnSerial||0);
+
+  for(const key of gameState.seatOrder){
+    const factBoards=
+      gameState.publicBoardFacts?.[key]||[];
+
+    const expiryBoards=
+      gameState.publicBoardFactExpiry?.[key]||[];
+
+    factBoards.forEach((facts,boardIndex)=>{
+      const expiry=expiryBoards[boardIndex]||{};
+
+      for(let i=facts.length-1;i>=0;i--){
+        const fact=String(facts[i]);
+        const until=Number(expiry[fact]);
+
+        // 期限情報のない旧データも一時情報として扱い、
+        // 次回の整理時には残し続けない。
+        if(
+          !Number.isFinite(until) ||
+          serial>until
+        ){
+          facts.splice(i,1);
+          delete expiry[fact];
+        }
+      }
+    });
+  }
+}
+
+/* ------------------------------------------------------------
+   青い直前結果ハイライトも次の1手番だけ
+   ------------------------------------------------------------ */
+const _transientBaseMarkLastResult=markLastResult;
+markLastResult=function(tiles){
+  _transientBaseMarkLastResult(tiles);
+
+  gameState.lastCutExpiry={
+    id:Number(gameState.lastCutId||0),
+    until:transientUntilNextTurnEnds()
+  };
+};
+
+function ensureDirectLastCutExpiry(){
+  if(!gameState)return;
+
+  const id=Number(gameState.lastCutId||0);
+
+  if(
+    !id ||
+    !Array.isArray(gameState.lastCutTiles) ||
+    !gameState.lastCutTiles.length
+  )return;
+
+  if(
+    gameState.lastCutExpiry?.id===id
+  )return;
+
+  /*
+    通常切断/自分切断の旧処理はfinishTurn後にbroadcastされる。
+    そのため現在のturnSerialが「次の手番」そのもの。
+  */
+  gameState.lastCutExpiry={
+    id,
+    until:Number(gameState.turnSerial||0)
+  };
+}
+
+function clearExpiredLastCut(){
+  if(!gameState?.lastCutExpiry)return;
+
+  if(
+    gameState.phase==="play" &&
+    Number(gameState.turnSerial||0)>
+      Number(gameState.lastCutExpiry.until)
+  ){
+    gameState.lastCutTiles=[];
+    gameState.lastCutExpiry=null;
+  }
+}
+
+/* ------------------------------------------------------------
+   イレカエシーバー
+   ------------------------------------------------------------ */
+const _transientBaseEnsureExchangeTag=ensureExchangeTag;
+ensureExchangeTag=function(tile){
+  const tag=_transientBaseEnsureExchangeTag(tile);
+
+  tile.exchangeTransientUntil=
+    transientUntilNextTurnEnds();
+
+  return tag;
+};
+
+const _transientBaseReplaceTileWithHole=replaceTileWithHole;
+replaceTileWithHole=function(playerKey,boardIndex,tile){
+  _transientBaseReplaceTileWithHole(
+    playerKey,
+    boardIndex,
+    tile
+  );
+
+  const layout=
+    gameState.boardLayouts?.[playerKey]?.[boardIndex];
+
+  if(!layout)return;
+
+  const hole=layout.find(
+    item=>
+      item.type==="hole" &&
+      item.tileId===tile.id
+  );
+
+  if(hole){
+    hole.exchangeTransientUntil=
+      transientUntilNextTurnEnds();
+    hole.permanentBlank=false;
+  }
+};
+
+function relationAnchorSet(playerKey,boardIndex){
+  const labels=
+    gameState.equipmentLabels
+      ?. [playerKey]
+      ?. [boardIndex] || [];
+
+  const set=new Set();
+
+  for(const label of labels){
+    if(label.leftSlotId)set.add(label.leftSlotId);
+    if(label.rightSlotId)set.add(label.rightSlotId);
+  }
+
+  return set;
+}
+
+function normalizeExchangeLayouts(){
+  if(!gameState?.boardLayouts)return;
+
+  const serial=Number(gameState.turnSerial||0);
+
+  for(const key of gameState.seatOrder){
+    const layouts=gameState.boardLayouts[key]||[];
+
+    layouts.forEach((layout,boardIndex)=>{
+      const protectedSlots=
+        relationAnchorSet(key,boardIndex);
+
+      const next=[];
+
+      for(const item of layout){
+        if(item.type!=="hole"){
+          next.push(item);
+          continue;
+        }
+
+        const until=
+          Number(item.exchangeTransientUntil);
+
+        const expired=
+          !Number.isFinite(until) ||
+          serial>until;
+
+        if(!expired){
+          next.push(item);
+          continue;
+        }
+
+        if(protectedSlots.has(item.slotId)){
+          /*
+            = / ≠ の物理カードが掛かっている場所だけ、
+            元の位置を示す空白として残す。
+            交換番号や数字は公開しない。
+          */
+          next.push({
+            ...item,
+            exchangeTag:null,
+            permanentBlank:true,
+            exchangeTransientUntil:null
+          });
+        }
+        // ラベルと無関係な穴は完全に詰める。
+      }
+
+      gameState.boardLayouts[key][boardIndex]=next;
+
+      /*
+        現在のレイアウト順でboard配列も正規化。
+        空白はboardには含まれない。
+      */
+      const board=
+        gameState.players[key].boards[boardIndex];
+
+      const byId=new Map(
+        board.map(tile=>[tile.id,tile])
+      );
+
+      const ordered=[];
+
+      for(const item of next){
+        if(item.type!=="tile")continue;
+        const tile=byId.get(item.tileId);
+        if(tile)ordered.push(tile);
+      }
+
+      // 万一layoutにないタイルがあれば失わない。
+      for(const tile of board){
+        if(!ordered.includes(tile)){
+          ordered.push(tile);
+        }
+      }
+
+      gameState.players[key].boards[boardIndex]=ordered;
+      ordered.forEach((tile,index)=>{
+        tile.position=index;
+      });
+    });
+  }
+
+  // タイル本体の「替n」表示も同じ寿命で消す。
+  for(const tile of allTiles()){
+    const until=Number(tile.exchangeTransientUntil);
+
+    if(
+      tile.exchangeTag &&
+      (
+        !Number.isFinite(until) ||
+        serial>until
+      )
+    ){
+      tile.exchangeTag=null;
+      tile.exchangeTransientUntil=null;
+    }
+
+    // knownBy は消さない。
+    // 交換した当事者同士の私的な数字知識は残る。
+  }
+}
+
+/*
+  protected hole は全員に完全な空白として送る。
+  交換当事者にも元数字や替番号は出さない。
+*/
+const _transientBaseLayoutView=layoutView;
+layoutView=function(playerKey,boardIndex,viewerKey){
+  const view=
+    _transientBaseLayoutView(
+      playerKey,
+      boardIndex,
+      viewerKey
+    );
+
+  const layout=
+    gameState.boardLayouts?.[playerKey]?.[boardIndex]||[];
+
+  return view.map((item,index)=>{
+    const source=layout[index];
+
+    if(
+      source?.type==="hole" &&
+      source.permanentBlank
+    ){
+      return {
+        ...item,
+        exchangeTag:null,
+        label:"",
+        permanentBlank:true
+      };
+    }
+
+    return item;
+  });
+};
+
+/* ------------------------------------------------------------
+   一時情報の共通クリーンアップ
+   ------------------------------------------------------------ */
+function cleanupTransientPublicState(){
+  if(!gameState)return;
+
+  clearExpiredPublicFacts();
+  clearExpiredLastCut();
+  clearExpiredRecentAction();
+  normalizeExchangeLayouts();
+}
+
+const _transientBaseFinishTurn=finishTurn;
+finishTurn=function(actor){
+  _transientBaseFinishTurn(actor);
+  cleanupTransientPublicState();
+};
+
+const _transientBaseHandoffTurnTo=handoffTurnTo;
+handoffTurnTo=function(actor,target){
+  const ok=
+    _transientBaseHandoffTurnTo(
+      actor,
+      target
+    );
+
+  if(ok){
+    cleanupTransientPublicState();
+  }
+
+  return ok;
+};
+
+/* ------------------------------------------------------------
+   直前の行動：カード解決中
+   ------------------------------------------------------------ */
+function flowActionKey(flow){
+  if(!flow)return "";
+  return [
+    flow.type,
+    flow.equipmentType||"",
+    flow.actor,
+    flow.baseTurn||"",
+    flow.sourceTileId||"",
+    flow.sourceNumber??""
+  ].join("|");
+}
+
+function announceActiveCardFlow(){
+  const flow=gameState?.cardFlow;
+
+  if(!flow){
+    if(gameState){
+      gameState._announcedFlowKey=null;
+    }
+    return;
+  }
+
+  const key=flowActionKey(flow);
+
+  if(
+    gameState._announcedFlowKey===key
+  )return;
+
+  gameState._announcedFlowKey=key;
+
+  const actor=playerLabel(flow.actor);
+  const target=playerLabel(flow.targetPlayer);
+
+  let name=
+    flow.equipmentType
+      ? (
+          EQUIPMENT_CARDS?.[flow.equipmentType]?.name ||
+          actionCardName(flow.type)
+        )
+      : actionCardName(flow.type);
+
+  let text=`${actor}が${name}を使用`;
+
+  if(
+    ["futsu","mitsu","superProbe"].includes(flow.type) &&
+    flow.sourceNumber!==undefined
+  ){
+    text=
+      `${actor}が${name}「${formatTileNumber(flow.sourceNumber)}」を`+
+      `${target||"相手"}に使用`;
+  }
+
+  setRecentAction(
+    text,
+    "card",
+    transientUntilNextTurnEnds()
+  );
+}
+
+/* ------------------------------------------------------------
+   lastEventから全員向けメッセージを作る
+   秘密情報は文章へ入れない。
+   ------------------------------------------------------------ */
+function formatRecentLastEvent(event,context){
+  if(!event)return null;
+
+  const ctx=context||{};
+  const kind=event.kind;
+
+  if(
+    ["success","failure"].includes(kind) &&
+    !event.cardType &&
+    event.actorLabel &&
+    event.targetLabel
+  ){
+    const declared=
+      publicDeclaredLabel(
+        event.myKind,
+        event.myNumber
+      );
+
+    const suffix=
+      kind==="success"
+        ? "成功"
+        : event.iceProtected
+          ? "失敗（万能氷）"
+          : "失敗";
+
+    return {
+      text:
+        `${event.actorLabel}が${declared}を`+
+        `${event.targetLabel}と切断 → ${suffix}`,
+      tone:
+        kind==="success"
+          ? "success"
+          : "failure"
+    };
+  }
+
+  if(kind==="self"){
+    const declared=
+      publicDeclaredLabel(
+        event.tileKind,
+        event.number
+      );
+
+    return {
+      text:
+        `${event.actorLabel}が${declared}を自分だけで切断 → 成功`,
+      tone:"success"
+    };
+  }
+
+  if(kind==="coffee"){
+    return {
+      text:
+        `${event.actorLabel}がいつでもコーヒーを使用 → `+
+        `${event.targetLabel}へ手番`,
+      tone:"card"
+    };
+  }
+
+  if(kind==="redBoom"){
+    const actor=
+      event.actorLabel ||
+      ctx.actorLabel ||
+      "プレイヤー";
+
+    if(!event.cardType && event.myKind){
+      const declared=
+        publicDeclaredLabel(
+          event.myKind,
+          event.myNumber
+        );
+
+      const target=
+        event.targetLabel
+          ? `${event.targetLabel}と`
+          : "";
+
+      return {
+        text:
+          `${actor}が${declared}を${target}切断 → `+
+          `赤タイルでゲームオーバー`,
+        tone:"danger"
+      };
+    }
+
+    const name=
+      event.cardType
+        ? actionCardName(event.cardType)
+        : "";
+
+    let text=
+      name
+        ? `${actor}が${name}`
+        : `${actor}が切断`;
+
+    if(
+      ctx.sourceNumber!==undefined &&
+      event.cardType!=="dotchi"
+    ){
+      text+=
+        `「${formatTileNumber(ctx.sourceNumber)}」`;
+    }
+
+    if(ctx.targetLabel){
+      text+=`を${ctx.targetLabel}に使用`;
+    }else if(name){
+      text+="を使用";
+    }
+
+    text+=" → 赤タイルでゲームオーバー";
+
+    return {
+      text,
+      tone:"danger"
+    };
+  }
+
+  if(event.cardType){
+    const actor=
+      ctx.actorLabel ||
+      event.actorLabel ||
+      "";
+
+    const target=
+      ctx.targetLabel || "";
+
+    const name=
+      actionCardName(event.cardType);
+
+    const sourceNumber=
+      ctx.sourceNumber;
+
+    const suffix=
+      kind==="success"
+        ? "成功"
+        : event.iceProtected
+          ? "失敗（万能氷）"
+          : "失敗";
+
+    let text=
+      `${actor||"プレイヤー"}が${name}`;
+
+    if(sourceNumber!==undefined){
+      text+=
+        `「${formatTileNumber(sourceNumber)}」`;
+    }
+
+    if(target){
+      text+=`を${target}に使用`;
+    }else{
+      text+="を使用";
+    }
+
+    text+=` → ${suffix}`;
+
+    return {
+      text,
+      tone:
+        kind==="success"
+          ? "success"
+          : "failure"
+    };
+  }
+
+  return null;
+}
+
+/*
+  broadcast直前に、旧コードが直接作ったlastCutやlastEventも
+  一時表示システムへ取り込む。
+*/
+const _transientBaseBroadcastViews=broadcastViews;
+broadcastViews=function(){
+  if(gameState){
+    ensureDirectLastCutExpiry();
+
+    if(
+      gameState.lastEvent &&
+      gameState.lastEvent!==
+        gameState._announcedLastEvent
+    ){
+      gameState._announcedLastEvent=
+        gameState.lastEvent;
+
+      const formatted=
+        formatRecentLastEvent(
+          gameState.lastEvent,
+          gameState._actionContext
+        );
+
+      if(formatted){
+        /*
+          lastEventは多くの場合finishTurn後にbroadcastされるため、
+          現在のturnSerialまで残せば「次の手番の終了」で消える。
+        */
+        const until=
+          gameState.phase==="play"
+            ? Number(gameState.turnSerial||0)
+            : transientUntilNextTurnEnds();
+
+        setRecentAction(
+          formatted.text,
+          formatted.tone,
+          until
+        );
+      }
+    }
+
+    announceActiveCardFlow();
+  }
+
+  return _transientBaseBroadcastViews();
+};
+
+/* ------------------------------------------------------------
+   カード結果用context
+   broadcastが関数内部で走るため、呼出し中だけ保持する。
+   ------------------------------------------------------------ */
+function withActionContext(context,fn){
+  const old=gameState?._actionContext;
+
+  if(gameState){
+    gameState._actionContext=context;
+  }
+
+  try{
+    return fn();
+  }finally{
+    if(gameState){
+      gameState._actionContext=old||null;
+    }
+  }
+}
+
+const _transientBaseProcessProbeCard=processProbeCard;
+processProbeCard=function(actor,cardType,payload){
+  const source=
+    getStateTile(
+      actor,
+      payload?.sourceBoard,
+      payload?.sourcePosition
+    );
+
+  const context={
+    actorLabel:playerLabel(actor),
+    targetLabel:playerLabel(payload?.targetPlayer),
+    sourceNumber:source?.number,
+    cardType
+  };
+
+  return withActionContext(
+    context,
+    ()=>_transientBaseProcessProbeCard(
+      actor,
+      cardType,
+      payload
+    )
+  );
+};
+
+const _transientBaseProcessEquipmentProbe=
+  processEquipmentProbe;
+processEquipmentProbe=function(actor,payload){
+  const source=
+    getStateTile(
+      actor,
+      payload?.sourceBoard,
+      payload?.sourcePosition
+    );
+
+  return withActionContext(
+    {
+      actorLabel:playerLabel(actor),
+      targetLabel:playerLabel(payload?.targetPlayer),
+      sourceNumber:source?.number,
+      cardType:"mitsu"
+    },
+    ()=>_transientBaseProcessEquipmentProbe(
+      actor,
+      payload
+    )
+  );
+};
+
+const _transientBaseProcessResolveProbe=
+  processResolveProbe;
+processResolveProbe=function(resolver,position){
+  const flow=gameState?.cardFlow;
+
+  if(!flow){
+    return _transientBaseProcessResolveProbe(
+      resolver,
+      position
+    );
+  }
+
+  return withActionContext(
+    {
+      actorLabel:playerLabel(flow.actor),
+      targetLabel:playerLabel(flow.targetPlayer),
+      sourceNumber:flow.sourceNumber,
+      cardType:flow.type
+    },
+    ()=>_transientBaseProcessResolveProbe(
+      resolver,
+      position
+    )
+  );
+};
+
+function dotchiContext(actor,payload){
+  const sources=
+    payload?.sources||[];
+
+  const numbers=sources
+    .map(s=>
+      getStateTile(
+        actor,
+        s.boardIndex,
+        s.position
+      )?.number
+    )
+    .filter(v=>v!==undefined);
+
+  return {
+    actorLabel:playerLabel(actor),
+    targetLabel:playerLabel(payload?.targetPlayer),
+    sourceNumbers:numbers,
+    cardType:"dotchi"
+  };
+}
+
+const _transientBaseProcessDotchiCard=
+  processDotchiCard;
+processDotchiCard=function(actor,payload){
+  const context=dotchiContext(actor,payload);
+
+  return withActionContext(
+    context,
+    ()=>_transientBaseProcessDotchiCard(
+      actor,
+      payload
+    )
+  );
+};
+
+const _transientBaseProcessEquipmentDotchi=
+  processEquipmentDotchi;
+processEquipmentDotchi=function(actor,payload){
+  const context=dotchiContext(actor,payload);
+
+  return withActionContext(
+    context,
+    ()=>_transientBaseProcessEquipmentDotchi(
+      actor,
+      payload
+    )
+  );
+};
+
+/* ドチアタは2数字を文章にも出す */
+const _transientBaseFormatRecentLastEvent=
+  formatRecentLastEvent;
+formatRecentLastEvent=function(event,context){
+  if(
+    event?.cardType==="dotchi" &&
+    ["success","failure"].includes(event.kind)
+  ){
+    const ctx=context||{};
+    const nums=
+      (ctx.sourceNumbers||[])
+        .map(formatTileNumber)
+        .join("・");
+
+    const suffix=
+      event.kind==="success"
+        ? "成功"
+        : event.iceProtected
+          ? "失敗（万能氷）"
+          : "失敗";
+
+    return {
+      text:
+        `${ctx.actorLabel||"プレイヤー"}が`+
+        `ドッチカアタレイ${nums?`「${nums}」`:""}を`+
+        `${ctx.targetLabel||"相手"}に使用 → ${suffix}`,
+      tone:
+        event.kind==="success"
+          ? "success"
+          : "failure"
+    };
+  }
+
+  return _transientBaseFormatRecentLastEvent(
+    event,
+    context
+  );
+};
+
+const _transientBaseProcessEquipmentSuperProbe=
+  processEquipmentSuperProbe;
+processEquipmentSuperProbe=function(actor,payload){
+  const source=
+    getStateTile(
+      actor,
+      payload?.sourceBoard,
+      payload?.sourcePosition
+    );
+
+  return withActionContext(
+    {
+      actorLabel:playerLabel(actor),
+      targetLabel:playerLabel(payload?.targetPlayer),
+      sourceNumber:source?.number,
+      cardType:"superProbe"
+    },
+    ()=>_transientBaseProcessEquipmentSuperProbe(
+      actor,
+      payload
+    )
+  );
+};
+
+/* ------------------------------------------------------------
+   カード使用だけで完了する / 結果イベントを持たないカード
+   ------------------------------------------------------------ */
+const _transientBaseProcessRadar=processRadar;
+processRadar=function(actor,number){
+  const flow=gameState?.cardFlow;
+
+  if(
+    flow?.type==="radar" &&
+    flow.actor===actor &&
+    Number.isInteger(number)
+  ){
+    setRecentAction(
+      `${playerLabel(actor)}がなんでもレーダー「${number}」を使用`,
+      "card"
+    );
+  }
+
+  return _transientBaseProcessRadar(
+    actor,
+    number
+  );
+};
+
+const _transientBaseProcessSwapInsert=
+  processSwapInsert;
+processSwapInsert=function(resolver,layoutIndex){
+  const flow=gameState?.cardFlow;
+
+  const completing=
+    flow?.type==="swap" &&
+    flow.stage==="swapInsert" &&
+    flow.resolver===resolver &&
+    flow.incomingKey==="targetTile";
+
+  if(completing){
+    setRecentAction(
+      `${playerLabel(flow.actor)}がイレカエシーバーを使用 → `+
+      `${playerLabel(flow.targetPlayer)}とタイルを交換`,
+      "card"
+    );
+  }
+
+  return _transientBaseProcessSwapInsert(
+    resolver,
+    layoutIndex
+  );
+};
+
+const _transientBaseProcessUseIce=processUseIce;
+processUseIce=function(actor){
+  const usable=
+    !!(
+      gameState &&
+      gameState.phase==="play" &&
+      gameState.turn===actor &&
+      !gameState.cardFlow &&
+      !hasIceProtection(actor) &&
+      equipmentCardUsableState(
+        equipmentCardState("ice")
+      )
+    );
+
+  if(usable){
+    setRecentAction(
+      `${playerLabel(actor)}が万能氷を使用`,
+      "card"
+    );
+  }
+
+  return _transientBaseProcessUseIce(actor);
+};
+
+const _transientBaseProcessStartBattery=
+  processStartBattery;
+processStartBattery=function(actor){
+  const usable=
+    !!(
+      gameState &&
+      gameState.phase==="play" &&
+      !gameState.cardFlow &&
+      gameState.config.personalCardsEnabled!==false &&
+      personalCardNeedsRevive(actor) &&
+      equipmentCardUsableState(
+        equipmentCardState("battery")
+      )
+    );
+
+  if(usable){
+    setRecentAction(
+      `${playerLabel(actor)}が非常電池を使用`,
+      "card"
+    );
+  }
+
+  return _transientBaseProcessStartBattery(actor);
+};
+
+const _transientBaseProcessBatteryChoice=
+  processBatteryChoice;
+processBatteryChoice=function(actor,target){
+  const flow=gameState?.cardFlow;
+
+  if(
+    flow?.type==="equipmentBattery" &&
+    flow.actor===actor &&
+    flow.candidates?.includes(target)
+  ){
+    setRecentAction(
+      `${playerLabel(actor)}が非常電池を使用 → `+
+      `${playerLabel(target)}の個人カードも復活`,
+      "card"
+    );
+  }
+
+  return _transientBaseProcessBatteryChoice(
+    actor,
+    target
+  );
+};
+
+/* 自動発動装備 */
+const _transientBaseRefreshEquipmentStates=
+  refreshEquipmentStates;
+refreshEquipmentStates=function(){
+  const before=
+    equipmentCardState("lifeCancel")
+      ? Number(
+          equipmentCardState("lifeCancel").usedCount||0
+        )
+      : null;
+
+  _transientBaseRefreshEquipmentStates();
+
+  const after=
+    equipmentCardState("lifeCancel")
+      ? Number(
+          equipmentCardState("lifeCancel").usedCount||0
+        )
+      : null;
+
+  if(
+    before!==null &&
+    after!==null &&
+    after>before
+  ){
+    setRecentAction(
+      "失敗帳消し機が発動 → ライフ＋1",
+      "card"
+    );
+  }
+};
+
+/* ------------------------------------------------------------
+   Viewへは文章だけ送る
+   ------------------------------------------------------------ */
+const _transientBaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+  const view=
+    _transientBaseMakeViewFor(playerKey);
+
+  view.recentAction=
+    gameState?.recentAction
+      ? {
+          text:gameState.recentAction.text,
+          tone:gameState.recentAction.tone
+        }
+      : null;
+
+  return view;
+};
+
+/* ------------------------------------------------------------
+   画面表示
+   ------------------------------------------------------------ */
+function renderRecentAction(view){
+  const box=els.recentActionBanner;
+  if(!box)return;
+
+  const action=view?.recentAction;
+
+  if(
+    !action ||
+    !action.text ||
+    view.phase==="infoTokens"
+  ){
+    box.textContent="";
+    box.className=
+      "recentActionBanner hidden";
+    return;
+  }
+
+  box.textContent=`直前：${action.text}`;
+  box.className=
+    "recentActionBanner "+
+    (
+      ["success","failure","card","danger"]
+        .includes(action.tone)
+          ? action.tone
+          : "card"
+    );
+}
+
+const _transientBaseRenderPlayerView=
+  renderPlayerView;
+renderPlayerView=function(view){
+  _transientBaseRenderPlayerView(view);
+  renderRecentAction(view);
 };
 
 

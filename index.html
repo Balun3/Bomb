@@ -121,7 +121,7 @@ outline:3px solid #2563eb;
 outline-offset:1px
 }
 .tile.lastCutTile.lastCutPulse{
-animation:lastCutPulse .62s ease-in-out 3
+animation:none
 }
 .tile.lastCutTile.selected,
 .selectableTile.lastCutTile.selected{
@@ -1302,6 +1302,99 @@ background:rgba(254,242,242,.97);
 border-color:#fca5a5;
 color:#b91c1c
 }
+
+.currentTurnDock{
+position:fixed;
+left:50%;
+top:max(8px,env(safe-area-inset-top));
+transform:translateX(-50%);
+z-index:114;
+width:min(calc(100% - 20px),740px);
+box-sizing:border-box;
+padding:9px 14px 8px;
+border:2px solid #93c5fd;
+border-radius:14px;
+background:rgba(239,246,255,.97);
+box-shadow:0 5px 20px rgba(15,23,42,.18);
+backdrop-filter:blur(7px);
+text-align:center;
+pointer-events:none
+}
+.currentTurnDock.hidden{display:none!important}
+.currentTurnDock.mine{
+border-color:#22c55e;
+background:rgba(240,253,244,.97);
+color:#166534
+}
+.currentTurnMain{
+font-size:clamp(1.05rem,4.5vw,1.28rem);
+font-weight:1000;
+line-height:1.18
+}
+.currentTurnSub{
+margin-top:3px;
+font-size:clamp(.72rem,3vw,.84rem);
+font-weight:850;
+line-height:1.15;
+color:#6d28d9
+}
+.currentTurnSub.hidden{display:none!important}
+
+.tile.lastCutTile.resultFailure{
+outline-color:#f97316
+}
+.tile.lastCutTile.resultDanger{
+outline-color:#dc2626
+}
+.tile.lastCutTile.lastCutPulse.resultSuccess{
+animation:resultSuccessPulse .48s ease-in-out 3
+}
+.tile.lastCutTile.lastCutPulse.resultFailure{
+animation:resultFailurePulse .48s ease-in-out 3
+}
+.tile.lastCutTile.lastCutPulse.resultDanger{
+animation:resultDangerPulse .48s ease-in-out 3
+}
+@keyframes resultSuccessPulse{
+0%,100%{
+transform:scale(1);
+outline-color:#2563eb;
+box-shadow:0 0 0 1px rgba(37,99,235,.18)
+}
+50%{
+transform:scale(1.10);
+outline-color:#2563eb;
+box-shadow:0 0 0 7px rgba(37,99,235,.34);
+filter:brightness(1.12)
+}
+}
+@keyframes resultFailurePulse{
+0%,100%{
+transform:scale(1);
+outline-color:#f97316;
+box-shadow:0 0 0 1px rgba(249,115,22,.18)
+}
+50%{
+transform:scale(1.10);
+outline-color:#f97316;
+box-shadow:0 0 0 7px rgba(249,115,22,.34);
+filter:brightness(1.08)
+}
+}
+@keyframes resultDangerPulse{
+0%,100%{
+transform:scale(1);
+outline-color:#dc2626;
+box-shadow:0 0 0 1px rgba(220,38,38,.20)
+}
+50%{
+transform:scale(1.12);
+outline-color:#dc2626;
+box-shadow:0 0 0 8px rgba(220,38,38,.38);
+filter:brightness(1.08)
+}
+}
+
 </style>
 </head>
 <body>
@@ -1479,6 +1572,10 @@ color:#b91c1c
 </div>
 <div id="gameEndBox" class="gameEnd hidden"></div>
 <div id="personalCardChoiceArea" class="personalCardChoiceArea hidden"></div>
+<div id="currentTurnDock" class="currentTurnDock hidden">
+<div id="currentTurnMain" class="currentTurnMain"></div>
+<div id="currentTurnSub" class="currentTurnSub hidden"></div>
+</div>
 <div id="recentActionDock" class="recentActionDock hidden"></div>
 <div id="playControls" class="actionPanel hidden">
 <div id="actionChoice">
@@ -1597,6 +1694,9 @@ specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
 equipmentSection:$("equipmentSection"),equipmentCards:$("equipmentCards"),
 myPlayerHeading:$("myPlayerHeading"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
 phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),
+currentTurnDock:$("currentTurnDock"),
+currentTurnMain:$("currentTurnMain"),
+currentTurnSub:$("currentTurnSub"),
 recentActionDock:$("recentActionDock"),phaseHelp:$("phaseHelp"),
 lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
 playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
@@ -2694,6 +2794,12 @@ finishTurn(actor);
 broadcastViews();
 return;
 }
+markLastResult([{
+playerKey:targetPlayer,
+boardIndex:targetBoard,
+position:targetPosition,
+tileId:targetTile.id
+}]);
 gameState.lastEvent={
 kind:"redBoom",
 actorLabel:gameState.players[actor].label,
@@ -2720,12 +2826,14 @@ gameState.lastCutTiles=[
 {
 playerKey:actor,
 boardIndex:myBoard,
-position:myPosition
+position:myPosition,
+tileId:myTile.id
 },
 {
 playerKey:targetPlayer,
 boardIndex:targetBoard,
-position:targetPosition
+position:targetPosition,
+tileId:targetTile.id
 }
 ];
 gameState.lastEvent={
@@ -2766,7 +2874,8 @@ gameState.lastCutTiles=[
 {
 playerKey:targetPlayer,
 boardIndex:targetBoard,
-position:targetPosition
+position:targetPosition,
+tileId:targetTile.id
 }
 ];
 gameState.lastEvent={
@@ -2869,7 +2978,10 @@ gameState.lastCutId=(gameState.lastCutId||0)+1;
 gameState.lastCutTiles=status.ownUncut.map(p=>({
 playerKey:actor,
 boardIndex:p.boardIndex,
-position:p.position
+position:p.position,
+tileId:
+gameState.players[actor]
+.boards[p.boardIndex][p.position]?.id||null
 }));
 gameState.lastEvent={
 kind:"self",
@@ -3156,6 +3268,62 @@ lives<=1
 function boardName(index){
 return index===0?"台A":"台B";
 }
+
+function stripRoleText(text){
+return String(text||"").replace(
+/（(?:隊長|子分\d*)）/g,
+""
+);
+}
+function renderCurrentTurnDock(view){
+const dock=els.currentTurnDock;
+if(!dock)return;
+
+let main="";
+let sub="";
+let mine=false;
+
+if(view?.phase==="play"&&view.turnLabel){
+mine=view.turn===view.playerKey;
+main=
+`▶ ${view.turnLabel}の手番`;
+
+const flow=view.cardFlow;
+if(
+flow?.resolverLabel &&
+flow.resolver &&
+flow.resolver!==view.turn
+){
+sub=
+`${stripRoleText(flow.resolverLabel)}がカード処理中`;
+}
+}else if(
+view?.phase==="infoTokens" &&
+view.infoTurnLabel
+){
+mine=view.infoTurn===view.playerKey;
+main=
+`▶ ${view.infoTurnLabel}：情報トークン配置`;
+}
+
+if(!main){
+dock.className="currentTurnDock hidden";
+els.currentTurnMain.textContent="";
+els.currentTurnSub.textContent="";
+els.currentTurnSub.classList.add("hidden");
+return;
+}
+
+els.currentTurnMain.textContent=main;
+els.currentTurnSub.textContent=sub;
+els.currentTurnSub.classList.toggle(
+"hidden",
+!sub
+);
+dock.className=
+"currentTurnDock"+(mine?" mine":"");
+}
+
 function updatePhaseUi(view){
 els.nextPhaseNotice.classList.add("hidden");
 els.playControls.classList.add("hidden");
@@ -3226,13 +3394,24 @@ hitRed
 els.gameEndBox.className="gameEnd over";
 }
 }
-function isLastCutTile(view,playerKey,boardIndex,position){
-return (view.lastCutTiles||[]).some(
-t=>
-t.playerKey===playerKey &&
-t.boardIndex===boardIndex &&
-t.position===position
-);
+function isLastCutTile(
+view,
+playerKey,
+boardIndex,
+position,
+tileId=null
+){
+return (view.lastCutTiles||[]).some(t=>{
+if(
+t.playerKey!==playerKey ||
+t.boardIndex!==boardIndex
+)return false;
+
+if(t.tileId&&tileId){
+return t.tileId===tileId;
+}
+return t.position===position;
+});
 }
 function selectInfoTokenTile(boardIndex,position,el,number){
 document.querySelectorAll(".selectableTile.selected").forEach(
@@ -4467,7 +4646,14 @@ if(!consumePersonalCard(actor,cardType))return;
 if(targets.every(t=>t.kind==="red")){
 if(consumeIceProtection(actor)){
 addPublicFact(actor,payload.sourceBoard,source.number);
-markLastResult([]);
+markLastResult(
+targets.map(t=>({
+playerKey:targetPlayer,
+boardIndex:targetBoard,
+position:t.position,
+tileId:t.id
+}))
+);
 gameState.recentProbe={
 cardType,
 sourceNumber:source.number,
@@ -4487,6 +4673,14 @@ finishTurn(actor);
 broadcastViews();
 return;
 }
+markLastResult(
+targets.map(t=>({
+playerKey:targetPlayer,
+boardIndex:targetBoard,
+position:t.position,
+tileId:t.id
+}))
+);
 gameState.lastEvent={kind:"redBoom",actorLabel:gameState.players[actor].label,cardType};
 gameState.phase="gameover";
 gameState.turn=null;
@@ -4552,7 +4746,12 @@ if(!consumeIceProtection(flow.actor)){
 gameState.lives=Math.max(0,gameState.lives-1);
 }
 addPublicFact(flow.actor,flow.sourceBoard,flow.sourceNumber);
-markLastResult([]);
+markLastResult([{
+playerKey:flow.targetPlayer,
+boardIndex:flow.targetBoard,
+position:target.position,
+tileId:target.id
+}]);
 gameState.lastEvent={kind:"failure",cardType:flow.type,lives:gameState.lives};
 }
 const actor=flow.actor;
@@ -4602,6 +4801,12 @@ finishTurn(actor);
 broadcastViews();
 return;
 }
+markLastResult([{
+playerKey:targetPlayer,
+boardIndex:payload.targetBoard,
+position:target.position,
+tileId:target.id
+}]);
 gameState.lastEvent={kind:"redBoom",actorLabel:gameState.players[actor].label,cardType:"dotchi"};
 gameState.phase="gameover";
 gameState.turn=null;
@@ -5607,7 +5812,14 @@ if(!consumeEquipmentCard(cardType))return;
 if(targets.every(t=>t.kind==="red")){
 if(consumeIceProtection(actor)){
 addPublicFact(actor,payload.sourceBoard,source.number);
-markLastResult([]);
+markLastResult(
+targets.map(t=>({
+playerKey:targetPlayer,
+boardIndex:targetBoard,
+position:t.position,
+tileId:t.id
+}))
+);
 gameState.recentProbe={
 cardType,
 sourceNumber:source.number,
@@ -5627,6 +5839,14 @@ finishTurn(actor);
 broadcastViews();
 return;
 }
+markLastResult(
+targets.map(t=>({
+playerKey:targetPlayer,
+boardIndex:targetBoard,
+position:t.position,
+tileId:t.id
+}))
+);
 gameState.lastEvent={
 kind:"redBoom",
 actorLabel:gameState.players[actor].label,
@@ -5725,6 +5945,12 @@ finishTurn(actor);
 broadcastViews();
 return;
 }
+markLastResult([{
+playerKey:targetPlayer,
+boardIndex:payload.targetBoard,
+position:target.position,
+tileId:target.id
+}]);
 gameState.lastEvent={
 kind:"redBoom",
 actorLabel:gameState.players[actor].label,
@@ -8336,6 +8562,44 @@ window.innerHeight-Math.min(...tops)+6
 dock.style.bottom=
 `calc(${Math.ceil(bottom)}px + env(safe-area-inset-bottom, 0px))`;
 }
+function recentActionDisplayText(action,view){
+let text=stripRoleText(action?.text||"").trim();
+if(!text)return "";
+
+const actorKey=action?.actorKey||null;
+const actorName=
+actorKey
+? stripRoleText(
+playerLabel(actorKey)
+)
+: "";
+
+if(
+actorName &&
+text.startsWith(`${actorName}が`)
+){
+text=
+`${actorName}：`+
+text.slice(`${actorName}が`.length);
+}else if(
+actorName &&
+text.startsWith(`${actorName} が`)
+){
+text=
+`${actorName}：`+
+text.slice(`${actorName} が`.length);
+}
+
+if(
+view?.phase==="play" &&
+view.turnLabel
+){
+text+=
+` ｜ 次：${stripRoleText(view.turnLabel)}`;
+}
+
+return text;
+}
 function renderRecentAction(view){
 const dock=els.recentActionDock;
 if(!dock)return;
@@ -8350,10 +8614,9 @@ dock.style.bottom="";
 return;
 }
 dock.textContent=
-action.shortText ||
-recentActionTextWithoutActor(
+recentActionDisplayText(
 action,
-action.actorKey
+view
 );
 dock.className=
 "recentActionDock "+
@@ -9009,8 +9272,29 @@ const visibleYellow=!hidden&&tile.kind==="yellow";
 const visibleRed=!hidden&&tile.kind==="red";
 el.className="tile"+(hidden?" hiddenTile":"")+(visibleYellow?" yellowTile":"")+(visibleRed?" redTile":"")+(tile.cut?" cut":"");
 if(tile.exchangeTag)el.classList.add("hasExchangeTag");
-if(isLastCutTile(view,owner.playerKey,bi,tile.position,tile.id)){
-el.classList.add("lastCutTile");if(animateLatestCut)el.classList.add("lastCutPulse");
+if(
+isLastCutTile(
+view,
+owner.playerKey,
+bi,
+tile.position,
+tile.id
+)
+){
+const resultKind=
+view.lastEvent?.kind==="redBoom"
+? "resultDanger"
+: view.lastEvent?.kind==="failure"
+? "resultFailure"
+: "resultSuccess";
+
+el.classList.add(
+"lastCutTile",
+resultKind
+);
+if(animateLatestCut){
+el.classList.add("lastCutPulse");
+}
 }
 el.textContent=hidden?"?":formatTileNumber(tile.number);
 if(tile.exchangeTag){const tag=document.createElement("span");tag.className="exchangeTag";tag.textContent=tile.exchangeTag;el.appendChild(tag)}
@@ -9135,6 +9419,7 @@ view.config?.equipmentCardsEnabled===false
 ){
 els.equipmentSection?.classList.add("hidden");
 }
+renderCurrentTurnDock(view);
 renderRecentAction(view);
 }
 function updateActionUi(){

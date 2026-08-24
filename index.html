@@ -927,10 +927,13 @@ line-height:1
 }
 .tile.hasExchangeTag{position:relative}
 .insertGap{
+appearance:none;
+-webkit-appearance:none;
 flex:0 0 22px;
 width:22px;
 min-width:22px;
 height:52px;
+min-height:52px;
 margin:8px 0 0;
 padding:0;
 box-sizing:border-box;
@@ -952,13 +955,6 @@ z-index:50;
 position:relative;
 user-select:none
 }
-.insertGapRadio{
-position:absolute;
-width:1px;
-height:1px;
-opacity:0;
-pointer-events:none
-}
 .insertGapArrow{
 position:relative;
 z-index:2;
@@ -970,8 +966,7 @@ height:22px;
 border-radius:50%;
 pointer-events:none
 }
-.insertGap.selected .insertGapArrow,
-.insertGapRadio:checked + .insertGapArrow{
+.insertGap.selected .insertGapArrow{
 background:#ede9fe;
 box-shadow:0 0 0 2px rgba(124,58,237,.28);
 color:#5b21b6
@@ -5227,28 +5222,32 @@ function selectInsertIndex(index,gapEl=null){
 if(!actionState||actionState.mode!=="swapInsert")return;
 const normalizedIndex=Number(index);
 if(!Number.isInteger(normalizedIndex))return;
+
 const targetGap=
 gapEl ||
 document.querySelector(
 `.insertGap[data-insert-index="${normalizedIndex}"]`
 );
+
+if(!targetGap)return;
+
 const leftSlotId=
-targetGap?.dataset.leftSlotId||"";
+targetGap.dataset.leftSlotId||"";
 const rightSlotId=
-targetGap?.dataset.rightSlotId||"";
+targetGap.dataset.rightSlotId||"";
+
 actionState.insertIndex=normalizedIndex;
 actionState.insertChoice={
 index:normalizedIndex,
 leftSlotId,
 rightSlotId
 };
+
 document.querySelectorAll(".insertGap.selected")
 .forEach(el=>el.classList.remove("selected"));
-if(targetGap){
+
 targetGap.classList.add("selected");
-const radio=targetGap.querySelector(".insertGapRadio");
-if(radio&&!radio.checked)radio.checked=true;
-}
+
 updateActionUi();
 }
 function renderTokenSlot(tile){
@@ -5521,39 +5520,18 @@ els.receivedTilePreview.classList.remove("hidden");
 }
 function currentSwapInsertChoice(){
 if(!actionState||actionState.mode!=="swapInsert")return null;
-let choice=
-actionState.insertChoice
-? {...actionState.insertChoice}
-: null;
-if(!choice){
-const checked=document.querySelector(".insertGapRadio:checked");
-if(checked){
-choice={
-index:Number(checked.value),
-leftSlotId:checked.dataset.leftSlotId||"",
-rightSlotId:checked.dataset.rightSlotId||""
-};
-}
-}
-if(!choice){
-const index=Number(actionState.insertIndex);
-if(Number.isInteger(index)){
-const gap=document.querySelector(
-`.insertGap[data-insert-index="${index}"]`
-);
-choice={
-index,
-leftSlotId:gap?.dataset.leftSlotId||"",
-rightSlotId:gap?.dataset.rightSlotId||""
-};
-}
-}
-if(!choice||!Number.isInteger(Number(choice.index)))return null;
+
+const choice=actionState.insertChoice;
+if(!choice)return null;
+
 const index=Number(choice.index);
+if(!Number.isInteger(index))return null;
+
 if(
 Array.isArray(actionState.insertOptions) &&
 !actionState.insertOptions.map(Number).includes(index)
 )return null;
+
 return {
 index,
 leftSlotId:String(choice.leftSlotId||""),
@@ -5570,6 +5548,10 @@ actionState.mode!=="swapInsert" ||
 )return false;
 const choice=currentSwapInsertChoice();
 if(!choice){
+actionError(
+localPlayerKey,
+"置く場所をもう一度選んでください。"
+);
 updateActionUi();
 return false;
 }
@@ -9204,17 +9186,22 @@ const insertSet=new Set(
 );
 const appendInsertGap=index=>{
 if(!insertSet.has(index))return;
+
 const normalizedIndex=Number(index);
-const gap=document.createElement("label");
-const radio=document.createElement("input");
+const gap=document.createElement("button");
 const arrow=document.createElement("span");
+
+gap.type="button";
 gap.dataset.insertIndex=String(normalizedIndex);
-const leftSlot=layout[normalizedIndex-1]?.slotId||"";
-const rightSlot=layout[normalizedIndex]?.slotId||"";
+
+const leftSlot=
+layout[normalizedIndex-1]?.slotId||"";
+const rightSlot=
+layout[normalizedIndex]?.slotId||"";
+
 gap.dataset.leftSlotId=leftSlot;
 gap.dataset.rightSlotId=rightSlot;
-radio.dataset.leftSlotId=leftSlot;
-radio.dataset.rightSlotId=rightSlot;
+
 gap.className=
 "insertGap"+
 (
@@ -9223,29 +9210,21 @@ Number(actionState.insertIndex)===normalizedIndex
 ? " selected"
 : ""
 );
+
 gap.setAttribute("aria-label","ここに置く");
-radio.type="radio";
-radio.className="insertGapRadio";
-radio.name=`swapInsertChoice-${owner.playerKey}-${bi}`;
-radio.value=String(normalizedIndex);
-radio.checked=
-actionState?.mode==="swapInsert" &&
-Number(actionState.insertIndex)===normalizedIndex;
+
 arrow.className="insertGapArrow";
 arrow.textContent="↑";
-radio.addEventListener("change",()=>{
-if(radio.checked){
-selectInsertIndex(normalizedIndex,gap);
-}
-});
-gap.addEventListener("click",()=>{
-setTimeout(()=>{
-if(radio.checked){
-selectInsertIndex(normalizedIndex,gap);
-}
-},0);
-});
-gap.appendChild(radio);
+
+gap.onclick=e=>{
+e.preventDefault();
+e.stopPropagation();
+selectInsertIndex(
+normalizedIndex,
+gap
+);
+};
+
 gap.appendChild(arrow);
 tiles.appendChild(gap);
 };
@@ -9407,7 +9386,13 @@ view.personalCard,
 renderPersonalCardChoice(view);
 renderInterruptButton(view);
 if(view.cardFlow){
+const keepSwapInsert=
+actionState?.mode==="swapInsert";
+
+if(!keepSwapInsert){
 actionState=null;
+}
+
 syncForcedAction(view);
 updateActionUi();
 renderNumberTracker(view);
@@ -9548,8 +9533,10 @@ els.confirmActionBtn.disabled=
 actionState.targetPosition===null;
 }else if(mode==="swapInsert"){
 els.confirmActionBtn.textContent="置く";
+const insertChoice=
+currentSwapInsertChoice();
 els.confirmActionBtn.disabled=
-!currentSwapInsertChoice();
+!insertChoice;
 }else if(mode==="equipmentInfo"){
 els.confirmActionBtn.textContent="付箋を置く";
 els.confirmActionBtn.disabled=

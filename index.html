@@ -1694,6 +1694,21 @@ return pcOk&&iceOk;
 function connectionLabel(playerKey){
 return `P${Number(playerKey.slice(1))+1}`;
 }
+function isCurrentHostEntry(playerKey,entry){
+return !!(
+entry &&
+!entry.retired &&
+hostConnections.get(playerKey)===entry
+);
+}
+function retireHostEntry(entry){
+if(!entry)return;
+entry.retired=true;
+clearRecoveryTimers(entry);
+clearTimer(entry,"restartResultTimer");
+entry.restartInFlight=false;
+entry.connected=false;
+}
 function descriptionForSignal(desc){
 return {
 type:desc.type,
@@ -1701,7 +1716,9 @@ sdp:desc.sdp
 };
 }
 async function attemptHostIceRestart(playerKey,entry){
+if(!isCurrentHostEntry(playerKey,entry))return;
 if(!entry?.pc||!entry.channel)return;
+if(entry.pc.signalingState==="closed")return;
 if(peerIsRecovered(entry.pc))return;
 if(entry.restartInFlight)return;
 if((entry.restartAttempts||0)>=MAX_AUTO_ICE_RESTARTS)return;
@@ -1721,8 +1738,10 @@ if(typeof entry.pc.restartIce==="function"){
 entry.pc.restartIce();
 }
 const offer=await entry.pc.createOffer({iceRestart:true});
+if(!isCurrentHostEntry(playerKey,entry))return;
 await entry.pc.setLocalDescription(offer);
 await waitIce(entry.pc,6000);
+if(!isCurrentHostEntry(playerKey,entry))return;
 if(entry.channel.readyState!=="open"){
 throw new Error("DataChannel closed");
 }
@@ -1765,7 +1784,8 @@ addConnectionEvent(`ICE restart応答失敗:${e?.message||"error"}`);
 }
 async function handleHostIceRestartAnswer(playerKey,description){
 const entry=hostConnections.get(playerKey);
-if(!entry?.pc)return;
+if(!isCurrentHostEntry(playerKey,entry)||!entry?.pc)return;
+if(entry.pc.signalingState==="closed")return;
 try{
 await entry.pc.setRemoteDescription(description);
 entry.restartInFlight=false;
@@ -1779,7 +1799,7 @@ addConnectionEvent(
 }
 }
 function markHostRecovered(playerKey,entry){
-if(!entry)return;
+if(!isCurrentHostEntry(playerKey,entry))return;
 const wasRecovering=!!entry.recovering;
 clearRecoveryTimers(entry);
 clearTimer(entry,"restartResultTimer");
@@ -1800,7 +1820,8 @@ refreshHostConnectionUi();
 renderConnectionDiagnostics();
 }
 function scheduleHostRecovery(playerKey,entry,immediateRestart=false){
-if(!entry?.pc)return;
+if(!isCurrentHostEntry(playerKey,entry))return;
+if(!entry?.pc||entry.pc.signalingState==="closed")return;
 if(!entry.recovering){
 entry.recovering=true;
 addConnectionEvent(`${connectionLabel(playerKey)} 一時切断・復帰待ち`);
@@ -1812,6 +1833,7 @@ setStatus(
 if(!entry.restartTimer){
 entry.restartTimer=setTimeout(()=>{
 entry.restartTimer=null;
+if(!isCurrentHostEntry(playerKey,entry))return;
 if(!peerIsRecovered(entry.pc)){
 attemptHostIceRestart(playerKey,entry);
 }
@@ -1820,6 +1842,7 @@ attemptHostIceRestart(playerKey,entry);
 if(!entry.graceTimer){
 entry.graceTimer=setTimeout(()=>{
 entry.graceTimer=null;
+if(!isCurrentHostEntry(playerKey,entry))return;
 if(peerIsRecovered(entry.pc)){
 markHostRecovered(playerKey,entry);
 return;
@@ -1836,8 +1859,9 @@ addConnectionEvent(`${connectionLabel(playerKey)} 復旧待ち継続`);
 }
 }
 function handleHostPeerState(playerKey,entry,source){
+if(!isCurrentHostEntry(playerKey,entry))return;
 const peer=entry?.pc;
-if(!peer)return;
+if(!peer||peer.signalingState==="closed")return;
 addConnectionEvent(
 `${connectionLabel(playerKey)} ${source}`+
 ` PC:${peer.connectionState} ICE:${peer.iceConnectionState}`
@@ -1917,17 +1941,27 @@ function bindHostPeerDiagnostics(playerKey,entry){
 const peer=entry.pc;
 peer.addEventListener(
 "connectionstatechange",
-()=>handleHostPeerState(playerKey,entry,"PC")
+()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
+handleHostPeerState(playerKey,entry,"PC");
+}
 );
 peer.addEventListener(
 "iceconnectionstatechange",
-()=>handleHostPeerState(playerKey,entry,"ICE")
+()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
+handleHostPeerState(playerKey,entry,"ICE");
+}
 );
 peer.addEventListener(
 "icegatheringstatechange",
-()=>renderConnectionDiagnostics()
+()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
+renderConnectionDiagnostics();
+}
 );
 peer.addEventListener("icecandidateerror",e=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
 addConnectionEvent(
 `${connectionLabel(playerKey)} STUN error ${e.errorCode||""}`.trim()
 );
@@ -1936,17 +1970,27 @@ addConnectionEvent(
 function bindGuestPeerDiagnostics(peer){
 peer.addEventListener(
 "connectionstatechange",
-()=>handleGuestPeerState("PC")
+()=>{
+if(pc!==peer)return;
+handleGuestPeerState("PC");
+}
 );
 peer.addEventListener(
 "iceconnectionstatechange",
-()=>handleGuestPeerState("ICE")
+()=>{
+if(pc!==peer)return;
+handleGuestPeerState("ICE");
+}
 );
 peer.addEventListener(
 "icegatheringstatechange",
-()=>renderConnectionDiagnostics()
+()=>{
+if(pc!==peer)return;
+renderConnectionDiagnostics();
+}
 );
 peer.addEventListener("icecandidateerror",e=>{
+if(pc!==peer)return;
 addConnectionEvent(`親機 STUN error ${e.errorCode||""}`.trim());
 });
 }
@@ -2254,13 +2298,14 @@ entry.connected=false;
 entry.recovering=false;
 entry.restartInFlight=false;
 entry.restartAttempts=entry.restartAttempts||0;
+entry.retired=false;
 hostConnections.set(playerKey,entry);
 ch.onopen=()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
 entry.connected=true;
 noteSessionActivity();
 entry.recovering=false;
 clearRecoveryTimers(entry);
-hostConnections.set(playerKey,entry);
 addConnectionEvent(`${connectionLabel(playerKey)} DC open`);
 try{
 ch.send(JSON.stringify({
@@ -2286,6 +2331,7 @@ refreshHostConnectionUi();
 renderConnectionDiagnostics();
 };
 ch.onmessage=e=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
 let msg;
 try{msg=JSON.parse(e.data)}catch(_){return}
 if(msg.type!=="iceRestartAnswer" && msg.type!=="iceRestartOffer"){
@@ -2294,15 +2340,16 @@ noteSessionActivity();
 handleHostMessage(playerKey,msg);
 };
 ch.onerror=()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
 addConnectionEvent(`${connectionLabel(playerKey)} DC error`);
 renderConnectionDiagnostics();
 };
 ch.onclose=()=>{
+if(!isCurrentHostEntry(playerKey,entry))return;
 clearRecoveryTimers(entry);
 clearTimer(entry,"restartResultTimer");
 entry.restartInFlight=false;
 entry.connected=false;
-hostConnections.set(playerKey,entry);
 addConnectionEvent(`${connectionLabel(playerKey)} DC closed`);
 if(gameState){
 setStatus(
@@ -2319,6 +2366,7 @@ renderConnectionDiagnostics();
 function setupGuestChannel(ch){
 channel=ch;
 channel.onopen=()=>{
+if(channel!==ch)return;
 connectedOnce=true;
 noteSessionActivity();
 guestRecovery.recovering=false;
@@ -2329,6 +2377,7 @@ stopAllScanners();
 renderConnectionDiagnostics();
 };
 channel.onclose=()=>{
+if(channel!==ch)return;
 addConnectionEvent("親機 DC closed");
 renderConnectionDiagnostics();
 if(connectedOnce){
@@ -2336,10 +2385,12 @@ setStatus("親機との接続が切れました・ゲーム状態は保持中","
 }
 };
 channel.onerror=()=>{
+if(channel!==ch)return;
 addConnectionEvent("親機 DC error");
 renderConnectionDiagnostics();
 };
 channel.onmessage=e=>{
+if(channel!==ch)return;
 let msg;
 try{msg=JSON.parse(e.data)}catch(_){return}
 if(msg.type!=="iceRestartAnswer" && msg.type!=="iceRestartOffer"){
@@ -3818,6 +3869,9 @@ return;
 pendingHostPlayerKey=playerKey;
 els.playerCountSelect.disabled=true;
 const old=hostConnections.get(playerKey);
+if(old){
+retireHostEntry(old);
+}
 try{old?.channel?.close()}catch(_){}
 try{old?.pc?.close()}catch(_){}
 setStatus(
@@ -3828,7 +3882,8 @@ const peer=createRtcPeer();
 const entry={
 pc:peer,
 channel:null,
-connected:false
+connected:false,
+retired:false
 };
 hostConnections.set(playerKey,entry);
 bindHostPeerDiagnostics(playerKey,entry);
@@ -3841,6 +3896,12 @@ await peer.setLocalDescription(
 await peer.createOffer()
 );
 await waitIce(peer);
+if(!isCurrentHostEntry(playerKey,entry)){
+return;
+}
+if(peer.signalingState==="closed"){
+throw new Error("接続準備が終了しました。親機QRを作り直してください。");
+}
 const code=encodeDesc(peer.localDescription);
 els.offerOut.value=code;
 renderQr(els.offerQr,code);
@@ -3903,15 +3964,37 @@ throw new Error("親機で操作してください。");
 if(!pendingHostPlayerKey){
 throw new Error("先に次の子機用QRを作成してください。");
 }
-const entry=
-hostConnections.get(pendingHostPlayerKey);
-if(!entry?.pc?.localDescription){
-throw new Error("先に親機QRを作成してください。");
+const playerKey=pendingHostPlayerKey;
+const entry=hostConnections.get(playerKey);
+if(!isCurrentHostEntry(playerKey,entry)||!entry?.pc?.localDescription){
+throw new Error("接続情報が古くなりました。親機QRを作り直してください。");
 }
-await entry.pc.setRemoteDescription(
-decodeDesc(code)
-);
+if(
+entry.pc.signalingState==="closed" ||
+entry.pc.connectionState==="closed"
+){
+throw new Error("接続が終了しています。親機QRを作り直して、子機でも読み直してください。");
+}
+const description=decodeDesc(code);
+try{
+if(!isCurrentHostEntry(playerKey,entry)){
+throw new Error("STALE_CONNECTION");
+}
+await entry.pc.setRemoteDescription(description);
+if(!isCurrentHostEntry(playerKey,entry)){
+throw new Error("STALE_CONNECTION");
+}
 setStatus("接続処理中…","wait");
+}catch(e){
+if(
+e?.message==="STALE_CONNECTION" ||
+entry.pc.signalingState==="closed" ||
+!isCurrentHostEntry(playerKey,entry)
+){
+throw new Error("再接続情報が入れ替わりました。親機QRを作り直して、子機でも読み直してください。");
+}
+throw e;
+}
 }
 async function startScanner(kind,onDecoded){
 await stopAllScanners();
@@ -4058,6 +4141,7 @@ e.message
 }
 function closeAllHostPeers(showStatus=true){
 for(const [key,c] of hostConnections){
+retireHostEntry(c);
 clearRecoveryTimers(c);
 clearTimer(c,"restartResultTimer");
 try{

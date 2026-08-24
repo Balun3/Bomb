@@ -1257,30 +1257,50 @@ color:#5b21b6
 outline:3px solid #60a5fa;
 outline-offset:1px
 }
-.playerHeadingLine{
-width:100%;
+.recentActionDock{
+position:fixed;
+left:50%;
+bottom:max(8px,env(safe-area-inset-bottom));
+transform:translateX(-50%);
+z-index:115;
+width:min(calc(100% - 20px),740px);
+box-sizing:border-box;
+padding:8px 12px;
+border:1.5px solid #cbd5e1;
+border-radius:12px;
+background:rgba(248,250,252,.97);
+box-shadow:0 6px 22px rgba(15,23,42,.18);
+backdrop-filter:blur(7px);
+color:#475569;
+font-size:.86rem;
+line-height:1.3;
+font-weight:900;
+text-align:center;
+pointer-events:none;
+white-space:normal;
+overflow-wrap:anywhere;
+transition:bottom .12s ease
 }
-.playerRowAction{
-flex:1 1 auto;
-min-width:0;
-margin-left:auto;
-padding-left:8px;
-text-align:right;
-overflow:hidden;
-text-overflow:ellipsis;
-white-space:nowrap;
-font-size:.82em;
-line-height:1.2;
-font-weight:850;
-color:#64748b
+.recentActionDock.hidden{display:none!important}
+.recentActionDock.success{
+background:rgba(240,253,244,.97);
+border-color:#86efac;
+color:#166534
 }
-.playerRowAction.success{color:#15803d}
-.playerRowAction.failure{color:#c2410c}
-.playerRowAction.card{color:#6d28d9}
-.playerRowAction.danger{color:#b91c1c}
-.opponentName{
-width:100%;
-box-sizing:border-box
+.recentActionDock.failure{
+background:rgba(255,247,237,.97);
+border-color:#fdba74;
+color:#9a3412
+}
+.recentActionDock.card{
+background:rgba(245,243,255,.97);
+border-color:#c4b5fd;
+color:#5b21b6
+}
+.recentActionDock.danger{
+background:rgba(254,242,242,.97);
+border-color:#fca5a5;
+color:#b91c1c
 }
 </style>
 </head>
@@ -1446,7 +1466,7 @@ box-sizing:border-box
 <section id="gameCard" class="card hidden">
 <div class="meta">
 <div>
-<div class="small">あなたの役職</div>
+<div class="small">あなた</div>
 <span id="myRoleBadge" class="roleBadge">―</span>
 </div>
 <div id="lifeDisplay" class="life">ライフ ♥♥</div>
@@ -1459,6 +1479,7 @@ box-sizing:border-box
 </div>
 <div id="gameEndBox" class="gameEnd hidden"></div>
 <div id="personalCardChoiceArea" class="personalCardChoiceArea hidden"></div>
+<div id="recentActionDock" class="recentActionDock hidden"></div>
 <div id="playControls" class="actionPanel hidden">
 <div id="actionChoice">
 <div class="actionButtons">
@@ -1576,7 +1597,7 @@ specialTileTracker:$("specialTileTracker"),numberTracker:$("numberTracker"),
 equipmentSection:$("equipmentSection"),equipmentCards:$("equipmentCards"),
 myPlayerHeading:$("myPlayerHeading"),myBoards:$("myBoards"),oppBoards:$("oppBoards"),
 phaseTitle:$("phaseTitle"),turnBanner:$("turnBanner"),
-recentActionBanner:$("recentActionBanner"),phaseHelp:$("phaseHelp"),
+recentActionDock:$("recentActionDock"),phaseHelp:$("phaseHelp"),
 lifeDisplay:$("lifeDisplay"),gameEndBox:$("gameEndBox"),
 playControls:$("playControls"),actionChoice:$("actionChoice"),actionProgress:$("actionProgress"),
 normalCutBtn:$("normalCutBtn"),selfCutBtn:$("selfCutBtn"),personalCardBtn:$("personalCardBtn"),
@@ -8074,30 +8095,6 @@ setRecentAction(
 );
 }
 };
-function renderRecentAction(view){
-const box=els.recentActionBanner;
-if(!box)return;
-const action=view?.recentAction;
-if(
-!action ||
-!action.text ||
-view.phase==="infoTokens"
-){
-box.textContent="";
-box.className=
-"recentActionBanner hidden";
-return;
-}
-box.textContent=`直前：${action.text}`;
-box.className=
-"recentActionBanner "+
-(
-["success","failure","card","danger"]
-.includes(action.tone)
-? action.tone
-: "card"
-);
-}
 function recentActionActorKey(action){
 if(!action)return null;
 if(
@@ -8151,70 +8148,10 @@ break;
 }
 }
 }
-return text;
-}
-function appendRecentActionToHeading(
-heading,
-action,
-playerKey
-){
-if(!heading)return;
-heading
-.querySelectorAll(".playerRowAction")
-.forEach(el=>el.remove());
-if(
-!action ||
-!action.text ||
-action.actorKey!==playerKey
-)return;
-const line=
-heading.querySelector(
-".playerHeadingLine"
-) || heading;
-const badge=
-document.createElement("span");
-badge.className=
-"playerRowAction "+
-(
-["success","failure","card","danger"]
-.includes(action.tone)
-? action.tone
-: "card"
+return text.replace(
+/（(?:隊長|子分\d*)）/g,
+""
 );
-badge.textContent=
-action.shortText ||
-recentActionTextWithoutActor(
-action,
-playerKey
-);
-badge.title=badge.textContent;
-line.appendChild(badge);
-}
-function renderRecentAction(view){
-if(els.recentActionBanner){
-els.recentActionBanner.textContent="";
-els.recentActionBanner.className=
-"recentActionBanner hidden";
-}
-const action=
-view?.phase==="infoTokens"
-? null
-: view?.recentAction;
-appendRecentActionToHeading(
-els.myPlayerHeading,
-action,
-view?.playerKey
-);
-for(const heading of
-els.oppBoards.querySelectorAll(
-".opponentName[data-player-key]"
-)){
-appendRecentActionToHeading(
-heading,
-action,
-heading.dataset.playerKey
-);
-}
 }
 const _rowActionBaseRerenderBoardsOnly=
 rerenderBoardsOnly;
@@ -8224,6 +8161,70 @@ if(currentView){
 renderRecentAction(currentView);
 }
 };
+function visibleFixedTop(el){
+if(
+!el ||
+el.classList.contains("hidden")
+)return null;
+const rect=el.getBoundingClientRect();
+if(
+rect.width<=0 ||
+rect.height<=0
+)return null;
+return rect.top;
+}
+function updateRecentActionDockPosition(){
+const dock=els.recentActionDock;
+if(
+!dock ||
+dock.classList.contains("hidden")
+)return;
+const tops=[
+visibleFixedTop(els.playControls),
+visibleFixedTop(els.interruptCardArea),
+visibleFixedTop(els.receivedTilePreview)
+].filter(v=>v!==null);
+let bottom=8;
+if(tops.length){
+bottom=Math.max(
+bottom,
+window.innerHeight-Math.min(...tops)+6
+);
+}
+dock.style.bottom=
+`calc(${Math.ceil(bottom)}px + env(safe-area-inset-bottom, 0px))`;
+}
+function renderRecentAction(view){
+const dock=els.recentActionDock;
+if(!dock)return;
+const action=
+view?.phase==="infoTokens"
+? null
+: view?.recentAction;
+if(!action||!action.text){
+dock.textContent="";
+dock.className="recentActionDock hidden";
+dock.style.bottom="";
+return;
+}
+dock.textContent=
+action.shortText ||
+recentActionTextWithoutActor(
+action,
+action.actorKey
+);
+dock.className=
+"recentActionDock "+
+(
+["success","failure","card","danger"]
+.includes(action.tone)
+? action.tone
+: "card"
+);
+requestAnimationFrame(
+updateRecentActionDockPosition
+);
+}
 function boardNumbersAreAscending(
 playerKey,
 boardIndex
@@ -8330,7 +8331,9 @@ const name=
 cleanPlayerName(playerNames[key]) ||
 `P${Number(key.slice(1))+1}`;
 labels[key]=
-`${name}（${roleLabels[key]}）`;
+key===captainKey
+? `${name}（隊長）`
+: name;
 }
 const allYellowValues=[];
 const allRedValues=[];
@@ -9018,19 +9021,6 @@ boardFacts:opponent.boardFacts
 }
 );
 }
-const headings=[
-...els.oppBoards.querySelectorAll(".opponentName")
-];
-headings.forEach((heading,index)=>{
-const opponent=view.opponents[index];
-if(!opponent)return;
-heading.dataset.playerKey=opponent.playerKey;
-appendRecentActionToHeading(
-heading,
-view.recentAction,
-opponent.playerKey
-);
-});
 }
 function renderPlayerView(view){
 renderCorePlayerView(view);
@@ -9618,6 +9608,54 @@ els.selfCutBtn.onclick=()=>beginAction("self");
 els.personalCardBtn.onclick=beginPersonalCardAction;
 els.interruptCardBtn.onclick=requestStartInstantCard;
 els.cancelActionBtn.onclick=cancelAction;
+const recentActionDockResizeObserver=
+typeof ResizeObserver!=="undefined"
+? new ResizeObserver(()=>{
+requestAnimationFrame(
+updateRecentActionDockPosition
+);
+})
+: null;
+for(const el of [
+els.playControls,
+els.interruptCardArea,
+els.receivedTilePreview
+]){
+if(el){
+recentActionDockResizeObserver?.observe(el);
+}
+}
+const recentActionDockMutationObserver=
+new MutationObserver(()=>{
+requestAnimationFrame(
+updateRecentActionDockPosition
+);
+});
+for(const el of [
+els.playControls,
+els.interruptCardArea,
+els.receivedTilePreview,
+els.actionChoice,
+els.actionProgress
+]){
+if(el){
+recentActionDockMutationObserver.observe(
+el,
+{
+attributes:true,
+attributeFilter:["class"]
+}
+);
+}
+}
+window.addEventListener(
+"resize",
+()=>{
+requestAnimationFrame(
+updateRecentActionDockPosition
+);
+}
+);
 let swapConfirmPointerHandled=false;
 els.confirmActionBtn.addEventListener("pointerdown",e=>{
 if(actionState?.mode!=="swapInsert")return;

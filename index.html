@@ -4938,14 +4938,23 @@ function selectInsertIndex(index,gapEl=null){
 if(!actionState||actionState.mode!=="swapInsert")return;
 const normalizedIndex=Number(index);
 if(!Number.isInteger(normalizedIndex))return;
-actionState.insertIndex=normalizedIndex;
-document.querySelectorAll(".insertGap.selected")
-.forEach(el=>el.classList.remove("selected"));
 const targetGap=
 gapEl ||
 document.querySelector(
 `.insertGap[data-insert-index="${normalizedIndex}"]`
 );
+const leftSlotId=
+targetGap?.dataset.leftSlotId||"";
+const rightSlotId=
+targetGap?.dataset.rightSlotId||"";
+actionState.insertIndex=normalizedIndex;
+actionState.insertChoice={
+index:normalizedIndex,
+leftSlotId,
+rightSlotId
+};
+document.querySelectorAll(".insertGap.selected")
+.forEach(el=>el.classList.remove("selected"));
 if(targetGap){
 targetGap.classList.add("selected");
 const radio=targetGap.querySelector(".insertGapRadio");
@@ -5132,20 +5141,33 @@ actionState={mode:"swapGive",forced:true,targetBoard:flow.targetBoard,allowedPos
 const options=(flow.insertOptions||[])
 .map(Number)
 .filter(Number.isInteger);
-const previousIndex=
+const sameInsertFlow=
 actionState?.mode==="swapInsert" &&
-actionState.receiveBoard===flow.receiveBoard
+actionState.receiveBoard===flow.receiveBoard;
+const previousIndex=
+sameInsertFlow
 ? Number(actionState.insertIndex)
 : NaN;
+const previousChoice=
+sameInsertFlow &&
+actionState.insertChoice &&
+Number(actionState.insertChoice.index)===previousIndex
+? {...actionState.insertChoice}
+: null;
+const keptIndex=
+Number.isInteger(previousIndex) &&
+options.includes(previousIndex)
+? previousIndex
+: null;
 actionState={
 mode:"swapInsert",
 forced:true,
 receiveBoard:flow.receiveBoard,
 insertOptions:options,
-insertIndex:
-Number.isInteger(previousIndex) &&
-options.includes(previousIndex)
-? previousIndex
+insertIndex:keptIndex,
+insertChoice:
+keptIndex!==null
+? previousChoice
 : null,
 receivedTile:flow.receivedTile
 };
@@ -5210,29 +5232,53 @@ els.receivedTilePreview.classList.remove("hidden");
 }
 function currentSwapInsertChoice(){
 if(!actionState||actionState.mode!=="swapInsert")return null;
+let choice=
+actionState.insertChoice
+? {...actionState.insertChoice}
+: null;
+if(!choice){
 const checked=document.querySelector(".insertGapRadio:checked");
-let index=Number(actionState.insertIndex);
-let leftSlotId="";
-let rightSlotId="";
 if(checked){
-const nativeIndex=Number(checked.value);
-if(Number.isInteger(nativeIndex))index=nativeIndex;
-leftSlotId=checked.dataset.leftSlotId||"";
-rightSlotId=checked.dataset.rightSlotId||"";
-}else if(Number.isInteger(index)){
-const gap=document.querySelector(`.insertGap[data-insert-index="${index}"]`);
-if(gap){
-leftSlotId=gap.dataset.leftSlotId||"";
-rightSlotId=gap.dataset.rightSlotId||"";
+choice={
+index:Number(checked.value),
+leftSlotId:checked.dataset.leftSlotId||"",
+rightSlotId:checked.dataset.rightSlotId||""
+};
 }
 }
-if(!Number.isInteger(index))return null;
-if(Array.isArray(actionState.insertOptions)&&!actionState.insertOptions.map(Number).includes(index))return null;
-return {index,leftSlotId,rightSlotId};
+if(!choice){
+const index=Number(actionState.insertIndex);
+if(Number.isInteger(index)){
+const gap=document.querySelector(
+`.insertGap[data-insert-index="${index}"]`
+);
+choice={
+index,
+leftSlotId:gap?.dataset.leftSlotId||"",
+rightSlotId:gap?.dataset.rightSlotId||""
+};
+}
+}
+if(!choice||!Number.isInteger(Number(choice.index)))return null;
+const index=Number(choice.index);
+if(
+Array.isArray(actionState.insertOptions) &&
+!actionState.insertOptions.map(Number).includes(index)
+)return null;
+return {
+index,
+leftSlotId:String(choice.leftSlotId||""),
+rightSlotId:String(choice.rightSlotId||"")
+};
 }
 let swapInsertSubmitting=false;
 function submitSwapInsertChoice(){
-if(swapInsertSubmitting||!actionState||actionState.mode!=="swapInsert"||!currentView)return false;
+if(
+swapInsertSubmitting ||
+!actionState ||
+actionState.mode!=="swapInsert" ||
+!currentView
+)return false;
 const choice=currentSwapInsertChoice();
 if(!choice){
 updateActionUi();
@@ -5247,15 +5293,27 @@ leftSlotId:choice.leftSlotId,
 rightSlotId:choice.rightSlotId
 };
 if(role==="host"){
-processSwapInsert(localPlayerKey,payload.insertIndex,payload.leftSlotId,payload.rightSlotId);
+const ok=processSwapInsert(
+localPlayerKey,
+payload.insertIndex,
+payload.leftSlotId,
+payload.rightSlotId
+);
+if(!ok){
+swapInsertSubmitting=false;
+els.confirmActionBtn.disabled=false;
+updateActionUi();
+return false;
+}
 }else{
 send(payload);
 }
-actionState=null;
 setTimeout(()=>{
 swapInsertSubmitting=false;
-els.confirmActionBtn.disabled=false;
-},350);
+if(actionState?.mode==="swapInsert"){
+updateActionUi();
+}
+},250);
 return true;
 }
 const _baseIsGameInProgress=isGameInProgress;
@@ -8225,74 +8283,8 @@ requestAnimationFrame(
 updateRecentActionDockPosition
 );
 }
-function boardNumbersAreAscending(
-playerKey,
-boardIndex
-){
-const layout=
-gameState?.boardLayouts
-?. [playerKey]
-?. [boardIndex] || [];
-const board=
-gameState?.players
-?. [playerKey]
-?.boards
-?. [boardIndex] || [];
-const byId=new Map(
-board.map(tile=>[tile.id,tile])
-);
-const numbers=[];
-for(const item of layout){
-if(item.type!=="tile")continue;
-const tile=byId.get(item.tileId);
-if(tile)numbers.push(tile.number);
-}
-for(let i=1;i<numbers.length;i++){
-if(numbers[i-1]>numbers[i]){
-return false;
-}
-}
-return true;
-}
-const _rowActionBaseInsertHeldTile=
-insertHeldTile;
-insertHeldTile=function(
-playerKey,
-boardIndex,
-tile,
-layoutIndex
-){
-const layout=
-gameState.boardLayouts[playerKey][boardIndex];
-const board=
-gameState.players[playerKey].boards[boardIndex];
-const layoutBackup=
-layout.map(item=>({...item}));
-const boardBackup=[...board];
-_rowActionBaseInsertHeldTile(
-playerKey,
-boardIndex,
-tile,
-layoutIndex
-);
-if(
-!boardNumbersAreAscending(
-playerKey,
-boardIndex
-)
-){
-gameState.boardLayouts[playerKey][boardIndex]=
-layoutBackup;
-gameState.players[playerKey].boards[boardIndex]=
-boardBackup;
-boardBackup.forEach(
-(t,i)=>t.position=i
-);
-throw new Error(
-"交換後のタイル順が昇順になりません。"
-);
-}
-};
+
+
 function createCoreGameState(settings){
 const maxNumber=settings.maxNumber;
 const playerCount=settings.playerCount;
@@ -9187,12 +9179,8 @@ els.confirmActionBtn.disabled=
 actionState.targetPosition===null;
 }else if(mode==="swapInsert"){
 els.confirmActionBtn.textContent="置く";
-const checked=document.querySelector(
-".insertGapRadio:checked"
-);
 els.confirmActionBtn.disabled=
-actionState.insertIndex===null &&
-!checked;
+!currentSwapInsertChoice();
 }else if(mode==="equipmentInfo"){
 els.confirmActionBtn.textContent="付箋を置く";
 els.confirmActionBtn.disabled=
@@ -9514,7 +9502,14 @@ setTimeout(
 }
 function processSwapInsert(resolver,layoutIndex,leftSlotId="",rightSlotId=""){
 const flow=gameState?.cardFlow;
-if(!flow||flow.type!=="swap"||flow.stage!=="swapInsert"||flow.resolver!==resolver)return;
+if(
+!flow ||
+flow.type!=="swap" ||
+flow.stage!=="swapInsert" ||
+flow.resolver!==resolver
+){
+return false;
+}
 const completing=
 flow.incomingKey==="targetTile";
 if(completing){
@@ -9525,9 +9520,15 @@ setRecentAction(
 );
 }
 const tile=flow.heldTiles[flow.incomingKey];
-if(!tile)return;
+if(!tile){
+actionError(resolver,"交換するタイルを確認できませんでした。");
+return false;
+}
 const layout=gameState.boardLayouts?.[resolver]?.[flow.receiveBoard];
-if(!layout)return;
+if(!layout){
+actionError(resolver,"交換先の台を確認できませんでした。");
+return false;
+}
 let normalizedIndex=Number(layoutIndex);
 const left=String(leftSlotId||"");
 const right=String(rightSlotId||"");
@@ -9546,9 +9547,20 @@ if(li===layout.length-1)anchoredIndex=layout.length;
 }
 if(Number.isInteger(anchoredIndex))normalizedIndex=anchoredIndex;
 }
-if(!Number.isInteger(normalizedIndex))return;
-const currentOptions=validInsertIndices(resolver,flow.receiveBoard,tile.number);
-if(!currentOptions.includes(normalizedIndex))return;
+if(!Number.isInteger(normalizedIndex)){
+actionError(resolver,"置く場所をもう一度選んでください。");
+return false;
+}
+const currentOptions=validInsertIndices(
+resolver,
+flow.receiveBoard,
+tile.number
+);
+if(!currentOptions.includes(normalizedIndex)){
+actionError(resolver,"その位置には置けません。場所をもう一度選んでください。");
+broadcastViews();
+return false;
+}
 insertHeldTile(resolver,flow.receiveBoard,tile,normalizedIndex);
 if(flow.incomingKey==="actorTile"){
 const options=validInsertIndices(flow.actor,flow.actorBoard,flow.heldTiles.targetTile.number);
@@ -9559,10 +9571,11 @@ incomingKey:"targetTile",
 insertOptions:options
 };
 broadcastViews();
-return;
+return true;
 }
 gameState.cardFlow=null;
 broadcastViews();
+return true;
 }
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;
@@ -9656,21 +9669,7 @@ updateRecentActionDockPosition
 );
 }
 );
-let swapConfirmPointerHandled=false;
-els.confirmActionBtn.addEventListener("pointerdown",e=>{
-if(actionState?.mode!=="swapInsert")return;
-swapConfirmPointerHandled=true;
-e.preventDefault();
-e.stopPropagation();
-submitSwapInsertChoice();
-});
-els.confirmActionBtn.onclick=e=>{
-if(swapConfirmPointerHandled){
-swapConfirmPointerHandled=false;
-e?.preventDefault?.();
-e?.stopPropagation?.();
-return;
-}
+els.confirmActionBtn.onclick=()=>{
 confirmPlayAction();
 };
 els.disconnectBtn.onclick=disconnect;

@@ -1367,6 +1367,41 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
   color:#b91c1c
 }
 
+
+/* ===== 直前行動：各プレイヤー名の右側 ===== */
+.playerHeadingLine{
+  width:100%;
+}
+.playerRowAction{
+  flex:1 1 auto;
+  min-width:0;
+  margin-left:auto;
+  padding-left:8px;
+  text-align:right;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:.82em;
+  line-height:1.2;
+  font-weight:850;
+  color:#64748b
+}
+.playerRowAction.success{color:#15803d}
+.playerRowAction.failure{color:#c2410c}
+.playerRowAction.card{color:#6d28d9}
+.playerRowAction.danger{color:#b91c1c}
+
+/* 相手名行にも横幅を確実に与える */
+.opponentName{
+  width:100%;
+  box-sizing:border-box
+}
+
+/* 旧上部バナーは万一残っても表示しない */
+.recentActionBanner{
+  display:none!important
+}
+
 </style>
 </head>
 <body>
@@ -1560,7 +1595,6 @@ footer{color:var(--muted);font-size:.79rem;margin-top:18px;line-height:1.5}
     <div id="phaseBox">
       <div id="phaseTitle" class="phaseTitle">情報トークン配置</div>
       <div id="turnBanner" class="turnBanner">準備中</div>
-      <div id="recentActionBanner" class="recentActionBanner hidden"></div>
       <div id="phaseHelp" class="tokenHelp"></div>
     </div>
 
@@ -11780,6 +11814,405 @@ renderPlayerView=function(view){
   renderRecentAction(view);
 };
 
+
+
+/* ============================================================
+   表示整理：
+   ・交換穴は数字/替番号を表示せず完全な空白
+   ・直前行動は行動者の名前行右側へ表示
+   ============================================================ */
+
+/*
+  交換穴に元数字を表示すると、
+  例：実タイル5の右に「抜けた4」が見えるなど
+  昇順が崩れたように見える。
+  数字の私的知識はtile.knownByに残し、穴自体は空白にする。
+*/
+const _rowActionBaseLayoutView=layoutView;
+layoutView=function(playerKey,boardIndex,viewerKey){
+  const view=
+    _rowActionBaseLayoutView(
+      playerKey,
+      boardIndex,
+      viewerKey
+    );
+
+  return view.map(item=>{
+    if(item.type!=="hole")return item;
+
+    return {
+      ...item,
+      label:""
+    };
+  });
+};
+
+/* ------------------------------------------------------------
+   行動者を特定
+   ------------------------------------------------------------ */
+function recentActionActorKey(action){
+  if(!action)return null;
+
+  if(
+    action.actorKey &&
+    gameState?.players?.[action.actorKey]
+  ){
+    return action.actorKey;
+  }
+
+  const text=String(action.text||"");
+
+  for(const key of gameState?.seatOrder||[]){
+    const label=playerLabel(key);
+
+    if(
+      label &&
+      (
+        text.startsWith(`${label}が`) ||
+        text.startsWith(`${label} が`)
+      )
+    ){
+      return key;
+    }
+  }
+
+  /*
+    自動装備など文頭に名前が無い場合は、
+    直前のゲームイベントの行動者へ付ける。
+  */
+  const eventLabel=
+    gameState?.lastEvent?.actorLabel ||
+    gameState?._actionContext?.actorLabel ||
+    "";
+
+  if(eventLabel){
+    for(const key of gameState?.seatOrder||[]){
+      if(playerLabel(key)===eventLabel){
+        return key;
+      }
+    }
+  }
+
+  return null;
+}
+
+function recentActionTextWithoutActor(action,actorKey){
+  let text=String(action?.text||"").trim();
+
+  if(!text)return "";
+
+  const label=
+    actorKey
+      ? playerLabel(actorKey)
+      : "";
+
+  if(label){
+    const prefixes=[
+      `${label}が`,
+      `${label} が`
+    ];
+
+    for(const prefix of prefixes){
+      if(text.startsWith(prefix)){
+        text=text.slice(prefix.length).trim();
+        break;
+      }
+    }
+  }
+
+  return text;
+}
+
+/*
+  既存setRecentActionを包み、
+  行動者IDも状態へ保存する。
+  既存の各カード処理はそのまま利用できる。
+*/
+const _rowActionBaseSetRecentAction=setRecentAction;
+setRecentAction=function(
+  text,
+  tone="card",
+  until=null,
+  actorKey=null
+){
+  _rowActionBaseSetRecentAction(
+    text,
+    tone,
+    until
+  );
+
+  if(!gameState?.recentAction)return;
+
+  gameState.recentAction.actorKey=
+    actorKey ||
+    recentActionActorKey(
+      gameState.recentAction
+    );
+};
+
+/*
+  古い呼び出し順の都合でactorKeyが未保存でも、
+  View作成直前に確定させる。
+*/
+const _rowActionBaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+  if(gameState?.recentAction){
+    const actorKey=
+      recentActionActorKey(
+        gameState.recentAction
+      );
+
+    if(actorKey){
+      gameState.recentAction.actorKey=
+        actorKey;
+    }
+  }
+
+  const view=
+    _rowActionBaseMakeViewFor(playerKey);
+
+  if(view.recentAction){
+    const actorKey=
+      gameState?.recentAction?.actorKey ||
+      null;
+
+    view.recentAction.actorKey=actorKey;
+    view.recentAction.shortText=
+      recentActionTextWithoutActor(
+        gameState?.recentAction,
+        actorKey
+      );
+  }
+
+  return view;
+};
+
+/* ------------------------------------------------------------
+   名前行へ表示
+   ------------------------------------------------------------ */
+function appendRecentActionToHeading(
+  heading,
+  action,
+  playerKey
+){
+  if(!heading)return;
+
+  heading
+    .querySelectorAll(".playerRowAction")
+    .forEach(el=>el.remove());
+
+  if(
+    !action ||
+    !action.text ||
+    action.actorKey!==playerKey
+  )return;
+
+  const line=
+    heading.querySelector(
+      ".playerHeadingLine"
+    ) || heading;
+
+  const badge=
+    document.createElement("span");
+
+  badge.className=
+    "playerRowAction "+
+    (
+      ["success","failure","card","danger"]
+        .includes(action.tone)
+          ? action.tone
+          : "card"
+    );
+
+  badge.textContent=
+    action.shortText ||
+    recentActionTextWithoutActor(
+      action,
+      playerKey
+    );
+
+  badge.title=badge.textContent;
+
+  line.appendChild(badge);
+}
+
+function renderRecentAction(view){
+  /*
+    旧上部バナーは使わない。
+    行動した人の名前行右側だけに出す。
+  */
+  if(els.recentActionBanner){
+    els.recentActionBanner.textContent="";
+    els.recentActionBanner.className=
+      "recentActionBanner hidden";
+  }
+
+  const action=
+    view?.phase==="infoTokens"
+      ? null
+      : view?.recentAction;
+
+  appendRecentActionToHeading(
+    els.myPlayerHeading,
+    action,
+    view?.playerKey
+  );
+
+  for(const heading of
+      els.oppBoards.querySelectorAll(
+        ".opponentName[data-player-key]"
+      )){
+    appendRecentActionToHeading(
+      heading,
+      action,
+      heading.dataset.playerKey
+    );
+  }
+}
+
+/*
+  相手の名前行にplayerKeyを付与する。
+  元renderOpponentsをそのまま使い、描画後に対応付ける。
+*/
+const _rowActionBaseRenderOpponents=
+  renderOpponents;
+
+renderOpponents=function(view){
+  _rowActionBaseRenderOpponents(view);
+
+  const headings=[
+    ...els.oppBoards.querySelectorAll(
+      ".opponentName"
+    )
+  ];
+
+  headings.forEach((heading,index)=>{
+    const opponent=view.opponents[index];
+    if(!opponent)return;
+
+    heading.dataset.playerKey=
+      opponent.playerKey;
+
+    appendRecentActionToHeading(
+      heading,
+      view.recentAction,
+      opponent.playerKey
+    );
+  });
+};
+
+/*
+  rerenderBoardsOnlyでは相手名行が作り直されるため、
+  直前行動も同時に復元する。
+*/
+const _rowActionBaseRerenderBoardsOnly=
+  rerenderBoardsOnly;
+
+rerenderBoardsOnly=function(){
+  _rowActionBaseRerenderBoardsOnly();
+
+  if(currentView){
+    renderRecentAction(currentView);
+  }
+};
+
+/* ------------------------------------------------------------
+   実タイルの昇順を監視
+   穴は数字ではないため判定から除外する。
+   ------------------------------------------------------------ */
+function boardNumbersAreAscending(
+  playerKey,
+  boardIndex
+){
+  const layout=
+    gameState?.boardLayouts
+      ?. [playerKey]
+      ?. [boardIndex] || [];
+
+  const board=
+    gameState?.players
+      ?. [playerKey]
+      ?.boards
+      ?. [boardIndex] || [];
+
+  const byId=new Map(
+    board.map(tile=>[tile.id,tile])
+  );
+
+  const numbers=[];
+
+  for(const item of layout){
+    if(item.type!=="tile")continue;
+    const tile=byId.get(item.tileId);
+    if(tile)numbers.push(tile.number);
+  }
+
+  for(let i=1;i<numbers.length;i++){
+    if(numbers[i-1]>numbers[i]){
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/*
+  挿入前後で実タイルの昇順が崩れる操作は拒否。
+  通常はvalidInsertIndicesで防がれるが、交換穴が増えても
+  最後の安全弁として確認する。
+*/
+const _rowActionBaseInsertHeldTile=
+  insertHeldTile;
+
+insertHeldTile=function(
+  playerKey,
+  boardIndex,
+  tile,
+  layoutIndex
+){
+  const layout=
+    gameState.boardLayouts[playerKey][boardIndex];
+
+  const board=
+    gameState.players[playerKey].boards[boardIndex];
+
+  const layoutBackup=
+    layout.map(item=>({...item}));
+
+  const boardBackup=[...board];
+
+  _rowActionBaseInsertHeldTile(
+    playerKey,
+    boardIndex,
+    tile,
+    layoutIndex
+  );
+
+  if(
+    !boardNumbersAreAscending(
+      playerKey,
+      boardIndex
+    )
+  ){
+    /*
+      不正な表示順を作らない。
+      状態を元へ戻し、親機側で操作を確定しない。
+    */
+    gameState.boardLayouts[playerKey][boardIndex]=
+      layoutBackup;
+
+    gameState.players[playerKey].boards[boardIndex]=
+      boardBackup;
+
+    boardBackup.forEach(
+      (t,i)=>t.position=i
+    );
+
+    throw new Error(
+      "交換後のタイル順が昇順になりません。"
+    );
+  }
+};
 
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;

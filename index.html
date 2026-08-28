@@ -79,7 +79,7 @@ gap:3px;
 width:100%;
 }
 .tile{
-aspect-ratio:.72;
+aspect-ratio:.77;
 min-width:0;
 display:flex;align-items:center;justify-content:center;
 border:1px solid #9ca3af;border-radius:6px;background:#fff;
@@ -874,7 +874,7 @@ margin-top:4px
 }
 .exchangeHole{
 width:100%;
-aspect-ratio:.30;
+aspect-ratio:.32;
 min-height:28px;
 border:0;
 border-radius:0;
@@ -932,9 +932,9 @@ appearance:none;
 flex:0 0 22px;
 width:22px;
 min-width:22px;
-height:52px;
-min-height:52px;
-margin:8px 0 0;
+height:48px;
+min-height:48px;
+margin:7px 0 0;
 padding:0;
 box-sizing:border-box;
 touch-action:manipulation;
@@ -991,7 +991,7 @@ pointer-events:none
 .receivedTilePreview.hidden{display:none!important}
 .receivedTilePreviewCard{
 width:42px;
-min-height:54px;
+min-height:50px;
 box-sizing:border-box;
 border:2px solid #94a3b8;
 border-radius:7px;
@@ -1426,6 +1426,39 @@ min-height:42px
 width:100%
 }
 
+
+/* ===== カード類を少しだけ縦圧縮 ===== */
+.personalCardPanel,
+.equipmentCard{
+padding-top:7px!important;
+padding-bottom:7px!important
+}
+.equipmentCard{
+min-height:unset!important
+}
+.equipmentCard .equipmentTitle,
+.personalCardPanel .cardTitle{
+margin-bottom:3px!important;
+line-height:1.15!important
+}
+.equipmentCard .equipmentEffect,
+.personalCardPanel .cardEffect{
+line-height:1.25!important;
+margin-top:2px!important;
+margin-bottom:2px!important
+}
+.equipmentCard .equipmentMeta,
+.personalCardPanel .cardMeta{
+line-height:1.15!important;
+margin-top:2px!important
+}
+.equipmentGrid{
+gap:6px!important
+}
+.personalCardChoiceArea{
+gap:6px!important
+}
+
 </style>
 </head>
 <body>
@@ -1680,7 +1713,7 @@ let selectedInfoToken=null;
 let actionState=null;
 let lastAnimatedCutId=null;
 let animateLatestCut=false;
-const CONNECTION_GRACE_MS=60000;
+const CONNECTION_GRACE_MS=20000;
 const AUTO_ICE_RESTART_DELAY_MS=8000;
 const AUTO_ICE_RESTART_TIMEOUT_MS=12000;
 const MAX_AUTO_ICE_RESTARTS=1;
@@ -1823,6 +1856,25 @@ peer.iceConnectionState==="connected" ||
 peer.iceConnectionState==="completed";
 return pcOk&&iceOk;
 }
+
+function hostEntryNeedsReconnect(entry){
+if(!entry)return true;
+const pc=entry.pc;
+const ch=entry.channel;
+
+if(entry.retired)return true;
+if(!pc)return true;
+if(pc.signalingState==="closed")return true;
+if(pc.connectionState==="closed")return true;
+if(pc.connectionState==="failed")return true;
+if(pc.connectionState==="disconnected")return true;
+if(pc.iceConnectionState==="failed")return true;
+if(pc.iceConnectionState==="disconnected")return true;
+if(ch&&ch.readyState==="closed")return true;
+
+return false;
+}
+
 function connectionLabel(playerKey){
 return `P${Number(playerKey.slice(1))+1}`;
 }
@@ -1994,6 +2046,15 @@ function handleHostPeerState(playerKey,entry,source){
 if(!isCurrentHostEntry(playerKey,entry))return;
 const peer=entry?.pc;
 if(!peer||peer.signalingState==="closed")return;
+
+if(
+peer.connectionState==="failed" ||
+peer.connectionState==="disconnected" ||
+peer.iceConnectionState==="failed" ||
+peer.iceConnectionState==="disconnected"
+){
+pendingHostPlayerKey=playerKey;
+}
 addConnectionEvent(
 `${connectionLabel(playerKey)} ${source}`+
 ` PC:${peer.connectionState} ICE:${peer.iceConnectionState}`
@@ -2482,6 +2543,7 @@ clearRecoveryTimers(entry);
 clearTimer(entry,"restartResultTimer");
 entry.restartInFlight=false;
 entry.connected=false;
+pendingHostPlayerKey=playerKey;
 addConnectionEvent(`${connectionLabel(playerKey)} DC closed`);
 if(gameState){
 setStatus(
@@ -4073,6 +4135,14 @@ info.textContent=`QRデータ量：約${text.length}文字`;
 target.appendChild(info);
 }
 async function createOffer(){
+const existing=hostConnections.get(playerKey);
+if(existing&&hostEntryNeedsReconnect(existing)){
+retireHostEntry(existing);
+try{existing.channel?.close()}catch(_){}
+try{existing.pc?.close()}catch(_){}
+hostConnections.delete(playerKey);
+}
+
 try{
 if(role!=="host")return;
 const hostName=assignPlayerName("p0",els.hostNameInput.value);

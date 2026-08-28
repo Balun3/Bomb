@@ -1410,25 +1410,20 @@ font-size:.56rem;
 font-weight:1000;
 line-height:1.15
 }
-.singleLabelMark{
-position:absolute;
-left:50%;
-top:-9px;
-transform:translateX(-50%);
-min-width:20px;
-padding:1px 4px;
-border:1.5px solid #0f766e;
-border-radius:7px;
+
+.infoTokenBadge.singleLabelToken{
 background:#ecfdf5;
-color:#0f766e;
-font-size:.62rem;
-font-weight:1000;
-line-height:1.15;
-z-index:5;
-box-sizing:border-box
+border-color:#0f766e;
+color:#0f766e
 }
-.tile.hasSingleLabel{
-overflow:visible
+.infoTokenSlot.verticalTokenStack{
+flex-direction:column;
+gap:2px;
+min-height:42px
+}
+.infoTokenSlot.verticalTokenStack .infoTokenBadge,
+.infoTokenSlot.verticalTokenStack .exchangeKnowledgeBadge{
+width:100%
 }
 
 </style>
@@ -5353,6 +5348,14 @@ badge.textContent="?";
 slot.appendChild(badge);
 badgeCount++;
 }
+if(tile?.singleLabel){
+const badge=document.createElement("div");
+badge.className="infoTokenBadge singleLabelToken";
+badge.textContent="×1";
+badge.title="この台にはこの数字が1枚だけ";
+slot.appendChild(badge);
+badgeCount++;
+}
 if(tile?.exchangeInfo&&!tile.cut){
 const badge=document.createElement("div");
 badge.className="exchangeKnowledgeBadge";
@@ -5363,6 +5366,9 @@ badgeCount++;
 }
 if(badgeCount>1){
 slot.classList.add("hasMultiple");
+}
+if(tile?.singleLabel&&tile?.infoToken){
+slot.classList.add("verticalTokenStack");
 }
 return slot;
 }
@@ -5671,13 +5677,6 @@ tag.className="exchangeTag";
 tag.textContent=tile.exchangeTag;
 card.appendChild(tag);
 }
-if(tile.singleLabel){
-card.classList.add("hasSingleLabel");
-const single=document.createElement("span");
-single.className="singleLabelMark";
-single.textContent="単";
-card.appendChild(single);
-}
 if(tile.infoToken){
 const token=document.createElement("div");
 token.className="receivedTilePreviewToken";
@@ -5690,6 +5689,19 @@ type==="yellow" ? "黄" :
 type==="even" ? "偶" :
 type==="count" ? `${value}枚` : "?";
 card.appendChild(token);
+}
+if(tile.singleLabel){
+const single=document.createElement("div");
+single.className="receivedTilePreviewToken";
+single.textContent="×1";
+single.style.borderColor="#0f766e";
+single.style.background="#ecfdf5";
+single.style.color="#0f766e";
+single.style.top=
+tile.infoToken
+? "calc(100% + 22px)"
+: "calc(100% + 3px)";
+card.appendChild(single);
 }
 els.receivedTilePreview.appendChild(card);
 els.receivedTilePreview.classList.remove("hidden");
@@ -9746,13 +9758,6 @@ el.classList.add("lastCutPulse");
 }
 el.textContent=hidden?"?":formatTileNumber(tile.number);
 if(tile.exchangeTag){const tag=document.createElement("span");tag.className="exchangeTag";tag.textContent=tile.exchangeTag;el.appendChild(tag)}
-if(tile.singleLabel){
-el.classList.add("hasSingleLabel");
-const single=document.createElement("span");
-single.className="singleLabelMark";
-single.textContent="単";
-el.appendChild(single);
-}
 const canPlaceInfo=!isOpponent&&view.phase==="infoTokens"&&view.infoTurn===view.playerKey&&!view.infoPlaced[bi]&&!tile.infoToken&&!tile.cut&&tile.kind==="normal";
 if(canPlaceInfo){el.classList.add("selectableTile");el.onclick=e=>{e.stopPropagation();selectInfoTokenTile(bi,tile.position,el,tile.number)}}
 if(canSelectPlayTile(isOpponent,owner.playerKey,bi,tile,view)){

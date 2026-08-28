@@ -1390,6 +1390,47 @@ filter:brightness(1.08)
 }
 }
 
+
+.equipmentCardFace.threshold4{
+border-width:2px;
+border-color:#b7791f;
+background:linear-gradient(180deg,#fff7bf,#f2cf57);
+color:#5c4300;
+box-shadow:inset 0 0 0 1px rgba(255,255,255,.55)
+}
+.equipmentThresholdBadge{
+position:absolute;
+left:3px;
+top:2px;
+padding:1px 4px;
+border-radius:999px;
+background:#8a5b00;
+color:#fff;
+font-size:.56rem;
+font-weight:1000;
+line-height:1.15
+}
+.singleLabelMark{
+position:absolute;
+left:50%;
+top:-9px;
+transform:translateX(-50%);
+min-width:20px;
+padding:1px 4px;
+border:1.5px solid #0f766e;
+border-radius:7px;
+background:#ecfdf5;
+color:#0f766e;
+font-size:.62rem;
+font-weight:1000;
+line-height:1.15;
+z-index:5;
+box-sizing:border-box
+}
+.tile.hasSingleLabel{
+overflow:visible
+}
+
 </style>
 </head>
 <body>
@@ -1515,10 +1556,11 @@ filter:brightness(1.08)
 <div class="setupField">
 <label for="equipmentCardsEnabledSelect">装備カード</label>
 <select id="equipmentCardsEnabledSelect">
-<option value="1" selected>使用する</option>
-<option value="0">使用しない</option>
+<option value="0">OFF</option>
+<option value="2" selected>ON（2枚解放のみ）</option>
+<option value="all">全装備ON（2枚＋4枚）</option>
 </select>
-<div class="small">使用しない場合は装備カードを抽選しません。</div>
+<div class="small">全装備ONでは2枚解放・4枚解放を区別せず、全候補から完全ランダムで抽選します。</div>
 </div>
 <div class="setupField">
 <label for="yellowCandidateSelect">黄タイル候補数</label>
@@ -3108,14 +3150,21 @@ els.setupPreview.textContent=
 `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
 `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。 `+
 `個人カード：${els.personalCardsEnabledSelect.value==="1"?"使用":"なし"}　`+
-`装備カード：${els.equipmentCardsEnabledSelect.value==="1"?"使用":"なし"}`;
+`装備カード：${
+els.equipmentCardsEnabledSelect.value==="0"
+? "OFF"
+: els.equipmentCardsEnabledSelect.value==="all"
+? "全装備ON"
+: "ON（2枚解放のみ）"
+}`;
 }
 function readSetupSettings(){
 return {
 playerCount:expectedPlayerCount,
 maxNumber:Number(els.maxNumberSelect.value),
 personalCardsEnabled:els.personalCardsEnabledSelect.value==="1",
-equipmentCardsEnabled:els.equipmentCardsEnabledSelect.value==="1",
+equipmentMode:els.equipmentCardsEnabledSelect.value,
+equipmentCardsEnabled:els.equipmentCardsEnabledSelect.value!=="0",
 yellowCandidateCount:Number(els.yellowCandidateSelect.value),
 yellowUsedCount:Number(els.yellowUsedSelect.value),
 redCandidateCount:Number(els.redCandidateSelect.value),
@@ -4451,6 +4500,7 @@ id:tile.id,
 position:tile.position,
 cut:tile.cut,
 infoToken:tile.infoToken,
+singleLabel:!!tile.singleLabel,
 exchangeTag:tile.exchangeTag||null,
 exchangeInfo:privateExchangeInfoFor(tile,viewerKey),
 faceHidden:!faceVisible,
@@ -4466,6 +4516,7 @@ number:tile.number,
 position:tile.position,
 cut:tile.cut,
 infoToken:tile.infoToken,
+singleLabel:!!tile.singleLabel,
 exchangeTag:tile.exchangeTag||null,
 exchangeInfo:null,
 faceHidden:false
@@ -5315,9 +5366,21 @@ slot.classList.add("hasMultiple");
 }
 return slot;
 }
-function insertionFlowForBoard(view,ownerKey,boardIndex){
+function insertionFlowForBoard(
+view,
+ownerKey,
+boardIndex
+){
 const flow=view.cardFlow;
-if(!flow||flow.stage!=="swapInsert"||flow.resolver!==view.playerKey||ownerKey!==view.playerKey||flow.receiveBoard!==boardIndex)return null;
+if(
+!flow ||
+!["swapInsert","hookInsert"].includes(flow.stage) ||
+flow.resolver!==view.playerKey ||
+ownerKey!==view.playerKey ||
+flow.receiveBoard!==boardIndex
+){
+return null;
+}
 return flow;
 }
 function probeDisplaysForBoard(view,ownerKey,boardIndex){
@@ -5608,6 +5671,13 @@ tag.className="exchangeTag";
 tag.textContent=tile.exchangeTag;
 card.appendChild(tag);
 }
+if(tile.singleLabel){
+card.classList.add("hasSingleLabel");
+const single=document.createElement("span");
+single.className="singleLabelMark";
+single.textContent="単";
+card.appendChild(single);
+}
 if(tile.infoToken){
 const token=document.createElement("div");
 token.className="receivedTilePreviewToken";
@@ -5778,56 +5848,84 @@ card.usedCount=Math.max(0,Number(card.usedCount||0))+1;
 return true;
 }
 function createEquipmentCards(state){
-if(state.config.equipmentCardsEnabled===false){
+const mode=
+state.config.equipmentMode ||
+(state.config.equipmentCardsEnabled===false?"0":"2");
+
+if(
+state.config.equipmentCardsEnabled===false ||
+mode==="0"
+){
 return [];
 }
-const availableOrder=EQUIPMENT_CARD_ORDER.filter(type=>{
-if(type==="battery"&&state.config.personalCardsEnabled===false){
+
+const availableOrder=
+EQUIPMENT_CARD_ORDER.filter(type=>{
+const def=EQUIPMENT_CARDS[type];
+if(!def)return false;
+
+if(
+type==="battery" &&
+state.config.personalCardsEnabled===false
+){
 return false;
 }
-return true;
+
+if(mode==="2"){
+return def.threshold===2;
+}
+
+return (
+def.threshold===2 ||
+def.threshold===4
+);
 });
+
 const count=Math.min(
-Number(state.config.playerCount||state.seatOrder.length||2),
+Number(
+state.config.playerCount ||
+state.seatOrder.length ||
+2
+),
 availableOrder.length
 );
-const pickedSet=new Set(
-shuffle([...availableOrder]).slice(0,count)
-);
-const byThreshold=new Map();
-for(const type of availableOrder){
-if(!pickedSet.has(type))continue;
-const threshold=EQUIPMENT_CARDS[type].threshold;
-if(!byThreshold.has(threshold))byThreshold.set(threshold,[]);
-byThreshold.get(threshold).push(type);
-}
-const result=[];
-for(const [threshold,types] of byThreshold){
-const numbers=shuffle(
+
+const picked=
+shuffle([...availableOrder])
+.slice(0,count);
+
+const unlockNumbers=
+shuffle(
 Array.from(
 {length:state.config.maxNumber},
 (_,i)=>i+1
 )
 );
-if(numbers.length<types.length){
-throw new Error("装備カードへ割り当てる数字が不足しています。");
+
+if(unlockNumbers.length<picked.length){
+throw new Error(
+"装備カードへ割り当てる数字が不足しています。"
+);
 }
-types.forEach((type,index)=>{
-result.push({
+
+const result=picked.map(
+(type,index)=>({
 type,
-threshold,
-unlockNumber:numbers[index],
+threshold:EQUIPMENT_CARDS[type].threshold,
+unlockNumber:unlockNumbers[index],
 unlocked:false,
 remainingUses:1,
-usedCount:0
-});
-});
-}
+usedCount:0,
+autoQueued:false
+})
+);
+
 result.sort(
 (a,b)=>
 EQUIPMENT_CARD_ORDER.indexOf(a.type)-
 EQUIPMENT_CARD_ORDER.indexOf(b.type)
 );
+
 return result;
 }
 function equipmentViewCards(){
@@ -5846,29 +5944,224 @@ mode:def.mode
 };
 });
 }
-function refreshEquipmentStates(){
+function queueEquipmentAuto(card){
+if(
+!card ||
+card.autoQueued ||
+!card.unlocked ||
+Number(card.remainingUses||0)<=0
+)return;
+
+const def=EQUIPMENT_CARDS[card.type];
+if(def?.mode!=="auto")return;
+
+card.autoQueued=true;
+gameState.equipmentAutoQueue=
+gameState.equipmentAutoQueue||[];
+gameState.equipmentAutoQueue.push(card.type);
+}
+
+function refreshEquipmentUnlocksAndQueue(){
 if(!gameState?.equipmentCards)return;
+
 for(const card of gameState.equipmentCards){
 if(!card.unlocked){
-const cutCount=normalCutCountForEquipment(card.unlockNumber);
+const cutCount=
+normalCutCountForEquipment(
+card.unlockNumber
+);
 if(cutCount>=card.threshold){
 card.unlocked=true;
 }
 }
+
+if(card.unlocked){
+queueEquipmentAuto(card);
 }
-if(gameState.cardFlow)return;
-for(const card of gameState.equipmentCards){
-const def=EQUIPMENT_CARDS[card.type];
+}
+}
+
+function equipmentTileRefs(tiles){
+const refs=[];
+for(const tile of tiles){
+const found=findTileByIdAnywhere(tile.id);
 if(
-def?.mode==="auto" &&
-equipmentCardUsableState(card)
+found &&
+found.playerKey!==null &&
+found.boardIndex!==null
 ){
+refs.push({
+playerKey:found.playerKey,
+boardIndex:found.boardIndex,
+position:found.tile.position,
+tileId:found.tile.id
+});
+}
+}
+return refs;
+}
+
+function runEquipmentAutoCard(card,log){
+if(!equipmentCardUsableState(card))return;
+
+card.autoQueued=false;
+
+if(!consumeEquipmentCard(card.type))return;
+
 if(card.type==="lifeCancel"){
-card.remainingUses=Math.max(0,card.remainingUses-1);
-card.usedCount=(card.usedCount||0)+1;
-gameState.lives=Number(gameState.lives||0)+1;
+gameState.lives=
+Number(gameState.lives||0)+1;
+log.push("失敗帳消し機：ライフ＋1");
+return;
+}
+
+if(card.type==="dismantleGun"){
+const max=
+Number(gameState.config?.maxNumber||1);
+
+const number=
+Math.floor(Math.random()*max)+1;
+
+const newlyCut=
+allTiles().filter(
+tile=>
+!tile.cut &&
+tile.kind==="normal" &&
+tile.number===number
+);
+
+for(const tile of newlyCut){
+tile.cut=true;
+}
+
+gameState.lastEvent={
+kind:"success",
+cardType:"dismantleGun",
+auto:true,
+number
+};
+gameState._announcedLastEvent=
+gameState.lastEvent;
+
+markLastResult(
+equipmentTileRefs(newlyCut)
+);
+
+log.push(
+`分解銃：数字の${number}を全切断`+
+(
+newlyCut.length
+? `（${newlyCut.length}枚）`
+: "（新規0枚）"
+)
+);
+return;
+}
+
+if(card.type==="futatabiBox"){
+for(const other of gameState.equipmentCards){
+if(other.type==="futatabiBox")continue;
+
+other.remainingUses=Math.max(
+1,
+Number(other.remainingUses||0)
+);
+}
+
+log.push(
+"フタタビボックス：装備カードを再使用可能に"
+);
 }
 }
+
+function refreshEquipmentStates(){
+if(!gameState?.equipmentCards)return;
+
+gameState.equipmentAutoQueue=
+gameState.equipmentAutoQueue||[];
+
+refreshEquipmentUnlocksAndQueue();
+
+if(
+gameState.cardFlow ||
+gameState.equipmentAutoProcessing
+)return;
+
+gameState.equipmentAutoProcessing=true;
+
+const log=[];
+let guard=0;
+
+try{
+while(
+gameState.equipmentAutoQueue.length &&
+guard<40 &&
+!gameState.cardFlow
+){
+guard++;
+
+const type=
+gameState.equipmentAutoQueue.shift();
+
+const card=equipmentCardState(type);
+if(card)card.autoQueued=false;
+
+if(
+!card ||
+EQUIPMENT_CARDS[type]?.mode!=="auto" ||
+!equipmentCardUsableState(card)
+){
+continue;
+}
+
+runEquipmentAutoCard(card,log);
+
+refreshEquipmentUnlocksAndQueue();
+}
+
+if(log.length){
+setRecentAction(
+`装備発動：${log.join(" → ")}`,
+"card",
+transientUntilNextTurnEnds()
+);
+}
+
+if(
+gameState.phase==="play" &&
+allCut()
+){
+gameState.phase="clear";
+gameState.turn=null;
+}else if(
+gameState.phase==="play" &&
+gameState.turn &&
+!playerHasUncut(gameState.turn)
+){
+const order=gameState.turnOrder;
+const start=
+order.indexOf(gameState.turn);
+let next=null;
+
+for(let step=1;step<=order.length;step++){
+const candidate=
+order[(start+step)%order.length];
+
+if(playerHasUncut(candidate)){
+next=candidate;
+break;
+}
+}
+
+if(next){
+gameState.turn=next;
+}else{
+gameState.phase="clear";
+gameState.turn=null;
+}
+}
+}finally{
+gameState.equipmentAutoProcessing=false;
 }
 }
 function processEquipmentProbe(actor,payload){
@@ -6349,6 +6642,13 @@ face.className=
 "equipmentCardFace"+
 (card.threshold===4?" threshold4":"");
 face.textContent=card.name;
+if(card.threshold===4){
+face.title="4枚切断で解放";
+const badge=document.createElement("span");
+badge.className="equipmentThresholdBadge";
+badge.textContent="4枚";
+face.appendChild(badge);
+}
 if(used){
 const mark=document.createElement("span");
 mark.className="equipmentUsedMark";
@@ -7176,6 +7476,49 @@ if(!EQUIPMENT_CARD_ORDER.includes(type)){
 EQUIPMENT_CARD_ORDER.push(type);
 }
 });
+
+EQUIPMENT_CARDS.dismantleGun={
+name:"分解銃",
+short:"分解銃",
+threshold:4,
+mode:"auto"
+};
+EQUIPMENT_CARDS.singleLabel={
+name:"シングルラベル",
+short:"シングル",
+threshold:4,
+mode:"instant"
+};
+EQUIPMENT_CARDS.futatabiBox={
+name:"フタタビボックス",
+short:"フタタビ",
+threshold:4,
+mode:"auto"
+};
+EQUIPMENT_CARDS.priorityCut={
+name:"優先切断券",
+short:"優先券",
+threshold:4,
+mode:"turn"
+};
+EQUIPMENT_CARDS.hook={
+name:"ひっかけフック",
+short:"フック",
+threshold:4,
+mode:"instant"
+};
+[
+"dismantleGun",
+"singleLabel",
+"futatabiBox",
+"priorityCut",
+"hook"
+].forEach(type=>{
+if(!EQUIPMENT_CARD_ORDER.includes(type)){
+EQUIPMENT_CARD_ORDER.push(type);
+}
+});
+
 function hasIceProtection(actor){
 return !!(
 gameState?.iceShield &&
@@ -8538,33 +8881,7 @@ actor,
 target
 );
 };
-const _transientBaseRefreshEquipmentStates=
-refreshEquipmentStates;
-refreshEquipmentStates=function(){
-const before=
-equipmentCardState("lifeCancel")
-? Number(
-equipmentCardState("lifeCancel").usedCount||0
-)
-: null;
-_transientBaseRefreshEquipmentStates();
-const after=
-equipmentCardState("lifeCancel")
-? Number(
-equipmentCardState("lifeCancel").usedCount||0
-)
-: null;
-if(
-before!==null &&
-after!==null &&
-after>before
-){
-setRecentAction(
-"失敗帳消し機が発動 → ライフ＋1",
-"card"
-);
-}
-};
+
 function recentActionActorKey(action){
 if(!action)return null;
 if(
@@ -8919,6 +9236,9 @@ settings.personalCardsEnabled!==false;
 state.config.personalCardsEnabled=personalCardsEnabled;
 state.config.equipmentCardsEnabled=
 settings.equipmentCardsEnabled!==false;
+state.config.equipmentMode=
+settings.equipmentMode ||
+(state.config.equipmentCardsEnabled?"2":"0");
 state.phase=
 personalCardsEnabled
 ? "personalCards"
@@ -8932,7 +9252,10 @@ state.cardFlow=null;
 state.recentProbe=null;
 state.turnSerial=0;
 state.nextExchangeTag=1;
+state.nextHookTag=1;
 state.nextCardFlowId=1;
+state.equipmentAutoQueue=[];
+state.equipmentAutoProcessing=false;
 state.boardLayouts={};
 for(const key of state.seatOrder){
 const player=state.players[key];
@@ -9138,7 +9461,10 @@ exchangeTag:
 item.permanentBlank
 ? null
 : item.exchangeTag,
-label:"",
+label:
+String(item.exchangeTag||"").startsWith("奪")
+? item.exchangeTag
+: "",
 permanentBlank:!!item.permanentBlank
 };
 });
@@ -9278,6 +9604,13 @@ if(actionState?.mode==="swap"&&isOpponent&&actionState.myPosition!==null&&board.
 wrap.classList.add("selectableBoard");
 wrap.onclick=()=>selectSwapTargetBoard(owner.playerKey,bi);
 }
+if(
+actionState?.mode==="hook" &&
+!isOpponent
+){
+wrap.classList.add("selectableBoard");
+wrap.onclick=()=>selectHookReceiveBoard(bi);
+}
 const probeDisplays=probeDisplaysForBoard(
 view,
 owner.playerKey,
@@ -9332,7 +9665,9 @@ gap.dataset.rightSlotId=rightSlot;
 gap.className=
 "insertGap"+
 (
-actionState?.mode==="swapInsert" &&
+["swapInsert","hookInsert"].includes(
+actionState?.mode
+) &&
 Number(actionState.insertIndex)===normalizedIndex
 ? " selected"
 : ""
@@ -9346,10 +9681,17 @@ arrow.textContent="↑";
 gap.onclick=e=>{
 e.preventDefault();
 e.stopPropagation();
+if(actionState?.mode==="hookInsert"){
+selectHookInsertIndex(
+normalizedIndex,
+gap
+);
+}else{
 selectInsertIndex(
 normalizedIndex,
 gap
 );
+}
 };
 
 gap.appendChild(arrow);
@@ -9404,6 +9746,13 @@ el.classList.add("lastCutPulse");
 }
 el.textContent=hidden?"?":formatTileNumber(tile.number);
 if(tile.exchangeTag){const tag=document.createElement("span");tag.className="exchangeTag";tag.textContent=tile.exchangeTag;el.appendChild(tag)}
+if(tile.singleLabel){
+el.classList.add("hasSingleLabel");
+const single=document.createElement("span");
+single.className="singleLabelMark";
+single.textContent="単";
+el.appendChild(single);
+}
 const canPlaceInfo=!isOpponent&&view.phase==="infoTokens"&&view.infoTurn===view.playerKey&&!view.infoPlaced[bi]&&!tile.infoToken&&!tile.cut&&tile.kind==="normal";
 if(canPlaceInfo){el.classList.add("selectableTile");el.onclick=e=>{e.stopPropagation();selectInfoTokenTile(bi,tile.position,el,tile.number)}}
 if(canSelectPlayTile(isOpponent,owner.playerKey,bi,tile,view)){
@@ -9528,7 +9877,11 @@ hideReceivedTilePreview();
 els.playControls.classList.add("hidden");
 return;
 }
-if(actionState?.mode==="swapInsert"){
+if(
+["swapInsert","hookInsert"].includes(
+actionState?.mode
+)
+){
 renderReceivedTilePreview(
 actionState.receivedTile
 );
@@ -9663,6 +10016,23 @@ const checked=document.querySelector(
 els.confirmActionBtn.disabled=
 !actionState.selectedPair &&
 !checked;
+}else if(mode==="singleLabel"){
+els.confirmActionBtn.textContent="ラベルを置く";
+els.confirmActionBtn.disabled=
+!actionState.targetTileId;
+}else if(mode==="priorityCut"){
+els.confirmActionBtn.textContent="2枚を切断";
+els.confirmActionBtn.disabled=
+(actionState.selectedTiles||[]).length!==2;
+}else if(mode==="hook"){
+els.confirmActionBtn.textContent="奪う";
+els.confirmActionBtn.disabled=
+actionState.receiveBoard===null ||
+!actionState.targetTileId;
+}else if(mode==="hookInsert"){
+els.confirmActionBtn.textContent="置く";
+els.confirmActionBtn.disabled=
+!currentHookInsertChoice();
 }else if(mode==="superProbe"){
 els.confirmActionBtn.textContent="使用する";
 els.confirmActionBtn.disabled=
@@ -9687,6 +10057,80 @@ els.confirmActionBtn.disabled
 )return;
 if(actionState.mode==="swapInsert"){
 submitSwapInsertChoice();
+return;
+}
+if(actionState.mode==="hookInsert"){
+submitHookInsertChoice();
+return;
+}
+if(actionState.mode==="singleLabel"){
+const s={...actionState};
+els.confirmActionBtn.disabled=true;
+const payload={
+type:"equipmentSingleLabelApply",
+boardIndex:s.targetBoard,
+position:s.targetPosition,
+tileId:s.targetTileId
+};
+if(role==="host"){
+actionState=null;
+processEquipmentSingleLabel(
+localPlayerKey,
+payload.boardIndex,
+payload.position,
+payload.tileId
+);
+}else{
+send(payload);
+}
+return;
+}
+if(actionState.mode==="hook"){
+const s={...actionState};
+els.confirmActionBtn.disabled=true;
+const payload={
+type:"equipmentHookPick",
+receiveBoard:s.receiveBoard,
+targetPlayer:s.targetPlayer,
+targetBoard:s.targetBoard,
+targetPosition:s.targetPosition,
+targetTileId:s.targetTileId
+};
+if(role==="host"){
+actionState=null;
+processEquipmentHookPick(
+localPlayerKey,
+payload
+);
+}else{
+send(payload);
+}
+return;
+}
+if(actionState.mode==="priorityCut"){
+const s=JSON.parse(
+JSON.stringify(actionState)
+);
+els.confirmActionBtn.disabled=true;
+const payload={
+type:"equipmentPriorityCut",
+tiles:(s.selectedTiles||[]).map(
+x=>({
+boardIndex:x.boardIndex,
+position:x.position,
+tileId:x.tileId
+})
+)
+};
+if(role==="host"){
+actionState=null;
+processEquipmentPriorityCut(
+localPlayerKey,
+payload
+);
+}else{
+send(payload);
+}
 return;
 }
 if(actionState.mode==="equipmentLabel"){
@@ -10048,6 +10492,1619 @@ gameState.cardFlow=null;
 broadcastViews();
 return true;
 }
+
+/* ===== 4枚解放装備 ===== */
+
+function viewNormalCutCount(view,number){
+let cut=0;
+
+for(const board of view?.myBoards||[]){
+for(const tile of board){
+if(
+tile.cut &&
+tile.kind==="normal" &&
+tile.number===number
+){
+cut++;
+}
+}
+}
+
+for(const opponent of view?.opponents||[]){
+for(const board of opponent.boards||[]){
+for(const tile of board){
+if(
+tile.cut &&
+tile.kind==="normal" &&
+tile.number===number
+){
+cut++;
+}
+}
+}
+}
+
+return cut;
+}
+
+function clientSingleLabelCandidates(view){
+const out=[];
+
+(view?.myBoards||[]).forEach(
+(board,boardIndex)=>{
+for(const tile of board){
+if(
+tile.cut ||
+tile.kind!=="normal" ||
+tile.singleLabel
+)continue;
+
+const sameCount=
+board.filter(
+t=>
+t.kind==="normal" &&
+t.number===tile.number
+).length;
+
+if(sameCount===1){
+out.push({
+boardIndex,
+position:tile.position,
+tileId:tile.id
+});
+}
+}
+}
+);
+
+return out;
+}
+
+function validSingleLabelTiles(actor){
+const out=[];
+const player=gameState?.players?.[actor];
+if(!player)return out;
+
+player.boards.forEach(
+(board,boardIndex)=>{
+for(const tile of board){
+if(
+tile.cut ||
+tile.kind!=="normal" ||
+tile.singleLabel
+)continue;
+
+const sameCount=
+board.filter(
+t=>
+t.kind==="normal" &&
+t.number===tile.number
+).length;
+
+if(sameCount===1){
+out.push({
+boardIndex,
+position:tile.position,
+tileId:tile.id
+});
+}
+}
+}
+);
+
+return out;
+}
+
+function clientPriorityCutNumbers(view){
+const counts=new Map();
+
+for(const board of view?.myBoards||[]){
+for(const tile of board){
+if(
+!tile.cut &&
+tile.kind==="normal"
+){
+counts.set(
+tile.number,
+(counts.get(tile.number)||0)+1
+);
+}
+}
+}
+
+const result=new Set();
+
+for(const [number,count] of counts){
+if(
+(count===2||count===3) &&
+viewNormalCutCount(view,number)===0
+){
+result.add(number);
+}
+}
+
+return result;
+}
+
+function priorityCutStateForNumber(
+actor,
+number
+){
+const refs=[];
+
+for(
+let boardIndex=0;
+boardIndex<
+(gameState?.players?.[actor]?.boards?.length||0);
+boardIndex++
+){
+const board=
+gameState.players[actor].boards[boardIndex];
+
+for(const tile of board){
+if(
+!tile.cut &&
+tile.kind==="normal" &&
+tile.number===number
+){
+refs.push({
+boardIndex,
+position:tile.position,
+tileId:tile.id,
+tile
+});
+}
+}
+}
+
+const globalCut=
+normalCutCountForEquipment(number);
+
+return {
+valid:
+globalCut===0 &&
+(refs.length===2||refs.length===3),
+number,
+refs,
+globalCut
+};
+}
+
+function hookHasLegalUseState(actor){
+if(!gameState?.players?.[actor])return false;
+
+const hasOpponentTile=
+gameState.seatOrder.some(
+key=>
+key!==actor &&
+gameState.players[key].boards.some(
+board=>board.some(tile=>!tile.cut)
+)
+);
+
+return (
+gameState.players[actor].boards.length>0 &&
+hasOpponentTile
+);
+}
+
+function hookHasLegalUseView(view){
+return !!(
+view?.myBoards?.length &&
+(view.opponents||[]).some(
+opponent=>
+opponent.boards.some(
+board=>board.some(tile=>!tile.cut)
+)
+)
+);
+}
+
+const _t4BaseEquipmentClientCanUse=
+equipmentClientCanUse;
+
+equipmentClientCanUse=function(card,view){
+const base=
+_t4BaseEquipmentClientCanUse(
+card,
+view
+);
+
+if(!base)return false;
+
+if(card.type==="singleLabel"){
+return (
+clientSingleLabelCandidates(view)
+.length>0
+);
+}
+
+if(card.type==="priorityCut"){
+return (
+clientPriorityCutNumbers(view)
+.size>0
+);
+}
+
+if(card.type==="hook"){
+return hookHasLegalUseView(view);
+}
+
+return true;
+};
+
+const _t4BaseBeginEquipmentCardAction=
+beginEquipmentCardAction;
+
+beginEquipmentCardAction=function(type){
+if(type==="priorityCut"){
+const card=currentEquipmentCard(type);
+
+if(
+!card ||
+!equipmentClientCanUse(
+card,
+currentView
+)
+)return;
+
+actionState={
+mode:"priorityCut",
+actionSource:"equipment",
+equipmentType:type,
+selectedNumber:null,
+selectedTiles:[]
+};
+
+updateActionUi();
+renderEquipmentCards(currentView);
+rerenderBoardsOnly();
+return;
+}
+
+return _t4BaseBeginEquipmentCardAction(type);
+};
+
+const _t4BaseStartEquipmentCard=
+startEquipmentCard;
+
+startEquipmentCard=function(
+actor,
+type,
+expectedTurnSerial=null,
+expectedTurn=null
+){
+if(
+type!=="singleLabel" &&
+type!=="hook"
+){
+return _t4BaseStartEquipmentCard(
+actor,
+type,
+expectedTurnSerial,
+expectedTurn
+);
+}
+
+if(
+!gameState ||
+gameState.phase!=="play" ||
+gameState.cardFlow
+)return;
+
+if(
+expectedTurnSerial!==null &&
+Number(expectedTurnSerial)!==
+Number(gameState.turnSerial||0)
+)return;
+
+if(
+expectedTurn!==null &&
+expectedTurn!==gameState.turn
+)return;
+
+const card=equipmentCardState(type);
+if(!equipmentCardUsableState(card))return;
+
+if(type==="singleLabel"){
+const candidates=
+validSingleLabelTiles(actor);
+
+if(!candidates.length){
+actionError(
+actor,
+"シングルラベルを置けるタイルがありません。"
+);
+broadcastViews();
+return;
+}
+
+if(!consumeEquipmentCard(type))return;
+
+gameState.cardFlow={
+type:"singleLabel",
+equipmentType:"singleLabel",
+stage:"singleLabelInput",
+actor,
+resolver:actor,
+baseTurn:gameState.turn,
+committed:true,
+flowId:gameState.nextCardFlowId++,
+candidates
+};
+
+broadcastViews();
+return;
+}
+
+if(!hookHasLegalUseState(actor)){
+actionError(
+actor,
+"ひっかけフックで奪えるタイルがありません。"
+);
+broadcastViews();
+return;
+}
+
+if(!consumeEquipmentCard(type))return;
+
+gameState.cardFlow={
+type:"hook",
+equipmentType:"hook",
+stage:"hookInput",
+actor,
+resolver:actor,
+baseTurn:gameState.turn,
+committed:true,
+flowId:gameState.nextCardFlowId++
+};
+
+broadcastViews();
+};
+
+function processEquipmentSingleLabel(
+actor,
+boardIndex,
+position,
+tileId
+){
+const flow=gameState?.cardFlow;
+
+if(
+!flow ||
+flow.type!=="singleLabel" ||
+flow.stage!=="singleLabelInput" ||
+flow.actor!==actor
+)return;
+
+const candidates=
+validSingleLabelTiles(actor);
+
+const candidate=
+candidates.find(
+x=>
+x.boardIndex===boardIndex &&
+(
+(tileId&&x.tileId===tileId) ||
+(!tileId&&x.position===position)
+)
+);
+
+if(!candidate){
+actionError(
+actor,
+"そのタイルにはシングルラベルを置けません。"
+);
+broadcastViews();
+return;
+}
+
+const tile=
+gameState.players[actor]
+.boards[candidate.boardIndex]
+.find(t=>t.id===candidate.tileId);
+
+if(!tile)return;
+
+tile.singleLabel=true;
+gameState.cardFlow=null;
+
+setRecentAction(
+`${playerLabel(actor)}がシングルラベルを使用`,
+"card"
+);
+
+broadcastViews();
+}
+
+function selectHookReceiveBoard(boardIndex){
+if(
+!actionState ||
+actionState.mode!=="hook" ||
+!currentView ||
+!Number.isInteger(boardIndex) ||
+boardIndex<0 ||
+boardIndex>=currentView.myBoards.length
+)return;
+
+actionState.receiveBoard=boardIndex;
+
+updateActionUi();
+rerenderBoardsOnly();
+}
+
+function processEquipmentHookPick(
+actor,
+payload
+){
+const flow=gameState?.cardFlow;
+
+if(
+!flow ||
+flow.type!=="hook" ||
+flow.stage!=="hookInput" ||
+flow.actor!==actor
+)return false;
+
+const receiveBoard=
+Number(payload.receiveBoard);
+
+const targetPlayer=
+String(payload.targetPlayer||"");
+
+const targetBoard=
+Number(payload.targetBoard);
+
+if(
+!validBoardIndexFor(actor,receiveBoard) ||
+targetPlayer===actor ||
+!validBoardIndexFor(
+targetPlayer,
+targetBoard
+)
+){
+actionError(
+actor,
+"奪う場所をもう一度選んでください。"
+);
+broadcastViews();
+return false;
+}
+
+const board=
+gameState.players[targetPlayer]
+.boards[targetBoard];
+
+let target=null;
+
+if(payload.targetTileId){
+target=board.find(
+tile=>
+tile.id===payload.targetTileId &&
+!tile.cut
+)||null;
+}
+
+if(!target){
+const position=
+Number(payload.targetPosition);
+
+target=
+Number.isInteger(position)
+? board[position]
+: null;
+
+if(target?.cut)target=null;
+}
+
+if(!target){
+actionError(
+actor,
+"そのタイルは奪えません。"
+);
+broadcastViews();
+return false;
+}
+
+target.exchangeTag=
+`奪${gameState.nextHookTag++}`;
+
+target.exchangeTransientUntil=
+transientUntilNextTurnEnds();
+
+if(!Array.isArray(target.knownBy)){
+target.knownBy=[targetPlayer];
+}
+
+if(!target.knownBy.includes(actor)){
+target.knownBy.push(actor);
+}
+
+replaceTileWithHole(
+targetPlayer,
+targetBoard,
+target
+);
+
+const insertOptions=
+validInsertIndices(
+actor,
+receiveBoard,
+target.number
+);
+
+gameState.cardFlow={
+type:"hook",
+equipmentType:"hook",
+stage:"hookInsert",
+actor,
+resolver:actor,
+baseTurn:flow.baseTurn,
+committed:true,
+flowId:flow.flowId,
+targetPlayer,
+targetBoard,
+receiveBoard,
+heldTiles:{
+hookTile:target
+},
+incomingKey:"hookTile",
+insertOptions
+};
+
+broadcastViews();
+return true;
+}
+
+function currentHookInsertChoice(){
+if(
+!actionState ||
+actionState.mode!=="hookInsert"
+)return null;
+
+const choice=actionState.insertChoice;
+if(!choice)return null;
+
+const index=Number(choice.index);
+if(!Number.isInteger(index))return null;
+
+if(
+Array.isArray(actionState.insertOptions) &&
+!actionState.insertOptions
+.map(Number)
+.includes(index)
+){
+return null;
+}
+
+return {
+index,
+leftSlotId:
+String(choice.leftSlotId||""),
+rightSlotId:
+String(choice.rightSlotId||"")
+};
+}
+
+function selectHookInsertIndex(
+index,
+gapEl=null
+){
+if(
+!actionState ||
+actionState.mode!=="hookInsert" ||
+!currentView
+)return;
+
+const flow=currentView.cardFlow;
+
+if(
+!flow ||
+flow.stage!=="hookInsert" ||
+flow.resolver!==currentView.playerKey ||
+flow.flowId!==actionState.flowId
+){
+syncForcedAction(currentView);
+updateActionUi();
+rerenderBoardsOnly();
+return;
+}
+
+const normalizedIndex=Number(index);
+if(!Number.isInteger(normalizedIndex))return;
+
+const targetGap=
+gapEl ||
+document.querySelector(
+`.insertGap[data-insert-index="${normalizedIndex}"]`
+);
+
+if(!targetGap)return;
+
+actionState.insertIndex=
+normalizedIndex;
+
+actionState.insertChoice={
+index:normalizedIndex,
+leftSlotId:
+targetGap.dataset.leftSlotId||"",
+rightSlotId:
+targetGap.dataset.rightSlotId||""
+};
+
+document
+.querySelectorAll(".insertGap.selected")
+.forEach(
+el=>el.classList.remove("selected")
+);
+
+targetGap.classList.add("selected");
+
+updateActionUi();
+}
+
+function resolveAnchoredInsertIndex(
+layout,
+layoutIndex,
+leftSlotId,
+rightSlotId
+){
+let normalizedIndex=
+Number(layoutIndex);
+
+const left=
+String(leftSlotId||"");
+
+const right=
+String(rightSlotId||"");
+
+if(left||right){
+let anchoredIndex=null;
+
+if(left&&right){
+const li=
+layout.findIndex(
+item=>item.slotId===left
+);
+
+const ri=
+layout.findIndex(
+item=>item.slotId===right
+);
+
+if(
+li>=0 &&
+ri===li+1
+){
+anchoredIndex=ri;
+}
+}else if(!left&&right){
+const ri=
+layout.findIndex(
+item=>item.slotId===right
+);
+
+if(ri===0){
+anchoredIndex=0;
+}
+}else if(left&&!right){
+const li=
+layout.findIndex(
+item=>item.slotId===left
+);
+
+if(li===layout.length-1){
+anchoredIndex=
+layout.length;
+}
+}
+
+if(
+Number.isInteger(
+anchoredIndex
+)
+){
+normalizedIndex=
+anchoredIndex;
+}
+}
+
+return normalizedIndex;
+}
+
+function processEquipmentHookInsert(
+actor,
+layoutIndex,
+leftSlotId="",
+rightSlotId=""
+){
+const flow=gameState?.cardFlow;
+
+if(
+!flow ||
+flow.type!=="hook" ||
+flow.stage!=="hookInsert" ||
+flow.resolver!==actor
+){
+return false;
+}
+
+const tile=
+flow.heldTiles?.hookTile;
+
+if(!tile){
+actionError(
+actor,
+"奪ったタイルを確認できませんでした。"
+);
+return false;
+}
+
+const layout=
+gameState.boardLayouts
+?.[actor]
+?.[flow.receiveBoard];
+
+if(!layout){
+actionError(
+actor,
+"置く台を確認できませんでした。"
+);
+return false;
+}
+
+const normalizedIndex=
+resolveAnchoredInsertIndex(
+layout,
+layoutIndex,
+leftSlotId,
+rightSlotId
+);
+
+const currentOptions=
+validInsertIndices(
+actor,
+flow.receiveBoard,
+tile.number
+);
+
+if(
+!Number.isInteger(
+normalizedIndex
+) ||
+!currentOptions.includes(
+normalizedIndex
+)
+){
+actionError(
+actor,
+"その位置には置けません。場所をもう一度選んでください。"
+);
+broadcastViews();
+return false;
+}
+
+insertHeldTile(
+actor,
+flow.receiveBoard,
+tile,
+normalizedIndex
+);
+
+const targetPlayer=
+flow.targetPlayer;
+
+gameState.cardFlow=null;
+
+setRecentAction(
+`${playerLabel(actor)}がひっかけフックを使用 → `+
+`${playerLabel(targetPlayer)}から1枚奪取`,
+"card"
+);
+
+broadcastViews();
+return true;
+}
+
+let hookInsertSubmitting=false;
+
+function submitHookInsertChoice(){
+if(
+hookInsertSubmitting ||
+!actionState ||
+actionState.mode!=="hookInsert" ||
+!currentView
+)return false;
+
+const flow=currentView.cardFlow;
+
+if(
+!flow ||
+flow.stage!=="hookInsert" ||
+flow.resolver!==currentView.playerKey ||
+flow.flowId!==actionState.flowId
+){
+syncForcedAction(currentView);
+updateActionUi();
+rerenderBoardsOnly();
+return false;
+}
+
+const choice=
+currentHookInsertChoice();
+
+if(!choice){
+return false;
+}
+
+hookInsertSubmitting=true;
+els.confirmActionBtn.disabled=true;
+
+const payload={
+type:"resolveHookInsert",
+insertIndex:choice.index,
+leftSlotId:choice.leftSlotId,
+rightSlotId:choice.rightSlotId
+};
+
+if(role==="host"){
+const ok=
+processEquipmentHookInsert(
+localPlayerKey,
+payload.insertIndex,
+payload.leftSlotId,
+payload.rightSlotId
+);
+
+if(!ok){
+hookInsertSubmitting=false;
+updateActionUi();
+return false;
+}
+}else{
+send(payload);
+}
+
+setTimeout(()=>{
+hookInsertSubmitting=false;
+
+if(
+actionState?.mode==="hookInsert"
+){
+updateActionUi();
+}
+},250);
+
+return true;
+}
+
+function selectedPriorityTile(
+tileId
+){
+return !!(
+actionState?.mode==="priorityCut" &&
+(actionState.selectedTiles||[])
+.some(item=>item.tileId===tileId)
+);
+}
+
+function selectPriorityCutTile(
+boardIndex,
+position,
+number,
+tileId
+){
+if(
+!actionState ||
+actionState.mode!=="priorityCut"
+)return;
+
+const eligible=
+clientPriorityCutNumbers(
+currentView
+);
+
+if(!eligible.has(number))return;
+
+const selected=
+actionState.selectedTiles||[];
+
+const existingIndex=
+selected.findIndex(
+item=>item.tileId===tileId
+);
+
+if(existingIndex>=0){
+selected.splice(
+existingIndex,
+1
+);
+
+if(!selected.length){
+actionState.selectedNumber=null;
+}
+}else{
+if(
+actionState.selectedNumber!==null &&
+actionState.selectedNumber!==number
+){
+selected.length=0;
+}
+
+actionState.selectedNumber=number;
+
+if(selected.length<2){
+selected.push({
+boardIndex,
+position,
+number,
+tileId
+});
+}
+}
+
+actionState.selectedTiles=
+selected;
+
+updateActionUi();
+rerenderBoardsOnly();
+}
+
+function processEquipmentPriorityCut(
+actor,
+payload
+){
+if(
+!gameState ||
+gameState.phase!=="play" ||
+gameState.turn!==actor ||
+gameState.cardFlow
+)return;
+
+const card=
+equipmentCardState(
+"priorityCut"
+);
+
+if(!equipmentCardUsableState(card))return;
+
+const requested=
+(payload.tiles||[])
+.filter(
+x=>x&&x.tileId
+);
+
+if(
+requested.length!==2 ||
+new Set(
+requested.map(x=>x.tileId)
+).size!==2
+){
+actionError(
+actor,
+"切断する2枚を選んでください。"
+);
+return;
+}
+
+const found=[];
+
+for(const ref of requested){
+let match=null;
+
+for(
+let boardIndex=0;
+boardIndex<
+gameState.players[actor].boards.length;
+boardIndex++
+){
+const tile=
+gameState.players[actor]
+.boards[boardIndex]
+.find(
+t=>t.id===ref.tileId
+);
+
+if(tile){
+match={
+tile,
+boardIndex
+};
+break;
+}
+}
+
+if(!match){
+actionError(
+actor,
+"選択したタイルを確認できませんでした。"
+);
+return;
+}
+
+found.push(match);
+}
+
+const number=
+found[0].tile.number;
+
+if(
+found.some(
+x=>
+x.tile.cut ||
+x.tile.kind!=="normal" ||
+x.tile.number!==number
+)
+){
+actionError(
+actor,
+"同じ通常数字の未切断タイルを2枚選んでください。"
+);
+return;
+}
+
+const state=
+priorityCutStateForNumber(
+actor,
+number
+);
+
+if(!state.valid){
+actionError(
+actor,
+"その数字には優先切断券を使用できません。"
+);
+return;
+}
+
+if(!consumeEquipmentCard("priorityCut"))return;
+
+for(const item of found){
+item.tile.cut=true;
+}
+
+markLastResult(
+found.map(item=>({
+playerKey:actor,
+boardIndex:item.boardIndex,
+position:item.tile.position,
+tileId:item.tile.id
+}))
+);
+
+gameState.lastEvent={
+kind:"success",
+cardType:"priorityCut",
+actorLabel:
+gameState.players[actor].label
+};
+
+gameState._announcedLastEvent=
+gameState.lastEvent;
+
+setRecentAction(
+`${playerLabel(actor)}が優先切断券「${number}」を使用 → 2枚切断`,
+"success"
+);
+
+finishTurn(actor);
+broadcastViews();
+}
+
+const _t4BasePublicCardFlowFor=
+publicCardFlowFor;
+
+publicCardFlowFor=function(viewerKey){
+const flow=gameState?.cardFlow;
+
+if(
+flow?.type==="singleLabel" &&
+flow.stage==="singleLabelInput"
+){
+const common={
+active:true,
+type:"singleLabel",
+equipmentType:"singleLabel",
+actor:flow.actor,
+actorLabel:
+playerLabel(flow.actor),
+resolver:flow.actor,
+resolverLabel:
+playerLabel(flow.actor),
+flowId:flow.flowId,
+stage:"resolving"
+};
+
+if(viewerKey===flow.actor){
+return {
+...common,
+stage:"singleLabelInput",
+candidates:
+(flow.candidates||[])
+.map(x=>({...x}))
+};
+}
+
+return common;
+}
+
+if(flow?.type==="hook"){
+const common={
+active:true,
+type:"hook",
+equipmentType:"hook",
+actor:flow.actor,
+actorLabel:
+playerLabel(flow.actor),
+resolver:flow.resolver,
+resolverLabel:
+playerLabel(flow.resolver),
+flowId:flow.flowId,
+stage:"resolving"
+};
+
+if(
+flow.stage==="hookInput" &&
+viewerKey===flow.actor
+){
+return {
+...common,
+stage:"hookInput"
+};
+}
+
+if(
+flow.stage==="hookInsert" &&
+viewerKey===flow.actor
+){
+const tile=
+flow.heldTiles?.hookTile;
+
+return {
+...common,
+stage:"hookInsert",
+receiveBoard:flow.receiveBoard,
+insertOptions:
+[...(flow.insertOptions||[])],
+targetPlayer:flow.targetPlayer,
+targetBoard:flow.targetBoard,
+receivedTile:
+tile
+? ownTileView(
+tile,
+viewerKey
+)
+: null
+};
+}
+
+return common;
+}
+
+return _t4BasePublicCardFlowFor(
+viewerKey
+);
+};
+
+const _t4BaseSyncForcedAction=
+syncForcedAction;
+
+syncForcedAction=function(view){
+const flow=view?.cardFlow;
+const previous=actionState;
+
+if(
+flow?.type==="singleLabel" &&
+flow.stage==="singleLabelInput" &&
+flow.actor===view.playerKey
+){
+const same=
+previous?.mode==="singleLabel" &&
+previous.flowId===flow.flowId;
+
+const previousId=
+same
+? previous.targetTileId
+: null;
+
+const stillValid=
+(flow.candidates||[])
+.find(
+x=>x.tileId===previousId
+);
+
+actionState={
+mode:"singleLabel",
+forced:true,
+flowId:flow.flowId,
+equipmentType:"singleLabel",
+candidates:
+(flow.candidates||[])
+.map(x=>({...x})),
+targetBoard:
+stillValid
+? stillValid.boardIndex
+: null,
+targetPosition:
+stillValid
+? stillValid.position
+: null,
+targetTileId:
+stillValid
+? stillValid.tileId
+: null
+};
+return;
+}
+
+if(
+flow?.type==="hook" &&
+flow.stage==="hookInput" &&
+flow.actor===view.playerKey
+){
+const same=
+previous?.mode==="hook" &&
+previous.flowId===flow.flowId;
+
+actionState={
+mode:"hook",
+forced:true,
+flowId:flow.flowId,
+equipmentType:"hook",
+receiveBoard:
+same
+? previous.receiveBoard
+: null,
+targetPlayer:
+same
+? previous.targetPlayer
+: null,
+targetBoard:
+same
+? previous.targetBoard
+: null,
+targetPosition:
+same
+? previous.targetPosition
+: null,
+targetTileId:
+same
+? previous.targetTileId
+: null
+};
+return;
+}
+
+if(
+flow?.type==="hook" &&
+flow.stage==="hookInsert" &&
+flow.resolver===view.playerKey
+){
+const options=
+(flow.insertOptions||[])
+.map(Number)
+.filter(Number.isInteger);
+
+const same=
+previous?.mode==="hookInsert" &&
+previous.flowId===flow.flowId &&
+previous.receiveBoard===
+flow.receiveBoard;
+
+const previousIndex=
+same
+? Number(previous.insertIndex)
+: NaN;
+
+const keptIndex=
+Number.isInteger(previousIndex) &&
+options.includes(previousIndex)
+? previousIndex
+: null;
+
+actionState={
+mode:"hookInsert",
+forced:true,
+flowId:flow.flowId,
+equipmentType:"hook",
+receiveBoard:flow.receiveBoard,
+insertOptions:options,
+insertIndex:keptIndex,
+insertChoice:
+keptIndex!==null &&
+previous?.insertChoice
+? {...previous.insertChoice}
+: null,
+receivedTile:
+flow.receivedTile
+};
+return;
+}
+
+return _t4BaseSyncForcedAction(view);
+};
+
+const _t4BaseCanSelectPlayTile=
+canSelectPlayTile;
+
+canSelectPlayTile=function(
+isOpponent,
+ownerKey,
+boardIndex,
+tile,
+view
+){
+if(actionState?.mode==="singleLabel"){
+return !!(
+!isOpponent &&
+ownerKey===view.playerKey &&
+(actionState.candidates||[])
+.some(
+x=>x.tileId===tile.id
+)
+);
+}
+
+if(actionState?.mode==="hook"){
+return !!(
+isOpponent &&
+ownerKey!==view.playerKey &&
+!tile.cut
+);
+}
+
+if(actionState?.mode==="priorityCut"){
+if(
+isOpponent ||
+ownerKey!==view.playerKey ||
+tile.cut ||
+tile.kind!=="normal"
+){
+return false;
+}
+
+const eligible=
+clientPriorityCutNumbers(view);
+
+if(!eligible.has(tile.number)){
+return false;
+}
+
+return (
+actionState.selectedNumber===null ||
+actionState.selectedNumber===tile.number ||
+selectedPriorityTile(tile.id)
+);
+}
+
+return _t4BaseCanSelectPlayTile(
+isOpponent,
+ownerKey,
+boardIndex,
+tile,
+view
+);
+};
+
+const _t4BaseSelectPlayTile=
+selectPlayTile;
+
+selectPlayTile=function(
+isOpponent,
+ownerKey,
+boardIndex,
+position,
+number,
+tileKind
+){
+const board=
+viewBoard(
+ownerKey,
+boardIndex
+);
+
+const tile=
+board?.find(
+t=>t.position===position
+)||null;
+
+if(actionState?.mode==="singleLabel"){
+if(
+isOpponent ||
+ownerKey!==currentView?.playerKey ||
+!tile
+)return;
+
+const candidate=
+(actionState.candidates||[])
+.find(
+x=>x.tileId===tile.id
+);
+
+if(!candidate)return;
+
+actionState.targetBoard=
+candidate.boardIndex;
+actionState.targetPosition=
+candidate.position;
+actionState.targetTileId=
+candidate.tileId;
+
+updateActionUi();
+rerenderBoardsOnly();
+return;
+}
+
+if(actionState?.mode==="hook"){
+if(
+!isOpponent ||
+ownerKey===currentView?.playerKey ||
+!tile ||
+tile.cut
+)return;
+
+actionState.targetPlayer=
+ownerKey;
+actionState.targetBoard=
+boardIndex;
+actionState.targetPosition=
+tile.position;
+actionState.targetTileId=
+tile.id;
+
+updateActionUi();
+rerenderBoardsOnly();
+return;
+}
+
+if(actionState?.mode==="priorityCut"){
+if(
+isOpponent ||
+ownerKey!==currentView?.playerKey ||
+!tile
+)return;
+
+selectPriorityCutTile(
+boardIndex,
+tile.position,
+tile.number,
+tile.id
+);
+return;
+}
+
+return _t4BaseSelectPlayTile(
+isOpponent,
+ownerKey,
+boardIndex,
+position,
+number,
+tileKind
+);
+};
+
+const _t4BaseIsSelectedCardTile=
+isSelectedCardTile;
+
+isSelectedCardTile=function(
+isOpponent,
+ownerKey,
+boardIndex,
+tile
+){
+if(actionState?.mode==="singleLabel"){
+return !!(
+!isOpponent &&
+ownerKey===currentView?.playerKey &&
+actionState.targetTileId===tile.id
+);
+}
+
+if(actionState?.mode==="hook"){
+return !!(
+isOpponent &&
+ownerKey===actionState.targetPlayer &&
+actionState.targetBoard===boardIndex &&
+actionState.targetTileId===tile.id
+);
+}
+
+if(actionState?.mode==="priorityCut"){
+return !!(
+!isOpponent &&
+ownerKey===currentView?.playerKey &&
+selectedPriorityTile(tile.id)
+);
+}
+
+return _t4BaseIsSelectedCardTile(
+isOpponent,
+ownerKey,
+boardIndex,
+tile
+);
+};
+
+const _t4BaseIsBoardSelected=
+isBoardSelected;
+
+isBoardSelected=function(
+isOpponent,
+ownerKey,
+boardIndex
+){
+if(actionState?.mode==="hook"){
+if(!isOpponent){
+return (
+ownerKey===currentView?.playerKey &&
+actionState.receiveBoard===boardIndex
+);
+}
+
+return (
+ownerKey===actionState.targetPlayer &&
+actionState.targetBoard===boardIndex
+);
+}
+
+return _t4BaseIsBoardSelected(
+isOpponent,
+ownerKey,
+boardIndex
+);
+};
+
+const _t4BaseHandleHostMessage=
+handleHostMessage;
+
+handleHostMessage=function(
+actorKey,
+msg
+){
+if(
+msg.type==="equipmentSingleLabelApply"
+){
+processEquipmentSingleLabel(
+actorKey,
+Number(msg.boardIndex),
+Number(msg.position),
+String(msg.tileId||"")
+);
+return;
+}
+
+if(msg.type==="equipmentHookPick"){
+processEquipmentHookPick(
+actorKey,
+msg
+);
+return;
+}
+
+if(msg.type==="resolveHookInsert"){
+processEquipmentHookInsert(
+actorKey,
+Number(msg.insertIndex),
+String(msg.leftSlotId||""),
+String(msg.rightSlotId||"")
+);
+return;
+}
+
+if(msg.type==="equipmentPriorityCut"){
+processEquipmentPriorityCut(
+actorKey,
+msg
+);
+return;
+}
+
+return _t4BaseHandleHostMessage(
+actorKey,
+msg
+);
+};
+
 els.hostBtn.onclick=()=>showRole("host");
 els.playerCountSelect.onchange=updateExpectedPlayerCount;
 els.hostNameInput.oninput=updateHostName;

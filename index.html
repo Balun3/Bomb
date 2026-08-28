@@ -4135,14 +4135,6 @@ info.textContent=`QRデータ量：約${text.length}文字`;
 target.appendChild(info);
 }
 async function createOffer(){
-const existing=hostConnections.get(playerKey);
-if(existing&&hostEntryNeedsReconnect(existing)){
-retireHostEntry(existing);
-try{existing.channel?.close()}catch(_){}
-try{existing.pc?.close()}catch(_){}
-hostConnections.delete(playerKey);
-}
-
 try{
 if(role!=="host")return;
 const hostName=assignPlayerName("p0",els.hostNameInput.value);
@@ -4159,9 +4151,10 @@ els.playerCountSelect.disabled=true;
 const old=hostConnections.get(playerKey);
 if(old){
 retireHostEntry(old);
+try{old.channel?.close()}catch(_){}
+try{old.pc?.close()}catch(_){}
+hostConnections.delete(playerKey);
 }
-try{old?.channel?.close()}catch(_){}
-try{old?.pc?.close()}catch(_){}
 setStatus(
 `${Number(playerKey.slice(1))+1}人目用QRを作成中…`,
 "wait"

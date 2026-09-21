@@ -43,6 +43,13 @@ html,body{overflow-y:auto}
 @media(max-width:374px){.game{padding-left:6px;padding-right:6px}.player{padding-left:4px;padding-right:4px}.event-main{font-size:10px}.event-result{font-size:9px}.specials{gap:4px}.candidate-chip{font-size:9px}.equip-card{gap:2px;padding:1px 2px}.equip-card b{font-size:8px}.equip-card small{font-size:8px}.instruction strong{font-size:10px}.selection-tag{font-size:8px}.turn-title{font-size:15px}.turn-sub{font-size:8px}}
 /* If the page is exceptionally short, scroll the entire table rather than hiding one CPU. */
 @media(max-height:629px){.game{height:auto;min-height:100dvh;grid-template-rows:44px 36px 294px 60px 26px 65px 62px 20px}}
+/* Probability meaning and configuration refinements. Five players remain the default. */
+.tile-prob{font-size:10px;line-height:11px;letter-spacing:-.3px}.tile-prob.candidate{color:#246083}.tile-prob.candidate.yellow-prob{color:#926112}.tile-prob.candidate.red-prob,.tile-prob.red-total{color:#9d302a}.tile.with-prob .face{font-size:12px;transform:translateY(0)}
+.number-strip{grid-template-columns:repeat(var(--max-number,12),minmax(0,1fr))}.dense-rack{gap:1px!important}.dense-rack .tile{font-size:13px}.dense-rack .tile-prob{font-size:8px;line-height:9px;letter-spacing:-.25px}.dense-rack .token{font-size:8px;min-width:12px;padding:0 1px}.dense-rack .tile.special .face{font-size:9px}.game.max16 .number-strip{gap:0}.game.max16 .count-cell{font-size:10px}.game.max16 .count-cell small{font-size:8px}
+.game.six .cpu-list{overflow-y:auto;overflow-x:hidden;grid-template-rows:repeat(5,minmax(74px,calc((100% - 6px)/4)));scrollbar-width:thin}.game.six .player{min-height:74px}.game.six .boards .section-label>span:after{content:' · ↕';color:#d6dbbb}
+.equipment{grid-template-columns:.9fr 1.25fr 1.4fr .9fr .95fr;gap:2px}.equip-card{gap:2px;padding:1px 2px}.equip-card .icon{display:none}.equip-card b,.equip-card.locked b,.equip-card.used b{display:inline;font-size:9px;font-weight:800;letter-spacing:-.05em}.equip-card small{font-size:9px}.equip-card .equip-number{font-size:10px;font-weight:650;color:inherit}.equip-card .ready-dot{font-size:14px;font-weight:800;line-height:16px}.equip-card.shielded{gap:1px}.equip-card.shielded small{font-size:7px}.tile.card-selected{outline:2px solid var(--purple);outline-offset:1px;transform:translateY(-2px)}
+.prob-current{overflow:hidden;text-overflow:ellipsis}.prob-hint .hold-note{flex:none}.instruction-copy{overflow:hidden}.instruction strong{overflow:hidden;text-overflow:ellipsis}.selection-tag{max-width:42%;overflow:hidden;text-overflow:ellipsis}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0 14px}.settings-grid button{min-height:42px;background:#dfe4ce;color:#35492c;border:1px solid #b8c5a6;border-radius:5px;font-size:13px}.settings-grid button[aria-pressed=true]{background:#cadbb7;border:2px solid #678358;font-weight:800}.viewport-debug{font-family:ui-monospace,monospace;font-size:12px;color:#53684d;background:#e1e5d4;border-radius:5px;padding:9px}.review-settings{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}.review-settings button{font-size:11px;padding:6px;color:#dbe6cb;background:#334731;border:1px solid #6a7c59;border-radius:4px}.review-settings button.active{background:#d9e5be;color:#334229}.card-library{display:grid;gap:8px}.card-library button{padding:12px;text-align:left;background:#e2e4d0;color:#3e4a35;border:1px solid #b7c1a1;border-radius:7px;font-size:13px}.card-library small{display:block;font-size:10px;color:#6d7961}.prob-table .active-prob{background:#d6e1ce}.ledger button[aria-pressed=true]{background:#c4d9b5;border:2px solid #69855c}
+@media(max-width:374px){.equip-card b,.equip-card.locked b,.equip-card.used b{font-size:8px}.equip-card small{font-size:8px}.equip-card .equip-number{font-size:9px}.tile-prob{font-size:9px;line-height:10px}.dense-rack .tile-prob{font-size:7.5px;line-height:9px}.prob-hint{font-size:8px}}
 </style>
 </head>
 <body>
@@ -69,9 +76,9 @@ const MODES=[
 const BASE_PLAYERS=[
  {id:'a',name:'アオイ',no:'1',color:'#687c8a',personal:'なんレー',values:[1,2,3,4,5,6.5,8,9,10,11,12],tokens:{1:'2',8:'10'},cuts:[0,2]},
  {id:'b',name:'レン',no:'2',color:'#987865',personal:'フツたん',values:[1,2,3,4,5,6,7,8.1,9,10,12],tokens:{3:'4',9:'10'},cuts:[2]},
- {id:'c',name:'ミナ',no:'3',color:'#7c7993',personal:'イレシー',used:true,values:[1,2,3,4,5,6,7,8,9,10.5],tokens:{4:'5'},cuts:[0,2],relation:[2,3]},
+ {id:'c',name:'ミナ',no:'3',color:'#7c7993',personal:'イレシー',used:true,values:[1,2,3,5,6,6,7,8,9,10.5],tokens:{3:'5'},cuts:[0,2],relation:[2,3]},
  {id:'d',name:'ソラ',no:'4',color:'#8b8d5b',personal:'ミツたん',values:[4,5,6,7,8,8,10,11,11,12],tokens:{1:'5',9:'12'},cuts:[]},
- {id:'me',name:'あなた',no:'自',color:'#baca9c',personal:'ドチアタ',values:[1,2,3,4.1,6,7,9,10,11,12],tokens:{1:'2'},cuts:[2]}
+ {id:'me',name:'あなた',no:'自',color:'#baca9c',personal:'ドチアタ',values:[1,2,3,4,4.1,7,9,10,11,12],tokens:{1:'2'},cuts:[2]}
 ];
 const EQUIPMENT=[
  {id:'ice',short:'万能氷',name:'万能氷',status:'ready',label:'使用可',effect:'この手番の失敗によるライフ減少と、赤によるゲームオーバーを防ぎます。',meta:'共有装備 · 自分の手番 · 残り1回'},
@@ -81,10 +88,11 @@ const EQUIPMENT=[
  {id:'gun',short:'分解銃',name:'分解銃',status:'locked',label:'7：2/4',effect:'解放時に自動発動し、選ばれた通常数字のタイルをまとめて切断します。',meta:'共有装備 · 数字7を4枚切断で解放 · 自動発動'}
 ];
 let mode='human',selectedOwn=5,selectedTarget={player:'a',index:6},replyPick=null,responseResolved=false,customEvent=null,shield=false,focusPlayer=null,focusIndex=null,lastFocus=null,toastTimer=null;
-let probabilityOn=true,probabilityTarget=null;
+let probabilityOn=true,probabilityTarget=null,maxNumber=12,playerCount=5,actionState=null;
+const CARD_TYPES={dotchi:{name:'ドチアタ',full:'ドッチカアタレイ',count:1},futsu:{name:'フツたん',full:'フツーノ探知機',count:2},mitsu:{name:'ミツたん',full:'ミッツケル探知機',count:3},super:{name:'スーパー探知機',full:'スーパー探知機',count:Infinity}};
 const CANDIDATES={normal:Array.from({length:12},(_,i)=>i+1),yellow:[2.1,4.1,8.1,9.1],red:[3.5,6.5,10.5]};
-const PROB_DEMOS=[{id:'none',name:'選択なし · 赤総確率のみ'},{id:'normal',name:'通常7の確率'},{id:'yellow',name:'黄4.1の確率'},{id:'red',name:'赤6.5の確率'},{id:'detail',name:'長押しの全候補パネル'}];
-const KIND_NAME={normal:'通常',yellow:'黄',red:'赤'},KIND_CODE={normal:'N',yellow:'Y',red:'R'};
+const PROB_DEMOS=[{id:'none',name:'確率ON · 候補未選択'},{id:'normal',name:'手動 · 通常7'},{id:'yellow',name:'手動 · 黄4.1'},{id:'red',name:'手動 · 赤6.5'},{id:'cut7',name:'通常切断7 · 手動5を退避'},{id:'cutYellow',name:'黄色切断 · 黄合計'},{id:'probe7',name:'探知機7 · 自動表示'},{id:'dotchi47',name:'ドチアタ4＋7 · 合計表示'},{id:'restore',name:'キャンセル後 · 手動5に復帰'},{id:'detail',name:'長押しの全候補パネル'},{id:'off',name:'確率OFF'}];
+const KIND_NAME={normal:'通常',yellow:'黄',red:'赤'};
 // UI-only fixtures. Integration should supply existing tile.cheatAllProbabilities unchanged.
 // No hidden value or CPU calculation is used to produce these illustrative distributions.
 const PROB_FIXTURES=[
@@ -93,7 +101,7 @@ const PROB_FIXTURES=[
  {normal:{6:5,7:21,8:28,9:20,10:13},yellow:{2.1:1,4.1:3,8.1:3,9.1:2},red:{3.5:1,6.5:2,10.5:1}}
 ];
 function tileProbabilityData(player,index){
- const fixture=PROB_FIXTURES[(index+Number(player.no))%PROB_FIXTURES.length];
+ const fixture=maxNumber===16&&index>=10?{normal:{7:20,12:8,13:14,14:23,15:10,16:5},yellow:{2.1:1,4.1:3,8.1:2,9.1:2},red:{3.5:1,6.5:7,10.5:4}}:PROB_FIXTURES[(index+Number(player.no))%PROB_FIXTURES.length];
  const known=player.tokens[index]||(player.id==='c'&&index===7?8:null);
  const items=Object.entries(CANDIDATES).flatMap(([kind,values])=>values.map(number=>({kind,number,probability:known!==null?(kind==='normal'&&number===Number(known)?1:0):(fixture[kind][number]||0)/100})));
  const sum=kind=>items.filter(x=>x.kind===kind).reduce((s,x)=>s+x.probability,0);
@@ -101,22 +109,38 @@ function tileProbabilityData(player,index){
 }
 function percent(p,detail=false){return detail?`${(p*100).toFixed(1)}%`:`${Math.round(p*100)}%`;}
 function targetKey(){return probabilityTarget?`${probabilityTarget.kind}:${probabilityTarget.number}`:'';}
-function isProbTarget(kind,number){return probabilityTarget?.kind===kind&&probabilityTarget.number===number;}
+function automaticProbability(){
+ if(actionState){const ns=actionState.numbers;return {kind:'normal',numbers:ns,label:ns.length?`${CARD_TYPES[actionState.type].name} ${ns.join('＋')}`:'宣言する数字を選択',auto:true,pending:actionState.type==='dotchi'?ns.length!==2:ns.length!==1};}
+ if(['source','target'].includes(mode)){const v=snapshot().find(p=>p.id==='me').values[selectedOwn];return Number.isInteger(v)?{kind:'normal',number:v,label:`切断 ${v}`,auto:true}:{kind:'yellow',total:true,label:'黄色切断 · 黄合計',auto:true};}
+ return null;
+}
+function effectiveProbability(){return automaticProbability()||probabilityTarget;}
+function probabilityLabel(t){return t?.label||(t?`${KIND_NAME[t.kind]}${t.number}`:'候補未選択');}
+function isProbTarget(kind,number){const t=effectiveProbability();return !t?.pending&&t?.kind===kind&&(t.number===number||t.numbers?.includes(number));}
+// This is a projection of the existing candidate table, not an inference algorithm.
+function projectedProbability(data,t){if(!t||t.pending)return null;if(t.total)return data.yellowTotal;return data.items.filter(x=>x.kind===t.kind&&(t.numbers?t.numbers.includes(x.number):x.number===t.number)).reduce((s,x)=>s+x.probability,0);}
 function chooseProbability(kind,number){
  if(!CANDIDATES[kind]?.includes(number))return;
- probabilityTarget=isProbTarget(kind,number)?null:{kind,number};probabilityOn=true;closeSheet(false);render();
+ if(!probabilityOn){toast('確率表示をONにすると確認できます');return;}
+ if(automaticProbability()){toast('操作中は成功率を表示します。キャンセルで手動確認へ戻ります');return;}
+ probabilityTarget=probabilityTarget?.kind===kind&&probabilityTarget.number===number?null:{kind,number};closeSheet(false);render();
 }
 function probabilityDemo(id){
- probabilityOn=true;
- if(id==='detail'){closeSheet(false);openProbability('a',6);return;}
- probabilityTarget=id==='none'?null:{kind:id,number:id==='normal'?7:id==='yellow'?4.1:6.5};closeSheet(false);render();
+ if(!PROB_DEMOS.some(d=>d.id===id))return;
+ setMode('human');probabilityOn=id!=='off';
+ if(['normal','yellow','red'].includes(id))probabilityTarget={kind:id,number:id==='normal'?7:id==='yellow'?4.1:6.5};
+ else if(['cut7','cutYellow','probe7','dotchi47','restore'].includes(id))probabilityTarget={kind:'normal',number:5};
+ else probabilityTarget=null;
+ if(id==='cut7'||id==='cutYellow'){mode='source';selectedOwn=id==='cut7'?5:4;}
+ if(id==='probe7')actionState={type:'mitsu',numbers:[7],targets:[]};
+ if(id==='dotchi47')actionState={type:'dotchi',numbers:[4,7],targets:[]};
+ closeSheet(false);render();if(id==='detail')openProbability('a',5);
 }
 function probabilityHTML(p,index){
- const data=tileProbabilityData(p,index),t=probabilityTarget;
- const chance=t?data.items.find(x=>x.kind===t.kind&&x.number===t.number)?.probability||0:0;
- return `${t?`<span class="tile-prob candidate ${t.kind}-prob" aria-label="${KIND_NAME[t.kind]}${t.number}の確率 ${percent(chance)}">${KIND_CODE[t.kind]}${percent(chance)}</span>`:''}<span class="tile-prob red-total" aria-label="赤総確率 ${percent(data.redTotal)}">RΣ${percent(data.redTotal)}</span>`;
+ const data=tileProbabilityData(p,index),t=effectiveProbability(),chance=projectedProbability(data,t);
+ return `${chance!==null?`<span class="tile-prob candidate ${t.kind}-prob" aria-label="${probabilityLabel(t)}の${t.auto?'成功率':'確率'} ${percent(chance)}">${percent(chance)}</span>`:''}<span class="tile-prob red-total" aria-label="赤総確率 ${percent(data.redTotal)}">${percent(data.redTotal)}</span>`;
 }
-function probabilityHint(){const t=probabilityTarget;return `<div class="prob-hint"><button class="prob-toggle" data-action="probToggle" aria-pressed="${probabilityOn}" aria-label="確率表示 ${probabilityOn?'ON':'OFF'}">確率${probabilityOn?'ON':'OFF'}</button><span class="prob-current ${t?t.kind+'-prob':''}">${t?`上：${KIND_NAME[t.kind]}${t.number} (${KIND_CODE[t.kind]})`:'候補未選択'}</span><span>下：RΣ 赤総</span>${t?'<button class="prob-clear" data-action="probClear" aria-label="確率対象を解除">解除 ×</button>':''}<span class="hold-note">長押しで詳細</span></div>`;}
+function probabilityHint(){const t=effectiveProbability();return `<div class="prob-hint"><button class="prob-toggle" data-action="probToggle" aria-pressed="${probabilityOn}" aria-label="確率表示 ${probabilityOn?'ON':'OFF'}">確率${probabilityOn?'ON':'OFF'}</button>${probabilityOn?`<span class="prob-current ${t?t.kind+'-prob':''}" title="${t?.auto&&probabilityTarget?'キャンセルすると手動の'+probabilityLabel(probabilityTarget)+'に戻ります':''}">${t?`${t.auto?'自動':'上'}：${probabilityLabel(t)}`:'候補未選択'}</span><span>下：赤総</span>${t&&!t.auto?'<button class="prob-clear" data-action="probClear" aria-label="確率対象を解除">解除 ×</button>':''}<span class="hold-note">長押しで詳細</span>`:'<span>確率を表示しない通常プレイ</span>'}</div>`;}
 function intelHTML(num){return `<section class="intel" aria-label="推理情報"><div class="numbers"><span class="intel-label">数字<br>残数</span><div class="number-strip">${num.map((n,i)=>`<button class="count-cell${n===0?' zero':''}${isProbTarget('normal',i+1)?' chosen':''}" data-prob-kind="normal" data-prob-value="${i+1}" aria-label="通常${i+1}の確率 残り${n}枚" aria-pressed="${isProbTarget('normal',i+1)}"><span>${i+1}</span><small>${n}</small></button>`).join('')}</div><button class="intel-open" data-action="intel" aria-label="残数と黄赤候補の詳細">›</button></div><div class="specials">${['yellow','red'].map(kind=>`<span class="special-group"><b class="special-kind${kind==='red'?' red-kind':''}" title="${KIND_NAME[kind]}は2枚採用">${KIND_NAME[kind]}<small>×2</small></b>${CANDIDATES[kind].map(n=>`<button class="candidate-chip ${kind==='red'?'red-choice':''}${isProbTarget(kind,n)?' chosen':''}" data-prob-kind="${kind}" data-prob-value="${n}" aria-label="${KIND_NAME[kind]}${n}の確率" aria-pressed="${isProbTarget(kind,n)}">${n}</button>`).join('')}</span>`).join('')}</div>${probabilityHint()}</section>`;}
 const app=document.getElementById('app'),overlay=document.getElementById('overlay');
 const inDevice=new URLSearchParams(location.search).has('device');
@@ -124,9 +148,15 @@ const reviewMode=!inDevice&&window.innerWidth>=760;
 let reviewFrame=null,reviewWidth=390,reviewHeight=700;
 function snapshot(){
  const ps=structuredClone(BASE_PLAYERS);
+ if(maxNumber===16){const additions=[[13,13,14,15,16],[13,14,15,16],[14,15,16],[13,14],[15,16]];ps.forEach((p,i)=>p.values.push(...additions[i]));}
  if(['human','success','source','target'].includes(mode)){ps[responseResolved?4:1].cuts.push(responseResolved?5:6);ps[3].cuts.push(3);}
  if(mode==='failure'){ps[1].tokens[5]='6';ps[3].fact='台内に 7';}
  if(['card','reply'].includes(mode)||responseResolved){ps[3].used=true;}
+ if(playerCount===6){
+  const moved=[];
+  for(const ix of [0,1,3,4]){const p=ps[ix],start=ix===3&&maxNumber===12?7:p.values.length-2;const remove=[start,start+1];const old=p.values.map((value,index)=>({value,index}));moved.push(...old.filter(t=>remove.includes(t.index)).map(t=>t.value));const kept=old.filter(t=>!remove.includes(t.index));p.values=kept.map(t=>t.value);p.tokens=Object.fromEntries(kept.flatMap((t,i)=>p.tokens[t.index]?[[i,p.tokens[t.index]]]:[]));p.cuts=kept.flatMap((t,i)=>p.cuts.includes(t.index)?[i]:[]);}
+  moved.sort((a,b)=>a-b);ps.splice(4,0,{id:'e',name:'ハル',no:'5',color:'#947a86',personal:'フツたん',values:moved,tokens:{0:String(moved[0])},cuts:[]});
+ }
  return ps;
 }
 function getSituation(){
@@ -143,10 +173,11 @@ function getSituation(){
  };
  const s={...normal,...(variants[mode]||{})};
  if(customEvent)Object.assign(s,customEvent);
+ if(actionState){const a=actionState,card=CARD_TYPES[a.type],ready=a.type==='dotchi'?a.numbers.length===2:a.numbers.length===1;s.title='あなたの番';s.sub=card.name+' / 使用準備';s.guide=!ready?(a.type==='dotchi'?`異なる通常数字をあと${2-a.numbers.length}枚選択`:'探知する自分の通常数字を選択'):`${card.name} ${a.numbers.join('＋')} · 相手を選択`;s.step=ready?'2':'1';}
  return s;
 }
 function hearts(n){return Array.from({length:4},(_,i)=>`<span class="${i<n?'':'empty'}">${icon('heart')}</span>`).join('');}
-function setMode(id){if(!MODES.some(m=>m.id===id))return;mode=id;replyPick=null;responseResolved=false;customEvent=null;shield=false;selectedOwn=5;selectedTarget={player:'a',index:6};closeSheet(false);render();}
+function setMode(id){if(!MODES.some(m=>m.id===id))return;mode=id;actionState=null;replyPick=null;responseResolved=false;customEvent=null;shield=false;selectedOwn=5;selectedTarget={player:'a',index:6};closeSheet(false);render();}
 function tileHTML(p,i,large=false){
  const val=p.values[i],cut=p.cuts.includes(i),isMe=p.id==='me',isRed=String(val).endsWith('.5'),isYellow=String(val).endsWith('.1');
  const redRevealed=mode==='danger'&&p.id==='c'&&i===9;
@@ -154,6 +185,7 @@ function tileHTML(p,i,large=false){
  const hasProb=probabilityOn&&!isMe&&!cut&&!redRevealed;
  let cls='tile'+(!visible?' hidden-tile':'')+(cut?' cut':'')+(visible&&isYellow?' yellow special':'')+(visible&&isRed?' red special':'')+(hasProb?' with-prob':'');
  if(['source','target'].includes(mode)&&isMe&&i===selectedOwn)cls+=' selected';
+ if(actionState&&((isMe&&Number.isInteger(val)&&actionState.numbers.includes(val))||actionState.targets.some(t=>t.player===p.id&&t.index===i)))cls+=' selected card-selected';
  if(mode==='target'&&p.id===selectedTarget.player&&i===selectedTarget.index)cls+=' selected target-selected';
  if(['human','success','source','target'].includes(mode)&&((p.id===(responseResolved?'me':'b')&&i===(responseResolved?5:6))||(p.id==='d'&&i===3)))cls+=' result-success';
  if(mode==='failure'&&p.id==='b'&&i===5)cls+=' result-failure';
@@ -171,32 +203,36 @@ function playerHTML(p){
  const active=['thinking','card','reply'].includes(mode)&&p.id==='d';
  const acting=['success','failure'].includes(mode)&&p.id==='d';
  const remain=p.values.length-p.cuts.length;
- return `<section class="player${active?' active':''}${acting?' acting':''}" aria-label="${p.name}の盤面"><div class="player-head"><span class="avatar" style="--avatar:${p.color}">${p.no}</span><span class="player-name">${p.name}</span><span class="mini-personal${p.used?' used':''}">${p.personal}${p.used?' 済':''}</span>${p.fact?`<span class="board-fact">${p.fact}</span>`:''}<span class="remaining" aria-label="未切断${remain}枚"><b>${remain}</b></span><button class="zoom-btn" data-zoom="${p.id}" aria-label="${p.name}の台を拡大">${icon('zoom')}</button></div><div class="rack" style="--count:${p.values.length}">${p.values.map((_,i)=>tileHTML(p,i)).join('')}</div></section>`;
+ return `<section class="player${active?' active':''}${acting?' acting':''}" aria-label="${p.name}の盤面"><div class="player-head"><span class="avatar" style="--avatar:${p.color}">${p.no}</span><span class="player-name">${p.name}</span><span class="mini-personal${p.used?' used':''}">${p.personal}${p.used?' 済':''}</span>${p.fact?`<span class="board-fact">${p.fact}</span>`:''}<span class="remaining" aria-label="未切断${remain}枚"><b>${remain}</b></span><button class="zoom-btn" data-zoom="${p.id}" aria-label="${p.name}の台を拡大">${icon('zoom')}</button></div><div class="rack${p.values.length>14?' dense-rack':''}" style="--count:${p.values.length}">${p.values.map((_,i)=>tileHTML(p,i)).join('')}</div></section>`;
 }
 function equipmentLabel(e){return e.id==='gun'&&['failure','thinking','card','reply','danger'].includes(mode)?'7：0/4':shield&&e.id==='ice'?'保護中':e.label;}
-function equipmentHTML(){return EQUIPMENT.map(e=>`<button class="equip-card ${e.status}${shield&&e.id==='ice'?' shielded':''}" data-equipment="${e.id}" aria-label="${e.name} ${equipmentLabel(e)}" title="${e.name} · ${equipmentLabel(e)}">${icon(e.id)}<b>${e.short}</b><small class="${e.status==='ready'?'ready-dot':''}">${shield&&e.id==='ice'?'盾':e.status==='ready'?'●':e.status==='used'?'済':equipmentLabel(e).split('：')[1]}</small></button>`).join('');}
-function counts(ps){return Array.from({length:12},(_,n)=>4-ps.reduce((sum,p)=>sum+p.values.filter((v,i)=>v===n+1&&p.cuts.includes(i)).length,0));}
+const EQUIP_LABELS={ice:['氷','⑤'],radar:['なんレー','②'],equal:['イコール','⑧'],battery:['電池','⑥'],gun:['銃','⑦']};
+function equipmentHTML(){return EQUIPMENT.map(e=>`<button class="equip-card ${e.status}${shield&&e.id==='ice'?' shielded':''}" data-equipment="${e.id}" aria-label="${e.name} 解放数字${EQUIP_LABELS[e.id][1]} ${equipmentLabel(e)}" title="${e.name} · ${equipmentLabel(e)}"><b>${EQUIP_LABELS[e.id][0]}</b><span class="equip-number">${EQUIP_LABELS[e.id][1]}</span><small class="${e.status==='ready'&&!(shield&&e.id==='ice')?'ready-dot':''}">${shield&&e.id==='ice'?'保護中':e.status==='ready'?'○':e.status==='used'?'済':equipmentLabel(e).split('：')[1]}</small></button>`).join('');}
+function counts(ps){return Array.from({length:maxNumber},(_,n)=>4-ps.reduce((sum,p)=>sum+p.values.filter((v,i)=>v===n+1&&p.cuts.includes(i)).length,0));}
+function cardTargetCount(){if(!actionState)return 0;const a=actionState,p=snapshot().find(x=>x.id===a.targets[0]?.player);return a.type==='dotchi'?1:a.type==='super'?(p?p.values.length-p.cuts.length:1):Math.min(CARD_TYPES[a.type].count,p?p.values.length-p.cuts.length:CARD_TYPES[a.type].count);}
+function cardReady(){const a=actionState;return a&&(a.type==='dotchi'?a.numbers.length===2:a.numbers.length===1)&&a.targets.length>=cardTargetCount();}
 function actionHTML(){
  const history=`<button class="secondary history-btn" data-action="history" aria-label="履歴を開く">${icon('history')}履歴</button>`;
+ if(actionState){const a=actionState;return `<button class="secondary cancel-btn" data-action="cancel">取消</button><button class="secondary" data-action="actionNumbers">数字</button><button class="primary reply-button" data-action="cardExecute" ${cardReady()?'':'disabled'}>${a.targets.length?`${a.targets.length}枚選択 · `:''}使用する</button>${history}`;}
  if(mode==='thinking')return `<button class="primary" disabled><span class="thinking-dots">考え中</span></button>${history}`;
  if(['success','failure'].includes(mode))return `<button class="secondary" data-action="instant">手番外カード</button><button class="primary" data-action="next">あなたの手番へ →</button>${history}`;
  if(mode==='card')return `<button class="primary reply-button" data-action="next">対象を確認して、選択へ →</button>${history}`;
  if(mode==='reply')return `<button class="primary reply-button" data-action="reply" ${replyPick===null?'disabled':''}>${icon('cut')}選んだ「7」を切断</button>${history}`;
  if(mode==='danger')return `<button class="primary danger-button" data-action="reset">最初のデモに戻る</button>${history}`;
  if(['source','target'].includes(mode)){const v=snapshot().find(p=>p.id==='me').values[selectedOwn];return `<button class="secondary cancel-btn" data-action="cancel">戻る</button><button class="primary" data-action="execute" ${mode!=='target'?'disabled':''}>${icon('cut')}「${v===4.1?'黄':v}」で切断する</button>${history}`;}
- return `<button class="primary" data-action="normal">${icon('cut')}通常切断</button><button class="secondary" data-action="self">自己切断</button>${history}`;
+ return `<button class="primary" data-action="normal">${icon('cut')}通常切断</button><button class="secondary" data-action="cards">カード</button>${history}`;
 }
 function render(){
  const ps=snapshot(),me=ps.find(p=>p.id==='me'),s=getSituation(),num=counts(ps),chosen=me.values[selectedOwn];
  const tag=mode==='source'?`自分 ${chosen===4.1?'黄':chosen}`:mode==='target'?`${chosen===4.1?'黄':chosen} → ${ps.find(p=>p.id===selectedTarget.player).name} ${selectedTarget.index+1}番目`:'';
- app.innerHTML=`<main class="game" id="game"><header class="hud"><div class="topline"><div class="brand">${icon('cut')}何切る？</div><div class="life"><span>ライフ</span><span class="hearts" aria-hidden="true">${hearts(mode==='failure'?3:4)}</span><strong>${mode==='failure'?3:4}</strong></div><button class="menu-btn" data-action="menu" aria-label="ゲームメニュー">${icon('menu')}</button></div><div class="turnline"><span class="turn-marker ${s.markerClass||''}" aria-hidden="true">${s.marker}</span><strong class="turn-title">${s.title}</strong><span class="turn-sub">${s.sub}</span></div></header>
+ app.innerHTML=`<main class="game${playerCount===6?' six':''}${maxNumber===16?' max16':''}" id="game" style="--max-number:${maxNumber}"><header class="hud"><div class="topline"><div class="brand">${icon('cut')}何切る？</div><div class="life"><span>ライフ</span><span class="hearts" aria-hidden="true">${hearts(mode==='failure'?3:4)}</span><strong>${mode==='failure'?3:4}</strong></div><button class="menu-btn" data-action="menu" aria-label="ゲームメニュー">${icon('menu')}</button></div><div class="turnline"><span class="turn-marker ${s.markerClass||''}" aria-hidden="true">${s.marker}</span><strong class="turn-title">${s.title}</strong><span class="turn-sub">${s.sub}</span></div></header>
  <section class="event ${s.tone} change-flash" aria-label="直前のアクション" aria-live="polite"><div class="event-icon" aria-hidden="true">${s.symbol}</div><div class="event-copy"><div class="event-meta">${s.meta}</div><div class="event-main">${s.main}</div><div class="event-result">${s.result}</div></div><button class="event-detail" data-action="history" aria-label="アクションの詳細を見る">›</button></section>
- <section class="boards" aria-label="CPU4人の盤面"><div class="section-label"><span>仲間の盤面 · 左から数字順</span><button data-action="legend">表示の見方 ⓘ</button></div><div class="cpu-list" id="cpuList">${ps.filter(p=>p.id!=='me').map(playerHTML).join('')}</div></section>
+ <section class="boards" aria-label="CPU${playerCount-1}人の盤面"><div class="section-label"><span>仲間の盤面 · 左から数字順</span><button data-action="legend">表示の見方 ⓘ</button></div><div class="cpu-list" id="cpuList" tabindex="${playerCount===6?0:-1}" aria-label="CPU盤面一覧">${ps.filter(p=>p.id!=='me').map(playerHTML).join('')}</div></section>
  ${intelHTML(num)}
  <section class="equipment" aria-label="共有装備5枚"><div class="equip-label">装備<br><small>2枚使用可</small></div>${equipmentHTML()}</section>
- <section class="own" aria-label="あなたの盤面"><div class="own-head"><span class="avatar">自</span><span class="own-name">あなた</span><span class="own-count">残${me.values.length-me.cuts.length}</span><button class="zoom-btn" data-zoom="me" aria-label="自分の台を拡大">${icon('zoom')}</button><button class="personal-card" data-action="personal">${icon('card')}ドチアタ<small>未使用</small></button></div><div class="rack" style="--count:${me.values.length}">${me.values.map((_,i)=>tileHTML(me,i)).join('')}</div></section>
+ <section class="own" aria-label="あなたの盤面"><div class="own-head"><span class="avatar">自</span><span class="own-name">あなた</span><span class="own-count">残${me.values.length-me.cuts.length}</span><button class="zoom-btn" data-zoom="me" aria-label="自分の台を拡大">${icon('zoom')}</button><button class="personal-card" data-action="personal">${icon('card')}ドチアタ<small>未使用</small></button></div><div class="rack${me.values.length>14?' dense-rack':''}" style="--count:${me.values.length}">${me.values.map((_,i)=>tileHTML(me,i)).join('')}</div></section>
  <section class="command" aria-label="操作"><div class="instruction"><span class="step-number">${s.step}</span><div class="instruction-copy"><strong>${s.guide}</strong><small>${s.help}</small></div>${tag?`<span class="selection-tag">${tag}</span>`:''}</div><div class="actions">${actionHTML()}</div></section>
- <nav class="demo-strip" aria-label="デモ状態の切り替え"><span>UI MOCK · 5人 / 数字12</span><button class="demo-open" data-action="demo">${MODES.find(m=>m.id===mode).name} ▾</button><button class="demo-arrow" data-action="prevMode" aria-label="前のデモ状態">‹</button><button class="demo-arrow" data-action="nextMode" aria-label="次のデモ状態">›</button></nav></main>`;
+ <nav class="demo-strip" aria-label="デモ状態の切り替え"><span>UI MOCK · ${playerCount}人 / 数字${maxNumber}</span><button class="demo-open" data-action="demo">${MODES.find(m=>m.id===mode).name} ▾</button><button class="demo-arrow" data-action="prevMode" aria-label="前のデモ状態">‹</button><button class="demo-arrow" data-action="nextMode" aria-label="次のデモ状態">›</button></nav></main>`;
  requestAnimationFrame(reportMetrics);
 }
 function toast(text){const el=document.getElementById('toast');clearTimeout(toastTimer);el.textContent=text;el.hidden=false;toastTimer=setTimeout(()=>el.hidden=true,2600);}
@@ -204,20 +240,46 @@ function closeSheet(restore=true){overlay.hidden=true;overlay.innerHTML='';focus
 function openSheet(title,body,footer=''){
  lastFocus=document.activeElement;overlay.innerHTML=`<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div class="sheet-handle"></div><header class="sheet-head"><h2 class="sheet-title" id="sheetTitle">${title}</h2><button class="close" data-action="close" aria-label="閉じる">×</button></header><div class="sheet-body">${body}</div>${footer?`<footer class="sheet-footer">${footer}</footer>`:''}</section>`;overlay.hidden=false;overlay.querySelector('.close').focus();requestAnimationFrame(reportMetrics);
 }
-function openDemo(){openSheet('見たい状態を選ぶ',`<p class="sheet-note">実際のページ領域：${innerWidth} × ${innerHeight}px<br>ゲーム処理は行わず、ダミー値で表示を切り替えます。</p><h3 class="demo-heading">確率の表示</h3><div class="demo-options">${PROB_DEMOS.map(m=>`<button class="demo-option" data-prob-demo="${m.id}">${m.name}</button>`).join('')}</div><h3 class="demo-heading">ゲームの状態</h3><div class="demo-options">${MODES.map((m,i)=>`<button class="demo-option${mode===m.id?' active':''}" data-mode="${m.id}"><span class="num">${String(i+1).padStart(2,'0')}</span><span>${m.name}<small>${m.note}</small></span></button>`).join('')}</div>`);}
+function openDemo(){openSheet('見たい状態を選ぶ',`${settingsHTML()}<h3 class="demo-heading">確率の表示</h3><div class="demo-options">${PROB_DEMOS.map(m=>`<button class="demo-option" data-prob-demo="${m.id}">${m.name}</button>`).join('')}</div><h3 class="demo-heading">ゲームの状態</h3><div class="demo-options">${MODES.map((m,i)=>`<button class="demo-option${mode===m.id?' active':''}" data-mode="${m.id}"><span class="num">${String(i+1).padStart(2,'0')}</span><span>${m.name}<small>${m.note}</small></span></button>`).join('')}</div>`);}
 function openHistory(){const s=getSituation();openSheet('アクション履歴',`<div class="history-item"><small>いま表示しているアクション</small><b>${s.main}</b><p>${s.result}</p></div><div class="history-item"><small>ミナの手番</small><b>ミナ → アオイの① ·「1」で切断</b><p>✓ 成功。2枚切断。</p></div><div class="history-item"><small>以前のアクション</small><b>通常数字「3」は、4枚すべて切断済み</b><p>切断したタイルは、元の位置に残ります。</p></div><p class="sheet-note">履歴もモック用の固定データです。モック内の操作は保存されません。</p>`);}
-function openIntel(){const ns=counts(snapshot());openSheet('確率確認対象を選ぶ',`<p class="prob-legend">タップで選択・もう一度タップで解除。<br>タイル上段：選択した候補の確率<br>タイル下段：<b>RΣ = 赤すべての総確率</b></p><p><b>通常数字 / 未切断枚数</b></p><div class="ledger">${ns.map((n,i)=>`<button data-prob-kind="normal" data-prob-value="${i+1}" aria-pressed="${isProbTarget('normal',i+1)}">${i+1}<small>残り ${n}</small></button>`).join('')}</div>${['yellow','red'].map(kind=>`<b>${KIND_NAME[kind]}：${CANDIDATES[kind].length}候補から2枚採用</b><div class="prob-grid">${CANDIDATES[kind].map(n=>`<button class="${isProbTarget(kind,n)?'chosen':''}" data-prob-kind="${kind}" data-prob-value="${n}" aria-pressed="${isProbTarget(kind,n)}">${KIND_NAME[kind]} ${n}</button>`).join('')}</div>`).join('')}<p class="sheet-note">候補と採用された値は別です。秘密の採用結果は表示しません。確率は表示確認用のダミー値です。</p>`,`<button class="secondary" data-action="probToggle">確率表示を${probabilityOn?'OFF':'ON'}にする</button><button class="primary" data-action="close">盤面に戻る</button>`);}
+function openIntel(){const ns=counts(snapshot());openSheet('確率確認対象を選ぶ',`<p class="prob-legend">タップで選択・もう一度タップで解除。<br>タイル上段：選択した候補の確率<br>タイル下段：<b>赤文字 = 赤すべての総確率</b></p><p><b>通常数字 / 未切断枚数</b></p><div class="ledger">${ns.map((n,i)=>`<button data-prob-kind="normal" data-prob-value="${i+1}" aria-pressed="${isProbTarget('normal',i+1)}">${i+1}<small>残り ${n}</small></button>`).join('')}</div>${['yellow','red'].map(kind=>`<b>${KIND_NAME[kind]}：${CANDIDATES[kind].length}候補から2枚採用</b><div class="prob-grid">${CANDIDATES[kind].map(n=>`<button class="${isProbTarget(kind,n)?'chosen':''}" data-prob-kind="${kind}" data-prob-value="${n}" aria-pressed="${isProbTarget(kind,n)}">${KIND_NAME[kind]} ${n}</button>`).join('')}</div>`).join('')}<p class="sheet-note">候補と採用された値は別です。秘密の採用結果は表示しません。確率は表示確認用のダミー値です。</p>`,`<button class="secondary" data-action="probToggle">確率表示を${probabilityOn?'OFF':'ON'}にする</button><button class="primary" data-action="close">盤面に戻る</button>`);}
 function openProbability(id,index){
+ if(!probabilityOn)return;
  const p=snapshot().find(x=>x.id===id);if(!p||p.id==='me'||p.cuts.includes(index))return;
  const data=tileProbabilityData(p,index);
  openSheet(`${p.name} · ${index+1}番目の全候補`, `<p class="sheet-note">台A / 左から${index+1}番目 · ダミー確率<br>候補別の赤確率と、赤総確率は別の値です。</p><div class="prob-summary">${[['通常合計','normalTotal','normal'],['黄合計','yellowTotal','yellow'],['赤総確率','redTotal','red'],['全候補合計','total','total']].map(([label,key,kind])=>`<div class="${kind}-prob">${label}<strong>${percent(data[key],true)}</strong></div>`).join('')}</div><table class="prob-table" aria-label="全候補の確率"><thead><tr><th>種類</th><th>候補</th><th>確率</th></tr></thead><tbody>${data.items.map(item=>`<tr class="${item.kind}-prob${item.probability===0?' prob-zero':''}"><td>${KIND_NAME[item.kind]}</td><td>${item.number}</td><td>${percent(item.probability,true)}</td></tr>`).join('')}</tbody></table><p class="sheet-note" style="margin-top:12px">一覧の確率と同じダミーデータを表示しています。本体へ統合する際は、既存の推定値をそのまま表示する想定です。</p>`);
 }
 function openEquipment(id){const e=EQUIPMENT.find(x=>x.id===id);if(!e)return;openSheet(e.name,`<div class="detail-card"><div class="art">${icon(e.id)}</div><h3>${e.name}</h3><div class="card-meta">${e.meta}</div><p>${e.effect}</p><span class="card-state">${equipmentLabel(e)}</span></div><p class="sheet-note">この画面を開くだけでは使用しません。</p>`,e.status==='ready'?`<button class="secondary" data-action="close">戻る</button><button class="primary" data-use-equipment="${id}">使用する（デモ）</button>`:`<button class="secondary" data-action="close">盤面に戻る</button>`);}
-function openPersonal(){openSheet('個人カード',`<div class="detail-card"><div class="art">${icon('card')}</div><h3>ドッチカアタレイ</h3><div class="card-meta">ドチアタ · あなた専用 · 自分の手番 · 残り1回</div><p>自分の同じ台から異なる通常数字を2つ宣言し、相手のタイル1枚を指定します。</p><span class="card-state">未使用</span></div><p class="sheet-note">このモックではカードの見え方と使用前確認を表示します。効果の計算は行いません。</p>`,`<button class="secondary" data-action="close">盤面に戻る</button>`);}
-function openLegend(){openSheet('盤面の見方',`<div class="legend-line"><span class="legend-sample">?</span><span>伏せタイル。数字は分かりません。</span></div><div class="legend-line"><span class="legend-sample">3✓</span><span>切断済み。位置と数字は残ります。</span></div><div class="legend-line"><span class="legend-sample" style="background:#eee0b8">2</span><span>タイル下の札は、全員に公開された情報です。</span></div><div class="legend-line"><span class="legend-sample" style="background:#c1d9db">↔8</span><span>交換で、あなただけが知っている数字です。</span></div><div class="legend-line"><span class="legend-sample">≠</span><span>線で結ばれた対象の関係を示します。</span></div><p>タイルは一覧から直接選べます。押しにくいときは各プレイヤー右側の拡大ボタンを使ってください。</p>`);}
+function openPersonal(){openSheet('個人カード',`<div class="detail-card"><div class="art">${icon('card')}</div><h3>ドッチカアタレイ</h3><div class="card-meta">ドチアタ · あなた専用 · 自分の手番 · 残り1回</div><p>自分の同じ台から異なる通常数字を2つ宣言し、相手のタイル1枚を指定します。</p><span class="card-state">未使用</span></div><p class="sheet-note">手元のタイルで宣言数字を選ぶ操作を体験できます。効果の処理は行いません。</p>`,`<button class="secondary" data-action="close">戻る</button><button class="primary" data-start-card="dotchi" ${['human','source','target'].includes(mode)?'':'disabled'}>使用準備へ</button>`);}
+function openCards(){openSheet('カードと操作',`<div class="card-library"><button data-start-card="dotchi">ドチアタ<small>異なる通常数字を2つ宣言 → 相手1枚</small></button>${['futsu','mitsu','super'].map(type=>`<button data-start-card="${type}">${CARD_TYPES[type].name}<small>操作デモ · 自分の数字を選択 → ${type==='super'?'相手の台全体':`同じ相手の${CARD_TYPES[type].count}枚`}</small></button>`).join('')}<button data-action="self">自己切断<small>自分だけで切断する操作</small></button></div><p class="sheet-note" style="margin-top:12px">探知機は操作表示の確認用です。個人カード・装備の所持や消費は計算しません。</p>`);}
+function startCard(type){if(!CARD_TYPES[type])return;if(!['human','source','target'].includes(mode)){toast('自分の手番のデモで使用できます');return;}mode='human';actionState={type,numbers:[],targets:[]};closeSheet(false);render();}
+function pickCardTile(p,index){
+ const a=actionState;
+ if(p.id==='me'){
+  const n=p.values[index];if(!Number.isInteger(n)){toast('通常数字のタイルを選んでください');return;}
+  if(a.type==='dotchi'){if(a.numbers.includes(n))a.numbers=a.numbers.filter(x=>x!==n);else if(a.numbers.length<2)a.numbers.push(n);else{toast('選択中の数字をタップして解除できます');return;}}else a.numbers=[n];
+  a.targets=[];render();return;
+ }
+ if(a.type==='dotchi'?a.numbers.length!==2:a.numbers.length!==1){toast('先に自分の通常数字を選んでください');return;}
+ if(a.targets.length&&a.targets[0].player!==p.id)a.targets=[];
+ if(a.type==='super')a.targets=p.values.flatMap((_,i)=>p.cuts.includes(i)?[]:[{player:p.id,index:i}]);
+ else{const exists=a.targets.some(t=>t.index===index);if(exists)a.targets=a.targets.filter(t=>t.index!==index);else{const limit=a.type==='dotchi'?1:Math.min(CARD_TYPES[a.type].count,p.values.length-p.cuts.length);if(a.targets.length>=limit)a.targets.shift();a.targets.push({player:p.id,index});}}
+ render();
+}
+function executeCardDemo(){if(!cardReady())return;const a=actionState,p=snapshot().find(x=>x.id===a.targets[0].player);openSheet('カードの実行確認',`<p><b>${CARD_TYPES[a.type].name} · ${a.numbers.join('＋')}</b><br>対象：${p.name}の${a.targets.map(t=>t.index+1).join('・')}番目</p><p>タイル上段は${a.type==='dotchi'?'宣言した2数字の合計':`各タイルが${a.numbers[0]}である`}確率です。${a.type!=='dotchi'?'複数タイルを対象にしたカード全体の成功率ではありません。':''}</p><p class="sheet-note">このモックは選択と表示だけを確認します。</p>`,`<button class="secondary" data-action="close">対象に戻る</button><button class="primary" data-action="cancel">操作を終了</button>`);}
+function setConfiguration(key,value){
+ if(key==='players'&&[5,6].includes(value))playerCount=value;
+ else if(key==='max'&&[12,16].includes(value)){maxNumber=value;CANDIDATES.normal=Array.from({length:maxNumber},(_,i)=>i+1);if(probabilityTarget?.kind==='normal'&&probabilityTarget.number>maxNumber)probabilityTarget=null;}
+ else return;
+ setMode('human');
+}
+function settingsHTML(){return `<p class="viewport-debug" data-viewport-debug>viewport: ${innerWidth} × ${innerHeight} CSS px</p><p class="sheet-note">ブラウザーUIを除いた、現在のページ表示領域です。</p><b>人数</b><div class="settings-grid">${[5,6].map(n=>`<button data-config="players" data-value="${n}" aria-pressed="${playerCount===n}">${n}人${n===5?'（標準）':''}</button>`).join('')}</div><b>最大数字</b><div class="settings-grid">${[12,16].map(n=>`<button data-config="max" data-value="${n}" aria-pressed="${maxNumber===n}">最大 ${n}</button>`).join('')}</div><p class="sheet-note">5人は全員を同時表示。6人はCPU盤面内のスクロールを許容します。最大16でもタイルは一列です。</p>`;}
+function openSettings(){openSheet('表示・デモ設定',settingsHTML(),`<button class="primary" data-action="demo">デモ状態を選ぶ</button>`);}
+function openLegend(){openSheet('盤面の見方',`<p class="prob-legend"><b>タイルの上側</b>：選択中の候補、または現在の行動の成功率。青は通常数字、金は黄色、赤は赤候補です。<br><b>下側の赤文字</b>：赤タイル総確率。<br>操作中は成功率を優先し、キャンセルすると元の手動表示に戻ります。確率OFFでは長押しも含めて表示しません。</p><div class="legend-line"><span class="legend-sample">?</span><span>伏せタイル。数字は分かりません。</span></div><div class="legend-line"><span class="legend-sample">3✓</span><span>切断済み。位置と数字は残ります。</span></div><div class="legend-line"><span class="legend-sample" style="background:#eee0b8">2</span><span>タイル下の札は、全員に公開された情報です。</span></div><div class="legend-line"><span class="legend-sample" style="background:#c1d9db">↔8</span><span>交換で、あなただけが知っている数字です。</span></div><div class="legend-line"><span class="legend-sample">≠</span><span>線で結ばれた対象の関係を示します。</span></div><p>タイルは一覧から直接選べます。押しにくいときは各プレイヤー右側の拡大ボタンを使ってください。</p>`);}
 function openFocus(id){const p=snapshot().find(x=>x.id===id);if(!p)return;focusPlayer=id;focusIndex=null;openSheet(`${p.name} · 台A`, `<p class="focus-caption">${id==='me'?'自分のタイル':'タイルの並びと情報トークン'} · 横に動かして確認</p><div class="focus-scroll"><div class="focus-rack">${p.values.map((_,i)=>tileHTML(p,i,true)).join('')}</div></div><div id="focusReadout" class="focus-readout">タイルを選ぶと、対象の位置と情報を表示します。</div><p class="sheet-note" style="margin-top:10px">拡大しても並び順は変わりません。選択は盤面に戻って確認できます。</p>`,`<button class="secondary" data-action="close">閉じる</button><button class="primary" id="focusChoose" data-action="focusChoose" disabled>このタイルを選択</button>`);focusPlayer=id;}
-function selectFocused(id,index){focusPlayer=id;focusIndex=index;const p=snapshot().find(x=>x.id===id),cut=p.cuts.includes(index),known=p.id==='me'||cut;overlay.querySelectorAll('.focus-rack .tile').forEach(b=>b.classList.toggle('selected',Number(b.dataset.tileIndex)===index));document.getElementById('focusReadout').innerHTML=`<b>${p.name} · ${index+1}番目</b><br>${cut?'切断済み：'+p.values[index]:known?'数字：'+p.values[index]:p.tokens[index]?'公開情報トークン：'+p.tokens[index]:p.id==='c'&&index===7?'交換で知っている数字：8':'公開数字なし'} ${!cut&&id!=='me'?`<button class="secondary" data-prob-tile="${id}:${index}" style="float:right;min-height:36px">全候補の確率</button>`:''}`;const btn=document.getElementById('focusChoose');btn.disabled=cut||!(['human','source','target','reply'].includes(mode))||(id!=='me'&&mode==='human')||(mode==='reply'&&(id!=='me'||index!==5));}
+function selectFocused(id,index){focusPlayer=id;focusIndex=index;const p=snapshot().find(x=>x.id===id),cut=p.cuts.includes(index),known=p.id==='me'||cut;overlay.querySelectorAll('.focus-rack .tile').forEach(b=>b.classList.toggle('selected',Number(b.dataset.tileIndex)===index));document.getElementById('focusReadout').innerHTML=`<b>${p.name} · ${index+1}番目</b><br>${cut?'切断済み：'+p.values[index]:known?'数字：'+p.values[index]:p.tokens[index]?'公開情報トークン：'+p.tokens[index]:p.id==='c'&&index===7?'交換で知っている数字：8':'公開数字なし'} ${probabilityOn&&!cut&&id!=='me'?`<button class="secondary" data-prob-tile="${id}:${index}" style="float:right;min-height:36px">全候補の確率</button>`:''}`;const btn=document.getElementById('focusChoose');btn.disabled=cut||!(['human','source','target','reply'].includes(mode))||(id!=='me'&&mode==='human'&&!actionState)||(mode==='reply'&&(id!=='me'||index!==5));}
 function pickTile(id,index){const p=snapshot().find(x=>x.id===id);if(!p||p.cuts.includes(index)){toast('切断済みのタイルです。位置はそのまま残ります');return;}
+ if(actionState)return pickCardTile(p,index);
  if(mode==='reply'){if(id==='me'&&index===5){replyPick=index;render();}else toast('探知された3枚の中から、自分の「7」を選んでください');return;}
  if(!['human','source','target'].includes(mode)){openFocus(id);selectFocused(id,index);return;}
  if(id==='me'){selectedOwn=index;mode='source';customEvent=null;render();return;}
@@ -226,8 +288,12 @@ function pickTile(id,index){const p=snapshot().find(x=>x.id===id);if(!p||p.cuts.
 }
 function executeDemo(){const ps=snapshot(),me=ps.find(p=>p.id==='me'),op=ps.find(p=>p.id===selectedTarget.player);const declaration=me.values[selectedOwn]===4.1?'黄':me.values[selectedOwn];openSheet('切断の実行確認',`<p><b>自分の「${declaration}」</b><br>↓<br><b>${op.name} · 台Aの${selectedTarget.index+1}番目</b></p><p class="sheet-note">ここまでの選択操作を体験できます。ゲームロジックは実装していないため、結果は下のデモ切り替えで比較します。</p>`,`<button class="secondary" data-action="close">選び直す</button><button class="primary" data-mode="success">成功表示の例を見る</button>`);}
 function handleAction(action){
+ if(action==='cards')return openCards();
+ if(action==='settings')return openSettings();
+ if(action==='cardExecute')return executeCardDemo();
+ if(action==='actionNumbers'&&actionState){actionState.numbers=[];actionState.targets=[];render();return;}
  if(action==='probToggle'){probabilityOn=!probabilityOn;closeSheet(false);render();return;}
- if(action==='probClear'){probabilityTarget=null;render();return;}
+ if(action==='probClear'){if(!automaticProbability())probabilityTarget=null;render();return;}
  if(action==='close')return closeSheet();
  if(action==='demo')return openDemo();
  if(action==='history')return openHistory();
@@ -243,10 +309,12 @@ function handleAction(action){
  if(action==='execute')return executeDemo();
  if(action==='focusChoose'){const id=focusPlayer,i=focusIndex;if(id===null||i===null)return;closeSheet();return pickTile(id,i);}
  if(action==='prevMode'||action==='nextMode'){const index=MODES.findIndex(m=>m.id===mode);return setMode(MODES[(index+(action==='nextMode'?1:MODES.length-1))%MODES.length].id);}
- if(action==='menu')return openSheet('ゲームメニュー',`<p><b>5人プレイ · 最大数字12</b><br>人間1人 ＋ CPU4人<br>個人カードあり · 共有装備5枚</p><div class="demo-options"><button class="demo-option" data-action="demo">デモ状態を切り替える</button><button class="demo-option" data-action="legend">盤面の見方</button><button class="demo-option" data-action="intel">残数・黄赤情報</button></div><p class="sheet-note" style="margin-top:15px">これは独立したUIモックアップです。元のsolo.htmlやゲームデータには接続しません。</p>`);
+ if(action==='menu')return openSheet('ゲームメニュー',`<p class="viewport-debug" data-viewport-debug>viewport: ${innerWidth} × ${innerHeight} CSS px</p><p><b>${playerCount}人プレイ · 最大数字${maxNumber}</b><br>人間1人 ＋ CPU${playerCount-1}人<br>個人カードあり · 共有装備5枚</p><div class="demo-options"><button class="demo-option" data-action="settings">人数・最大数字の設定</button><button class="demo-option" data-action="cards">カードの操作デモ</button><button class="demo-option" data-action="demo">デモ状態を切り替える</button><button class="demo-option" data-action="legend">盤面の見方</button><button class="demo-option" data-action="intel">残数・黄赤情報</button></div><p class="sheet-note" style="margin-top:15px">これは独立したUIモックアップです。元のsolo.htmlやゲームデータには接続しません。</p>`);
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b||b.disabled)return;
+ if(b.dataset.config)return setConfiguration(b.dataset.config,Number(b.dataset.value));
+ if(b.dataset.startCard)return startCard(b.dataset.startCard);
  if(b.dataset.probKind)return chooseProbability(b.dataset.probKind,Number(b.dataset.probValue));
  if(b.dataset.probDemo)return probabilityDemo(b.dataset.probDemo);
  if(b.dataset.probTile){const [id,i]=b.dataset.probTile.split(':');return openProbability(id,Number(i));}
@@ -287,24 +355,26 @@ function reportMetrics(){
  const g=document.getElementById('game'),list=document.getElementById('cpuList');if(!g||!list)return;
  const own=document.querySelector('.own').getBoundingClientRect(),cmd=document.querySelector('.command').getBoundingClientRect();
  const horizontal=[...g.querySelectorAll('.player-head,.rack,.specials,.event-copy,.instruction,.actions')].filter(el=>el.scrollWidth>el.clientWidth+1).map(el=>el.className);
- const payload={type:'mockMetrics',mode,probability:targetKey(),probabilityOn,w:innerWidth,h:innerHeight,pageX:Math.max(0,document.documentElement.scrollWidth-innerWidth),pageY:Math.max(0,g.scrollHeight-innerHeight),boardScroll:Math.max(0,list.scrollHeight-list.clientHeight),ownVisible:own.top>=0&&own.bottom<=innerHeight,controlsVisible:cmd.bottom<=innerHeight,horizontal,rows:[...list.children].map(el=>Math.round(el.getBoundingClientRect().height)),sheet:!overlay.hidden};
+ const payload={type:'mockMetrics',mode,playerCount,maxNumber,probability:targetKey(),probabilityOn,w:innerWidth,h:innerHeight,pageX:Math.max(0,document.documentElement.scrollWidth-innerWidth),pageY:Math.max(0,g.scrollHeight-innerHeight),boardScroll:Math.max(0,list.scrollHeight-list.clientHeight),ownVisible:own.top>=0&&own.bottom<=innerHeight,controlsVisible:cmd.bottom<=innerHeight,horizontal,rows:[...list.children].map(el=>Math.round(el.getBoundingClientRect().height)),sheet:!overlay.hidden};
  if(parent!==window)parent.postMessage(payload,location.origin==='null'?'*':location.origin);
 }
 function initReview(){
- app.innerHTML=`<main class="review"><aside class="review-side"><div class="review-kicker">INTERFACE STUDY / 01</div><h1>盤面を見渡す。<br>次の一手がわかる。</h1><p class="review-intro">何切る？ スマートフォンUIモック<br>5人の盤面を、ひとつの作業台に。<br><strong>サイズは画面全体でなく、ページの有効領域です。</strong></p><div class="device-options">${[[360,650],[390,700],[430,760],[360,800],[390,844],[430,932]].map(([w,h])=>`<button data-device="${w},${h}" class="${w===390&&h===700?'active':''}"><b>${w} × ${h}</b>表示サイズ</button>`).join('')}</div><div class="review-states">${MODES.map((m,i)=>`<button data-review-mode="${m.id}" class="${m.id==='human'?'active':''}"><small>${String(i+1).padStart(2,'0')}</small>${m.name}</button>`).join('')}</div><div class="review-probs">${PROB_DEMOS.map(m=>`<button data-review-prob="${m.id}">${m.name}</button>`).join('')}</div><div id="reviewMetrics" class="review-metrics" aria-live="polite">表示を確認しています…</div><a class="open-native" href="?device=1" target="_blank" rel="noopener">画面いっぱいで開く ↗</a><p class="review-foot">単一HTML・オフライン動作<br>ゲームロジック・CPU・確率計算は含みません。<br>端末枠は見本です。中の表示領域は指定サイズです。</p></aside><section class="preview-stage" id="previewStage" aria-label="スマートフォン表示"><div class="device-frame" id="deviceFrame"><iframe id="reviewFrame" title="スマートフォンのUIモックアップ" src="?device=1" width="390" height="700"></iframe></div><div class="preview-caption" id="previewCaption">390 × 700 · 実寸の表示領域を縮小プレビュー</div></section></main>`;
+ app.innerHTML=`<main class="review"><aside class="review-side"><div class="review-kicker">INTERFACE STUDY / 01</div><h1>盤面を見渡す。<br>次の一手がわかる。</h1><p class="review-intro">何切る？ スマートフォンUIモック<br>5人の盤面を、ひとつの作業台に。<br><strong>サイズは画面全体でなく、ページの有効領域です。</strong></p><div class="device-options">${[[360,650],[390,700],[430,760],[360,800],[390,844],[430,932]].map(([w,h])=>`<button data-device="${w},${h}" class="${w===390&&h===700?'active':''}"><b>${w} × ${h}</b>表示サイズ</button>`).join('')}</div><div class="review-settings">${[['players',5,'5人（標準）'],['players',6,'6人'],['max',12,'最大12'],['max',16,'最大16']].map(([key,n,label])=>`<button data-review-config="${key}" data-value="${n}">${label}</button>`).join('')}</div><div class="review-states">${MODES.map((m,i)=>`<button data-review-mode="${m.id}" class="${m.id==='human'?'active':''}"><small>${String(i+1).padStart(2,'0')}</small>${m.name}</button>`).join('')}</div><div class="review-probs">${PROB_DEMOS.map(m=>`<button data-review-prob="${m.id}">${m.name}</button>`).join('')}</div><div id="reviewMetrics" class="review-metrics" aria-live="polite">表示を確認しています…</div><a class="open-native" href="?device=1" target="_blank" rel="noopener">画面いっぱいで開く ↗</a><p class="review-foot">単一HTML・オフライン動作<br>ゲームロジック・CPU・確率計算は含みません。<br>端末枠は見本です。中の表示領域は指定サイズです。</p></aside><section class="preview-stage" id="previewStage" aria-label="スマートフォン表示"><div class="device-frame" id="deviceFrame"><iframe id="reviewFrame" title="スマートフォンのUIモックアップ" src="?device=1" width="390" height="700"></iframe></div><div class="preview-caption" id="previewCaption">390 × 700 · 実寸の表示領域を縮小プレビュー</div></section></main>`;
  reviewFrame=document.getElementById('reviewFrame');
  document.querySelectorAll('[data-device]').forEach(b=>b.onclick=()=>{[reviewWidth,reviewHeight]=b.dataset.device.split(',').map(Number);reviewFrame.width=reviewWidth;reviewFrame.height=reviewHeight;document.querySelectorAll('[data-device]').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('previewCaption').textContent=`${reviewWidth} × ${reviewHeight} · 実寸の表示領域を縮小プレビュー`;fitFrame();});
  document.querySelectorAll('[data-review-mode]').forEach(b=>b.onclick=()=>reviewFrame.contentWindow.postMessage({type:'setMockMode',mode:b.dataset.reviewMode},location.origin==='null'?'*':location.origin));
  document.querySelectorAll('[data-review-prob]').forEach(b=>b.onclick=()=>reviewFrame.contentWindow.postMessage({type:'setMockProbability',id:b.dataset.reviewProb},location.origin==='null'?'*':location.origin));
+ document.querySelectorAll('[data-review-config]').forEach(b=>b.onclick=()=>reviewFrame.contentWindow.postMessage({type:'setMockConfig',key:b.dataset.reviewConfig,value:Number(b.dataset.value)},location.origin==='null'?'*':location.origin));
  fitFrame();window.addEventListener('resize',fitFrame);
 }
 function fitFrame(){const stage=document.getElementById('previewStage'),frame=document.getElementById('deviceFrame');if(!stage||!frame)return;const scale=Math.min(1,(stage.clientHeight-44)/(reviewHeight+16),(stage.clientWidth-44)/(reviewWidth+16));frame.style.transform=`scale(${scale})`;}
 window.addEventListener('message',e=>{
  if(e.data?.type==='setMockMode'&&e.source===parent&&!reviewMode)setMode(e.data.mode);
  if(e.data?.type==='setMockProbability'&&e.source===parent&&!reviewMode)probabilityDemo(e.data.id);
- if(e.data?.type==='mockMetrics'&&reviewMode&&e.source===reviewFrame?.contentWindow){const d=e.data;document.querySelectorAll('[data-review-mode]').forEach(b=>b.classList.toggle('active',b.dataset.reviewMode===d.mode));document.getElementById('reviewMetrics').innerHTML=`<b>表示領域 ${d.w} × ${d.h}</b><br>画面全体：横 ${d.pageX}px / 縦 ${d.pageY}px<br>CPU盤面：縦スクロール ${d.boardScroll}px<br>自分の盤面：${d.ownVisible?'画面内':'画面外あり'} / 操作：${d.controlsVisible?'画面内':'画面外あり'}<br>行内の横はみ出し：${d.horizontal.length?esc(d.horizontal.join(', ')):'なし'}${d.sheet?'<br>詳細パネル表示中（必要時に内部スクロール）':''}`;}
+ if(e.data?.type==='setMockConfig'&&e.source===parent&&!reviewMode)setConfiguration(e.data.key,e.data.value);
+ if(e.data?.type==='mockMetrics'&&reviewMode&&e.source===reviewFrame?.contentWindow){const d=e.data;document.querySelectorAll('[data-review-config]').forEach(b=>b.classList.toggle('active',Number(b.dataset.value)===(b.dataset.reviewConfig==='players'?d.playerCount:d.maxNumber)));document.querySelectorAll('[data-review-mode]').forEach(b=>b.classList.toggle('active',b.dataset.reviewMode===d.mode));document.getElementById('reviewMetrics').innerHTML=`<b>表示領域 ${d.w} × ${d.h}</b><br>画面全体：横 ${d.pageX}px / 縦 ${d.pageY}px<br>CPU盤面：縦スクロール ${d.boardScroll}px<br>自分の盤面：${d.ownVisible?'画面内':'画面外あり'} / 操作：${d.controlsVisible?'画面内':'画面外あり'}<br>行内の横はみ出し：${d.horizontal.length?esc(d.horizontal.join(', ')):'なし'}${d.sheet?'<br>詳細パネル表示中（必要時に内部スクロール）':''}`;}
 });
-window.addEventListener('resize',()=>requestAnimationFrame(reportMetrics));
+window.addEventListener('resize',()=>{document.querySelectorAll('[data-viewport-debug]').forEach(el=>el.textContent=`viewport: ${innerWidth} × ${innerHeight} CSS px`);requestAnimationFrame(reportMetrics);});
 if(reviewMode)initReview();else render();
 </script>
 </body>

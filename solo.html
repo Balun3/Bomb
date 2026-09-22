@@ -2705,6 +2705,19 @@ body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94p
 #gameCard.wb-review .tile.wb-fatal::after{content:'!';position:absolute;right:-3px;top:-5px;width:10px;height:10px;border-radius:50%;background:#a32620;color:white;font:bold 9px/10px sans-serif;text-align:center;z-index:5}
 #gameCard.wb-review #gameEndBox{display:none!important}
 
+#wbHud{grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px}
+#wbHistory{width:30px;height:34px;padding:0;border:1px solid #647969;background:#31463d;color:#f4ecd6;font-size:14px}
+#wbCommand #wbInstant{position:absolute;right:0;top:22px;width:88px;min-height:34px;padding:6px 3px;background:#d8c899;color:#273b31;border-color:#d7be75}
+#wbCommand #wbInstant:disabled{background:#344c3e;color:#aeb7a5;border-color:#65715e}
+#gameCard.wb-has-instant #playControls,#gameCard.wb-has-instant #soloCpuPanel{margin-right:94px!important}
+#gameCard.wb-has-instant #interruptCardArea{display:none!important}
+#gameCard .wb-zero-candidate{opacity:.25!important;text-decoration:line-through;text-decoration-thickness:1px}
+#wbLifePreview{font-size:12px;color:#f0e7c8;margin:8px 0}
+body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94px 28px minmax(0,1fr) auto}
+#gameCard.wb-choosing-card #equipmentSection{display:block!important;grid-row:5}
+#gameCard.wb-choosing-card #personalCardChoiceArea:not(.hidden){grid-row:6}
+#gameCard.wb-choosing-card #wbCommand{grid-row:7}
+
 </style>
 </head>
 <body>
@@ -28443,6 +28456,7 @@ function soloBestEquipmentInfoPlacement(actor){
         position:tile.position,
         tileId:tile.id,
         tile,
+        zeroInfo:!!base.zeroInfo,
         score:base.score+dynamic,
         number:n
       });
@@ -28450,7 +28464,7 @@ function soloBestEquipmentInfoPlacement(actor){
   });
 
   scored.sort((a,b)=>b.score-a.score);
-  return scored[0]||null;
+  return scored.find(x=>!x.zeroInfo)||(gameState.cardFlow?.stage==='equipmentInfoInput'?scored[0]:null)||null;
 }
 
 function soloChooseCpuPersonalType(key,availableUnique){
@@ -30251,8 +30265,11 @@ function soloScheduleCpuInfo(){
 
     // 同じ数字の3個目は、他に選択肢がある限り完全除外。
     let pool=
-      scored.filter(x=>x.duplicateCount<2);
+      scored.filter(x=>!x.zeroInfo&&x.duplicateCount<2);
 
+    if(!pool.length){
+      pool=scored.filter(x=>!x.zeroInfo);
+    }
     if(!pool.length){
       // どうしても全候補が既に2個以上なら、最少重複の数字だけに限定。
       const minDup=
@@ -32290,6 +32307,51 @@ NANIKIRU_CPU_PROBABILITY_VERSION="theoreticalDP-v40-optimized";
 
 </script>
 <script>
+// Public-only, deterministic proof filter. Existing probability engine is untouched.
+const soloInfoProofByCounts=new WeakMap();
+function soloInfoPublicProof(actor,counts){
+ if(soloInfoProofByCounts.has(counts))return soloInfoProofByCounts.get(counts);
+ const forced=new Map();soloInfoProofByCounts.set(counts,forced);
+ try{
+  const view=soloProbePublicViewSnapshot(actor);if(!view)return forced;
+  const ctx=exactBuildContext(view);if(ctx.invalidReason)return forced;
+  const tiles=soloPlayersFromView(view).flatMap(p=>p.boards.flat());
+  const known=new Map(tiles.map(t=>[String(t.id),soloKnownDescriptor(t)]));
+  // Only public probe misses: exclude the declared number from the tested physical IDs.
+  const misses=(gameState._tp4EvidenceHistory||[]).filter(h=>h.type==='probe'&&h.outcome==='miss');
+  const flow=gameState.cardFlow;
+  if(flow?.stage==='probeChooseInfo'){
+   const board=soloFindViewPlayer(view,flow.targetPlayer)?.boards?.[flow.targetBoard]||[];
+   misses.push({number:flow.sourceNumber,selectedTileIds:flow.selectedTileIds||board.filter(t=>(flow.selectedPositions||[]).includes(t.position)).map(t=>t.id)});
+  }
+  for(const miss of misses){const ids=new Set((miss.selectedTileIds||[]).map(String));ctx.vars.forEach((v,i)=>{if(ids.has(v.id))ctx.domains[i]=ctx.domains[i].filter(k=>ctx.keys[k].key!=='N:'+Number(miss.number));});}
+  const result=fastPropagate(ctx,ctx.domains);if(!result.ok)return forced;
+  for(const [id,d]of known)if(d?.exact&&d.kind==='normal')forced.set(id,Number(d.number));
+  result.domains.forEach((d,i)=>{if(d.length===1&&ctx.keys[d[0]].kind==='normal')forced.set(ctx.vars[i].id,ctx.keys[d[0]].num);});
+ }catch(_){/* Unproven is not zero information. */}
+ return forced;
+}
+const soloInfoScoreBeforeLocal=soloInitialInfoCandidateScore;
+soloInitialInfoCandidateScore=function(tile,board,level,counts,own=1,actor=null){
+ const score=soloInfoScoreBeforeLocal(tile,board,level,counts,own,actor);
+ if(Number(level)!==3||!actor)return score;
+ const n=Number(tile.number),gun=(gameState.equipmentCards||[]).some(c=>c.type==='dismantleGun'&&Number(c.unlockNumber)===n);
+ const purpose=gun&&!counts.get(n)&&(own===1||own===3);
+ const proof=soloInfoPublicProof(actor,counts);
+ return {...score,zeroInfo:!purpose&&((counts.get(n)||0)>=2||proof.get(String(tile.id))===n),infoPurposeException:purpose};
+};
+const soloInfoFlowCounts=new WeakMap();
+const soloInfoResolveScoreBeforeLocal=soloProbeResolvePositionScore;
+soloProbeResolvePositionScore=function(flow,resolver,position){
+ const score=soloInfoResolveScoreBeforeLocal(flow,resolver,position);
+ if(flow?.stage!=='probeChooseInfo'||Number(soloCpuSettings[resolver]?.level)!==3)return score;
+ const tile=gameState.players[flow.targetPlayer]?.boards?.[flow.targetBoard]?.find(t=>t.position===position);
+ if(tile?.kind!=='normal')return score;
+ let counts=soloInfoFlowCounts.get(flow);if(!counts){counts=soloInitialInfoNumberCounts();soloInfoFlowCounts.set(flow,counts);}
+ const proof=soloInfoPublicProof(resolver,counts);
+ return (counts.get(Number(tile.number))||0)>=2||proof.get(String(tile.id))===Number(tile.number)?score-1000000:score;
+};
+
 /* WORKBENCH UI — view-only adapter. No game rules, dealing, CPU scoring, or
    probability inference is implemented here. Original handlers remain the
    authority for validation, consumption, transitions and results. */
@@ -32334,7 +32396,7 @@ function wbInstall(){
   const g=els.gameCard;
   const hud=wbNode('header');hud.id='wbHud';const turn=wbNode('div');
   turn.innerHTML='<div id="wbTurn" aria-live="polite"></div><div id="wbTurnSub"></div>';
-  const life=wbNode('div');life.id='wbLife';const menu=wbButton('≡',wbMenu);menu.id='wbMenu';menu.setAttribute('aria-label','メニュー');hud.append(turn,life,menu);
+  const life=wbNode('div');life.id='wbLife';const menu=wbButton('≡',wbMenu);menu.id='wbMenu';menu.setAttribute('aria-label','メニュー');const history=wbButton('履',()=>soloOpenHistory());history.id='wbHistory';history.setAttribute('aria-label','履歴');hud.append(turn,life,history,menu);
   const event=wbButton('',wbEventDetail);event.id='wbEvent';event.setAttribute('aria-label','直前のアクション・詳細');
   const opp=wbNode('section');opp.id='wbOpp';opp.setAttribute('aria-label','相手の盤面');opp.append(els.oppBoards);
   const own=els.myBoards.closest('.playerBlock');own.id='wbOwn';
@@ -32365,6 +32427,7 @@ function wbCompactSetup(){
   field('個人カード',els.personalCardsEnabledSelect);field('装備',els.equipmentCardsEnabledSelect);
   field('黄候補',els.yellowCandidateSelect);field('黄使用',els.yellowUsedSelect);
   field('赤候補',els.redCandidateSelect);field('赤使用',els.redUsedSelect);
+  const lifeSelect=wbNode('select');lifeSelect.id='wbInitialLife';lifeSelect.innerHTML='<option value="auto">人数と同じ</option>'+Array.from({length:10},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'</option>').join('');lifeSelect.onchange=updateSetupPreview;field('ライフ',lifeSelect);
   field('確率表示',soloProbabilityDisplaySelect);
   [...soloProbabilityDisplaySelect.options].forEach(o=>o.textContent=o.value==='1'?'ON':'OFF');
   const level=wbNode('select');level.id='wbCpuLevel';level.innerHTML='<option value="3">自称プロ</option><option value="2">ポンコツ</option><option value="mixed" disabled>個別設定</option>';
@@ -32376,7 +32439,7 @@ function wbCompactSetup(){
   const back=wb$('wbBackToGame');const start=els.startGameBtn;
   [...els.hostLobby.childNodes].forEach(n=>legacy.append(n));
   panel.append(head,grid,details,start);els.hostLobby.append(back,panel,legacy);
-  wbSyncCpuLevel();
+  wbSyncCpuLevel();updateSetupPreview();
 }
 const wbBaseCpuSetup=soloBuildCpuSetupRows;
 soloBuildCpuSetupRows=function(){const r=wbBaseCpuSetup();wbSyncCpuLevel();return r;};
@@ -32488,7 +32551,7 @@ function wbStatus(view){
   if(view.lastEvent?.kind==='redBoom'&&view.phase==='gameover')text=`赤タイルによるゲームオーバー / ${text}`;
   if(/氷|保護/.test(text)&&/失敗|防/.test(text))text=`失敗・万能氷で保護 / ${text}`;
   wbText(wb$('wbEvent'),text.replace(/\s*CPU/g,'').replace(/数字の/g,''));wb$('wbEvent').dataset.tone=/失敗・万能氷/.test(text)?'failure':wbLastEvent?.tone||'card';
-  wbGuide(view);wbDealReview(view);wbEndActions(view);els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
+  wbGuide(view);wbLocalCards(view);wbDealReview(view);wbEndActions(view);els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
 }
 function wbGuide(view){
   const a=actionState;let s='';
@@ -32580,6 +32643,7 @@ function wbWireCandidates(view){
   });
   els.specialTileTracker.querySelectorAll('.yellowCheatCandidate').forEach(el=>wire(el,'yellow',Number(el.dataset.yellowValue)));
   els.specialTileTracker.querySelectorAll('.redCheatCandidate').forEach(el=>wire(el,'red',Number(el.dataset.redValue)));
+  wbSpecialZeros(view);
 }
 function wbBoardDetail(owner){
   const box=wbOpen(`${wbName(owner.label)}の盤面`);box.append(wbNode('p',null,'一覧と同じ公開情報です。タイルを選ぶと盤面へ戻ります。'));
@@ -32666,7 +32730,7 @@ function wbPersonalDetail(){
   const c=currentView?.personalCard;if(!c)return;const box=wbOpen(c.name||PERSONAL_CARDS[c.type].name);const face=wbNode('div','wb-card-face');face.append(wbNode('div','wb-card-kind','PERSONAL CARD'),wbNode('div','wb-card-title',c.name||PERSONAL_CARDS[c.type].name),wbNode('p',null,`残り${c.remainingUses}回`));box.append(face);
   face.append(wbNode('p',null,c.type==='futsu'?'自分の通常数字を宣言し、相手の同じ台から2枚を指定します。相手の応答で結果を確定します。':wbEquipmentDescriptions[c.type]||''));
   const fn=currentView.turn===currentView.playerKey?beginPersonalCardAction:requestStartInstantCard;
-  const use=wbButton('使用する',()=>{wbClose();fn();},'wb-use');use.disabled=currentView.phase!=='play'||c.remainingUses<=0||!!currentView.cardFlow||soloCpuBusy||(currentView.turn!==currentView.playerKey&&PERSONAL_CARDS[c.type]?.mode!=='instant');box.append(use);
+  const use=wbButton('使用する',()=>{wbClose();fn();},'wb-use');use.disabled=currentView.phase!=='play'||c.remainingUses<=0||!!currentView.cardFlow||soloHumanControlsBlocked()||!!actionState||(currentView.turn!==currentView.playerKey&&PERSONAL_CARDS[c.type]?.mode!=='instant');box.append(use);
 }
 function wbEquipmentBar(view){
   [...els.equipmentCards.querySelectorAll('.equipmentItem')].forEach(el=>{
@@ -32714,7 +32778,9 @@ function wbPopulateProbabilities(view){
     read('normal',Array.from({length:view.config.maxNumber},(_,i)=>i+1),shared.normal);read('yellow',view.config.yellowCandidates||[],shared.yellowByValue);read('red',view.config.redCandidates||[],shared.redByValue);
     const total=k=>items.filter(x=>x.kind===k).reduce((s,x)=>s+x.probability,0);
     const redTotal=Number(shared.red?.get(tile.id)||0),normalTotal=total('normal'),yellowTotal=total('yellow');
-    tile.cheatAllProbabilities={items,normalTotal,yellowTotal,redTotal,total:normalTotal+yellowTotal+redTotal,method:shared.method};tile.redProbability=redTotal;distributions.set(tile.id,tile.cheatAllProbabilities);
+    const specialSupport=shared.yellowByValue&&shared.redByValue?[]:null;
+    if(specialSupport)for(const [kind,values,map]of [['yellow',view.config.yellowCandidates||[],shared.yellowByValue],['red',view.config.redCandidates||[],shared.redByValue]])for(const value of values)if(Number(map.get(Number(value))?.get(tile.id)||0)>0)specialSupport.push(kind+':'+Number(value));
+    tile.cheatAllProbabilities={items,normalTotal,yellowTotal,redTotal,total:normalTotal+yellowTotal+redTotal,method:shared.method,specialSupport};tile.redProbability=redTotal;distributions.set(tile.id,tile.cheatAllProbabilities);
   }
   return view;
 }
@@ -32860,6 +32926,37 @@ function wbPaintPostGame(root){
   el.classList.toggle('wb-fatal',fatal);
   if(fatal)el.setAttribute('aria-label','ゲームオーバーの原因になった位置');
  }
+}
+
+
+const wbLifeRead=readSetupSettings;readSetupSettings=function(){return {...wbLifeRead(),initialLifeMode:wb$('wbInitialLife')?.value||'auto'};};
+const wbLifeCreate=createGameState;createGameState=function(settings){const state=wbLifeCreate(settings);const mode=settings.initialLifeMode||'auto';const n=Number(mode);state.config.initialLifeMode=mode==='auto'||!Number.isInteger(n)||n<1||n>10?'auto':String(n);state.lives=state.config.initialLifeMode==='auto'?state.config.playerCount:n;state.config.initialLives=state.lives;return state;};
+const wbLifePreview=updateSetupPreview;updateSetupPreview=function(){wbLifePreview();const mode=wb$('wbInitialLife')?.value||'auto',text='ライフ：'+(mode==='auto'?'人数と同じ':mode);if(els.setupPreview&&!els.setupPreview.textContent.includes(text))els.setupPreview.textContent+='　'+text;let label=wb$('wbLifePreview');if(!label&&wb$('wbSetupGrid')){label=wbNode('p');label.id='wbLifePreview';wb$('wbSetupGrid').after(label);}wbText(label,text);};
+const wbInstantRequest=requestStartInstantCard;requestStartInstantCard=function(){if(soloHumanControlsBlocked()||currentView?.phase!=='play'||currentView.cardFlow||actionState)return;return wbInstantRequest();};
+function wbLocalCards(view){
+ const c=view.personalCard,def=c?PERSONAL_CARDS[c.type]:null,short=def?.short||c?.short||'個人カード';
+ wbText(els.personalCardBtn,short+(c&&c.remainingUses<=0?' 済':''));
+ let button=wb$('wbInstant');const instant=view.phase==='play'&&def?.mode==='instant';
+ els.gameCard.classList.toggle('wb-has-instant',instant);
+ if(!instant){button?.remove();return;}
+ if(!button){button=wbButton('',()=>{if(button.disabled)return;beginPersonalCardAction();});button.id='wbInstant';wb$('wbCommand').append(button);}
+ wbText(button,short+(c.remainingUses<=0?' 済':''));button.title='いつでも使える個人カード';
+ button.disabled=c.remainingUses<=0||soloHumanControlsBlocked()||!!view.cardFlow||!!actionState||!instantCardHasLegalUse(view.playerKey,c.type);
+ // One stable named control replaces the legacy tiny interrupt control.
+ els.interruptCardArea.classList.add('hidden');els.personalCardBtn.classList.add('hidden');
+}
+function wbSpecialZeros(view){
+ if(view.phase!=='play')return;
+ // No inference call: only exact own faces and existing legal tile distributions.
+ const support=new Set();let complete=true;
+ for(const t of view.myBoards.flat())if(!t.cut){const k=soloKnownDescriptor(t);if(k?.exact)support.add(k.kind+':'+Number(k.number));else complete=false;}
+ for(const p of view.opponents)for(const t of p.boards.flat())if(!t.cut){
+  const known=soloKnownDescriptor(t);if(known?.exact){support.add(known.kind+':'+Number(known.number));continue;}
+  const data=t.cheatAllProbabilities;if(!data?.items?.length){complete=false;continue;}
+  if(!Array.isArray(data.specialSupport)){complete=false;continue;}
+  for(const key of data.specialSupport)support.add(key);
+ }
+ for(const kind of ['yellow','red'])els.specialTileTracker.querySelectorAll('.'+kind+'CheatCandidate').forEach(el=>{const number=Number(el.dataset[kind+'Value']);const zero=complete&&!view.wbProbabilityError&&!support.has(kind+':'+number);el.classList.toggle('wb-zero-candidate',zero);if(zero)el.title+='（未切断に存在する確率0%）';});
 }
 
 wbInstall();

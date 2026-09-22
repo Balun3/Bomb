@@ -2551,6 +2551,36 @@ body.wb-playing:not(.wb-setup)>.wrap>p{display:none!important}
  #gameCard #oppBoards .infoTokenSlot{height:10px!important;min-height:10px!important;margin-top:1px!important}
  #gameCard #oppBoards .infoTokenSlot>*{height:10px!important;line-height:9px!important}
 }
+/* Setup uses the same workbench palette, with no inherited white panels. */
+#lobbyCard{padding:16px!important}#hostLobby{min-width:0}#hostLobby h2{color:var(--wb-cream);margin:0 0 14px}#hostLobby .setupGrid,#hostLobby .setupTilePair{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}#hostLobby .setupField{min-width:0;background:#233b33;border:1px solid #526b5c;border-radius:9px;padding:10px!important;color:#f5eedc}#hostLobby label{display:block;color:#f5eedc!important;font-size:13px!important;font-weight:700;margin-bottom:6px}#hostLobby select,#hostLobby input{display:block;width:100%!important;min-width:0!important;max-width:100%!important;font-size:15px!important;min-height:42px;border:1px solid #b8b598;border-radius:6px;padding:7px 5px!important;box-sizing:border-box}#hostLobby .small{font-size:11px!important;color:#c4d1c5!important;line-height:1.55;margin-top:6px}#hostLobby .setupTilePair{grid-column:1/-1}#setupPreview{padding:12px!important;line-height:1.65;font-size:12px;border:1px solid #536657;border-radius:8px;margin:12px 0;color:#e9e6cf!important}#soloSetupBox{background:#233b33!important;border-color:#526b5c!important;color:#f5eedc!important;min-width:0}#soloSetupBox .row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#soloSetupBox .row>*{min-width:0!important;flex:initial!important}#soloCpuSettingsBox{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}#soloCpuSettingsBox .soloCpuSetupRow{background:#2d493e!important;border:1px solid #536b5c!important;border-radius:7px;padding:7px!important;display:flex;flex-wrap:wrap;gap:4px;min-width:0}#soloCpuSettingsBox .soloCpuSetupName{color:#e5e3c9!important;font-size:12px}#soloCpuSettingsBox select{font-size:13px!important;min-height:36px}#startGameBtn{width:100%;min-height:46px;font-size:16px;background:#d2dfb7;color:#223c2f;border:1px solid #bbc993;box-shadow:0 3px #657958}#hostLobby .setupSection{min-width:0;background:transparent!important}#hostLobby .setupSectionTitle{color:#ede4c6!important}#hostLobby .setupGrid>*{min-width:0}#hostLobby .setupField:has(#maxNumberSelect){grid-column:1/-1}
+/* The entire own hand sits ABOVE the personal-card options, with no overlay. */
+body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px auto minmax(0,1fr) auto}
+#gameCard.wb-choosing-card #wbOpp,#gameCard.wb-choosing-card #soloInferenceDock,#gameCard.wb-choosing-card #equipmentSection{display:none!important}
+#gameCard.wb-choosing-card #wbOwn{grid-row:3;align-self:start;margin:8px 0}
+#gameCard.wb-choosing-card #wbCommand{grid-row:5}
+#gameCard.wb-choosing-card #personalCardChoiceArea:not(.hidden){grid-row:4;position:static!important;inset:auto!important;max-height:none!important;align-self:start;width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px!important;background:#253d32;box-shadow:none!important;overflow:auto;min-height:0}
+#gameCard.wb-choosing-card #personalCardChoiceArea:before{content:'手牌を見ながら個人カードを選択';grid-column:1/-1;color:#f1dfab;font-size:13px;font-weight:700}
+#personalCardChoiceArea button{min-width:0;min-height:64px;white-space:normal;font-size:14px!important;background:linear-gradient(#f5ebd0,#d7c79f)!important;color:#314435!important;border:1px solid #b2a176!important;box-shadow:0 3px #837552!important;border-radius:8px}
+#personalCardChoiceArea button:disabled{opacity:.45}
+#hostLobby .soloNote{color:#c8d6cc!important;font-size:12px;line-height:1.6}#hostLobby .setupField:has(#soloProbabilityDisplaySelect){grid-column:1/-1}
+body.wb-playing #gameCard:has(.relationLabelBoard):not(.wb-choosing-card){grid-template-rows:44px 40px minmax(180px,1fr) 67px 28px minmax(76px,auto) minmax(72px,auto)}
+/* Separate relation lane: tile faces, information tokens and labels never overlap. */
+#gameCard .tiles.relationLabelBoard,.wb-sheet .tiles.relationLabelBoard{padding-top:0!important;padding-bottom:var(--wb-label-space,12px)!important}
+#gameCard .relationLabelPlaced,.wb-sheet .relationLabelPlaced{height:8px!important;border:0;border-top:1px solid currentColor;border-radius:0;z-index:4;transform:none!important}
+#gameCard .relationLabelPlaced:before,#gameCard .relationLabelPlaced:after,.wb-sheet .relationLabelPlaced:before,.wb-sheet .relationLabelPlaced:after{width:3px;height:3px;bottom:5px;box-shadow:none}
+#gameCard .relationLabelSymbol,.wb-sheet .relationLabelSymbol{top:0!important;min-width:12px!important;width:12px;height:10px!important;padding:0!important;border-radius:2px;font-size:11px!important;background:#eee4c7;color:inherit!important;box-shadow:none!important}
+#gameCard .relationLabelPlaced.equal,.wb-sheet .relationLabelPlaced.equal{color:#bfe4c2}#gameCard .relationLabelPlaced.different,.wb-sheet .relationLabelPlaced.different{color:#d2bde8}
+#gameCard .relationLabelPlaced.equal .relationLabelSymbol{color:#235c46!important}#gameCard .relationLabelPlaced.different .relationLabelSymbol{color:#684987!important}
+#gameCard .relationChoice{width:20px;height:18px;z-index:7}#gameCard .relationChoiceSymbol{width:17px;height:17px;font-size:12px;border-width:1px}
+#gameCard .opponentGroup:has(.relationLabelBoard){justify-content:flex-start}#wbOpp:has(.relationLabelBoard){overflow-y:auto;scrollbar-width:thin}#wbOpp:has(.relationLabelBoard) #oppBoards{height:auto;grid-auto-rows:minmax(76px,auto);grid-template-rows:none}
+#hostLobby .soloIntro{color:#c8d6cc!important;line-height:1.6}
+/* Make room for relation lanes without shrinking the tile faces. */
+#gameCard #wbOpp:has(.relationLabelBoard) .opponentGroup{padding:1px 5px 0!important}
+#gameCard #wbOpp:has(.relationLabelBoard) .opponentName{min-height:14px!important;height:14px;margin-bottom:1px!important}
+#gameCard #wbOpp:has(.relationLabelBoard) .wb-expand{min-height:14px!important;height:14px!important;max-height:14px!important;line-height:12px!important}
+#gameCard #wbOpp:has(.relationLabelBoard) .infoTokenSlot{height:10px!important;min-height:10px!important;margin-top:1px!important}
+#gameCard #wbOpp:has(.relationLabelBoard) .infoTokenSlot>*{height:10px!important;line-height:9px!important}
+#wbOpp:has(.relationLabelBoard) #oppBoards{grid-auto-rows:minmax(64px,auto)}
 
 </style>
 </head>
@@ -2689,19 +2719,20 @@ body.wb-playing:not(.wb-setup)>.wrap>p{display:none!important}
 <div class="setupField">
 <label for="personalCardsEnabledSelect">個人カード</label>
 <select id="personalCardsEnabledSelect">
-<option value="1" selected>使用する</option>
-<option value="0">使用しない</option>
+<option value="1" selected>通常</option>
+<option value="futsu">フツたんのみ</option>
+<option value="0">なし</option>
 </select>
-<div class="small">使用しない場合は誰にも配られません。</div>
+<div class="small">通常配布 / 全員フツたん / 個人カードなし。</div>
 </div>
 <div class="setupField">
 <label for="equipmentCardsEnabledSelect">装備カード</label>
 <select id="equipmentCardsEnabledSelect">
+<option value="all" selected>ON</option>
+<option value="2">ON（2枚のみ）</option>
 <option value="0">OFF</option>
-<option value="2">ON（2枚解放のみ）</option>
-<option value="all" selected>全装備ON（2枚＋4枚）</option>
 </select>
-<div class="small">全装備ONでは2枚解放・4枚解放を区別せず、全候補から完全ランダムで抽選します。</div>
+<div class="small">ONは全候補から抽選。2枚のみは2枚解放の装備だけ。</div>
 </div>
 </div>
 <div class="setupTilePair">
@@ -4362,7 +4393,7 @@ els.setupPreview.textContent=
 `配牌目安：${distribution}。 `+
 `黄は${yellowCandidateCount}候補中${yellowUsedCount}枚、`+
 `赤は${redCandidateCount}候補中${redUsedCount}枚を秘密で採用します。 `+
-`個人カード：${els.personalCardsEnabledSelect.value==="1"?"使用":"なし"}　`+
+`個人カード：${els.personalCardsEnabledSelect.value==="futsu"?"フツたんのみ":els.personalCardsEnabledSelect.value==="1"?"通常":"なし"}　`+
 `装備カード：${
 els.equipmentCardsEnabledSelect.value==="0"
 ? "OFF"
@@ -4375,7 +4406,8 @@ function readSetupSettings(){
 return {
 playerCount:expectedPlayerCount,
 maxNumber:Number(els.maxNumberSelect.value),
-personalCardsEnabled:els.personalCardsEnabledSelect.value==="1",
+personalCardsEnabled:els.personalCardsEnabledSelect.value!=="0",
+personalCardMode:els.personalCardsEnabledSelect.value==="futsu"?"futsu":els.personalCardsEnabledSelect.value==="0"?"none":"normal",
 equipmentMode:els.equipmentCardsEnabledSelect.value,
 equipmentCardsEnabled:els.equipmentCardsEnabledSelect.value!=="0",
 yellowCandidateCount:Number(els.yellowCandidateSelect.value),
@@ -23028,6 +23060,7 @@ makeViewFor=function(playerKey){
 
   if(
     playerKey==="p0" &&
+    !view.config?.soloMode &&
     ["infoTokens","play"].includes(view.phase) &&
     (soloCheatHumanTurn(view)||soloProbabilityDisplayEnabled||cheatActive||yellowCheatActive||redCheatActive)
   ){
@@ -27115,7 +27148,15 @@ function soloUnifiedConstraintMarginalsV165(view,inference){
     differentPeersById.get(String(b))?.add(String(a));
   }
 
+  const baseExactKeyCache=new Map();
   function baseExactKeyAllowed(id,key){
+    const sid=String(id),skey=String(key||'');
+    let row=baseExactKeyCache.get(sid);
+    if(!row){row=new Map();baseExactKeyCache.set(sid,row);}
+    if(row.has(skey))return row.get(skey);
+    const allowed=baseExactKeyAllowedUncached(id,key);row.set(skey,allowed);return allowed;
+  }
+  function baseExactKeyAllowedUncached(id,key){
     const s=String(key||"");
     const num=candidateNumeric(s);
     if(!Number.isFinite(num))return false;
@@ -29800,7 +29841,7 @@ async function soloRunCpuTurn(actor){
           actor,
           preview,
           async()=>{
-            if(bestDecisionType==="probe"){
+            if(bestSpecial.type==="probe"){
               soloExecuteProbePlan(actor,bestSpecial.plan,bestSpecial.source);
             }else if(bestSpecial.type==="dotchi"){
               soloExecuteDotchiPlan(actor,bestSpecial.plan,bestSpecial.source);
@@ -31738,7 +31779,13 @@ function tp4PointSig(p){return p?`${p.r}:${p.pos}`:'';}
 function tp4PointsUnique(points){const out=[],seen=new Set();for(const p of points||[]){if(!p)continue;const q={r:Number(p.r),pos:Number(p.pos)},k=tp4PointSig(q);if(seen.has(k))continue;seen.add(k);out.push(q);}return out;}
 function tp4InstallHooks(){
   try{
-    const baseCreate=createGameState;createGameState=function(...args){const s=baseCreate(...args);s._tp4EvidenceHistory=[];tp4InitOrigins(s);return s;};
+    const baseCreate=createGameState;createGameState=function(...args){const s=baseCreate(...args);s._tp4EvidenceHistory=[];tp4InitOrigins(s);
+      s.config.personalCardMode=args[0]?.personalCardMode||(s.config.personalCardsEnabled?'normal':'none');
+      if(s.config.personalCardMode==='futsu'){
+        for(const p of Object.values(s.players))p.personalCard={type:'futsu',remainingUses:1,usedCount:0};
+        s.phase='infoTokens';s.infoTurn=s.captainKey;
+      }
+      return s;};
   }catch(_){ }
   try{
     const baseRadar=processRadar;processRadar=function(actor,number){const scope=tp4ScopeSnapshot(),before=gameState?.radarScans?.[String(number)]?.turnSerial??-1;const ret=baseRadar(actor,number);const scan=gameState?.radarScans?.[String(number)];if(scan&&Number(scan.turnSerial)!==Number(before))tp4Record({type:'radar',number:Number(number),scope,positiveBoards:[...(scan.positiveBoards||[])]});return ret;};
@@ -31927,6 +31974,19 @@ function tp4Compile(model){
     return g;
   }));
   const existByEventRack=events.map(ev=>Array.from({length:R},(_,rr)=>exist.filter(x=>tp4Match(ev,x)&&x.points.some(p=>p.r===rr))));
+  const futureFit=Array.from({length:events.length+1},()=>c.rackSizes.map(s=>new Uint8Array(s+1)));
+  for(let rr=0;rr<R;rr++)futureFit[events.length][rr][c.rackSizes[rr]]=1;
+  for(let i=events.length-1;i>=0;i--)for(let rr=0;rr<R;rr++)for(let p=0;p<=c.rackSizes[rr];p++){
+    const max=Math.min(events[i].count,goodRun[i][rr][p]);
+    for(let n=0;n<=max;n++)if(futureFit[i+1][rr][p+n]){futureFit[i][rr][p]=1;break;}
+  }
+  const dueMask=Array(events.length+1).fill(0);
+  for(const e of exist){let last=-1;for(let i=0;i<events.length;i++)if(tp4Match(events[i],e))last=i;for(let next=last+1;next<=events.length;next++)dueMask[next]+=e.bit;}
+  function futurePossible(next,pos,mask){
+    if((mask&dueMask[next])!==dueMask[next])return false;
+    for(let rr=0;rr<R;rr++)if(!futureFit[next][rr][pos[rr]])return false;
+    return true;
+  }
   function placement(i,state,ev,alloc){let mask=state.mask;
     for(let rr=0;rr<R;rr++){const cnt=alloc[rr];if(!cnt)continue;const start=state.pos[rr],end=start+cnt;if(end>c.rackSizes[rr])return null;const pref=badPrefix[i][rr];if(pref[end]-pref[start]>0)return null;for(const x of existByEventRack[i][rr])if(x.points.some(p=>p.r===rr&&p.pos>=start&&p.pos<end))mask=setBit(mask,x.bit);}
     if(relations.length)for(const rel of relations){const h1=covered(state.pos,alloc,rel.r1,rel.p1),h2=covered(state.pos,alloc,rel.r2,rel.p2),aBefore=rel.p1<state.pos[rel.r1],bBefore=rel.p2<state.pos[rel.r2];
@@ -31942,8 +32002,8 @@ function tp4Compile(model){
     return mask;
   }
   function forEachTransition(i,code,cb,needPlacements=false){const ev=events[i],st=decode(code),caps=c.rackSizes.map((s,j)=>s-st.pos[j]);
-    const push=(alloc,w,adopt)=>{const mask=placement(i,st,ev,alloc);if(mask===null)return;const pos=st.pos.map((v,j)=>v+alloc[j]);let y=st.y,r=st.r;if(adopt&&ev.kind==='yellow')y++;if(adopt&&ev.kind==='red')r++;if(y>c.yUsed||r>c.rUsed)return;if(y+suffixY[i+1]<c.yUsed||r+suffixR[i+1]<c.rUsed)return;const to=encode(pos,y,r,mask);let pls=null;if(needPlacements){pls=[];for(let rr=0;rr<R;rr++)if(alloc[rr])pls.push({r:rr,start:st.pos[rr],count:alloc[rr],key:ev.key});}cb(to,w,pls,adopt?ev.key:null);};
-    if(ev.optional){if(st.y+suffixY[i+1]>=c.yUsed&&st.r+suffixR[i+1]>=c.rUsed)cb(code,1n,needPlacements?[]:null,null);const can=ev.kind==='yellow'?st.y<c.yUsed:st.r<c.rUsed;if(can)for(let rr=0;rr<R;rr++)if(caps[rr]>0){const a=Array(R).fill(0);a[rr]=1;push(a,1n,true);}}
+    const push=(alloc,w,adopt)=>{const mask=placement(i,st,ev,alloc);if(mask===null)return;const pos=st.pos.map((v,j)=>v+alloc[j]);let y=st.y,r=st.r;if(adopt&&ev.kind==='yellow')y++;if(adopt&&ev.kind==='red')r++;if(y>c.yUsed||r>c.rUsed)return;if(y+suffixY[i+1]<c.yUsed||r+suffixR[i+1]<c.rUsed)return;if(!futurePossible(i+1,pos,mask))return;const to=encode(pos,y,r,mask);let pls=null;if(needPlacements){pls=[];for(let rr=0;rr<R;rr++)if(alloc[rr])pls.push({r:rr,start:st.pos[rr],count:alloc[rr],key:ev.key});}cb(to,w,pls,adopt?ev.key:null);};
+    if(ev.optional){if(st.y+suffixY[i+1]>=c.yUsed&&st.r+suffixR[i+1]>=c.rUsed&&futurePossible(i+1,st.pos,st.mask))cb(code,1n,needPlacements?[]:null,null);const can=ev.kind==='yellow'?st.y<c.yUsed:st.r<c.rUsed;if(can)for(let rr=0;rr<R;rr++)if(caps[rr]>0){const a=Array(R).fill(0);a[rr]=1;push(a,1n,true);}}
     else{
       const limits=Array(R);
       for(let rr=0;rr<R;rr++)limits[rr]=Math.min(c.copies,caps[rr],goodRun[i][rr][st.pos[rr]]||0);
@@ -31987,7 +32047,14 @@ const tp6={
   baseBuild:soloBuildInference,baseShared:soloCpuSharedMarginals,baseChoose:soloChooseNormalPlan
 };
 function tp6Clamp(x){return Math.max(0,Math.min(1,Number(x)||0));}
-function tp6KeyForView(view){try{return [JSON.stringify(view),Number(gameState?._tp4SwapCount||0),(gameState?._tp4EvidenceHistory||[]).length].join('|');}catch(_){return [String(view?.playerKey||''),Number(view?.turnSerial||0),String(view?.phase||''),Number(gameState?._tp4SwapCount||0),(gameState?._tp4EvidenceHistory||[]).length,String(gameState?.cardFlow?.flowId||'')].join('|');}}
+let tp6CacheGame=null;
+function tp6KeyForView(view,model=null){
+  const m=model||tp4Adapter(view.playerKey,view);
+  // Complete legal inference inputs, not HUD / selected probabilities. The
+  // observer and physical tile IDs keep private information separated.
+  return JSON.stringify([view.playerKey,m.c,m.racks.map(r=>r.ids),m.evidence,
+    [...tp6ExactVisibleCounts(view)],soloPlayersFromView(view).flatMap(p=>p.boards.flat().filter(t=>t.cut).map(t=>t.id))]);
+}
 function tp6ExactVisibleCounts(view){
   const counts=new Map();
   for(const p of soloPlayersFromView(view||{}))for(const b of p.boards||[])for(const t of b||[]){
@@ -31999,10 +32066,12 @@ function tp6ExactVisibleCounts(view){
 function tp6BuildTheoryInference(view,level=3){
   if(Number(level)!==3||!tp6.enabled)return tp6.baseBuild(view,level);
   if(!view?.playerKey)throw new Error('Step6: playerKeyの無いviewです');
-  const ck=tp6KeyForView(view);const hit=tp6.cache.get(ck);if(hit){tp6.cacheHits++;return hit;}
+  if(tp6CacheGame!==gameState){tp6.cache.clear();tp6CacheGame=gameState;}
   const t0=performance.now();
   const model=tp4Adapter(view.playerKey,view);
   if(model.unsupported?.length)throw new Error('Step6 TDP未対応: '+model.unsupported.join(' / '));
+  const ck=tp6KeyForView(view,model),hit=tp6.cache.get(ck);
+  if(hit){tp6.cache.delete(ck);tp6.cache.set(ck,hit);tp6.cacheHits++;return hit;}
   const dp=tp4RunDP(model);if(!dp.total)throw new Error('Step6 TDP合法世界数0');
   const byTileId=new Map(),supportByTileId=new Map(),supportPriorByTileId=new Map();
   const normal=new Map();for(let n=1;n<=Number(view.config?.maxNumber||12);n++)normal.set(n,new Map());
@@ -32033,7 +32102,9 @@ function tp6BuildTheoryInference(view,level=3){
     redExpected:Math.max(0,Number(view.config?.redUsedCount||0)-exactR),yellowExpected:Math.max(0,Number(view.config?.yellowUsedCount||0)-exactY),
     supportByTileId,supportPriorByTileId,method:'theoretical-frontier-dp-step6',_tp6SharedMarginals:shared,_tp6Model:model,_tp6Dp:dp};
   tp6.theoryBuilds++;tp6.buildMs.push(performance.now()-t0);tp6.maxStates.push(Number(dp.maxStates||0));
-  tp6.cache.clear();tp6.cache.set(ck,inf);return inf;
+  tp6.cache.set(ck,inf);
+  while(tp6.cache.size>12)tp6.cache.delete(tp6.cache.keys().next().value);
+  return inf;
 }
 soloBuildInference=function(view,level=3,...rest){return tp6BuildTheoryInference(view,level,...rest);};
 soloCpuSharedMarginals=function(view,inference,level,...rest){
@@ -32055,6 +32126,8 @@ NANIKIRU_CPU_PROBABILITY_VERSION="theoreticalDP-v40-optimized";
 'use strict';
 let wbManual=null, wbLastEvent=null, wbOverlay=null, wbSheetBody=null, wbReturnFocus=null;
 let wbInstalled=false, wbRendering=false;
+let wbRenderDepth=0,wbLastRenderKey='',wbDisplayCache=new WeakMap();
+const wbProbabilityNodes=new WeakMap();
 let wbObservedLives=null,wbObservedIce=null,wbObservedCut=-1,wbResultFacts=null;
 const wb$=id=>document.getElementById(id);
 const wbText=(node,text)=>{if(node&&node.textContent!==String(text))node.textContent=String(text);};
@@ -32096,6 +32169,7 @@ function wbInstall(){
   const command=wbNode('section');command.id='wbCommand';command.setAttribute('aria-label','現在の操作');
   const guide=wbNode('div');guide.id='wbGuide';guide.setAttribute('aria-live','polite');command.append(guide,els.playControls,soloCpuPanel,els.tokenConfirmArea,els.interruptCardArea);
   g.append(hud,event,opp,dock,els.equipmentSection,own,command);
+  g.append(els.personalCardChoiceArea);
   els.normalCutBtn.textContent='通常切断';els.selfCutBtn.textContent='自己切断';
   // Fixed-position legacy docks still receive updates, but only this grid is visible.
   updateRecentActionDockPosition=()=>{};soloPositionInferenceDock=()=>{};
@@ -32110,8 +32184,13 @@ function wbMenu(){
     soloProbabilityDisplayEnabled=!soloProbabilityDisplayEnabled;
     soloProbabilityDisplaySelect.value=soloProbabilityDisplayEnabled?'1':'0';
     if(gameState){gameState.config.probabilityDisplayEnabled=soloProbabilityDisplayEnabled;gameState.config.redProbabilityEnabled=soloProbabilityDisplayEnabled;}
-    soloCheatHideProbabilityOverlay();const saved=actionState;
-    if(gameState){renderPlayerView(makeViewFor('p0'));actionState=saved;updateActionUi();rerenderBoardsOnly();}
+    soloCheatHideProbabilityOverlay();
+    if(currentView){
+      currentView.config.probabilityDisplayEnabled=soloProbabilityDisplayEnabled;
+      currentView.config.redProbabilityEnabled=soloProbabilityDisplayEnabled;
+      if(soloProbabilityDisplayEnabled)wbPopulateProbabilities(currentView);
+      wbWireCandidates(currentView);wbRenderProbabilities();wbStatus(currentView);
+    }
     wbMenu();
   }));
   grid.append(wbButton('表示と操作の説明',wbHelp));
@@ -32216,10 +32295,12 @@ function wbProbability(data,selection){
 function wbRenderProbabilities(root=els.oppBoards){
   const active=wbActiveProbability();
   for(const el of root.querySelectorAll('.tile')){
-    el.querySelectorAll('.tileCheatPercent,.tileRedPercent').forEach(x=>x.remove());
-    if(!soloProbabilityDisplayEnabled||el.classList.contains('cut'))continue;
     const found=soloCheatFindViewTileFromElement(el);if(!found)continue;
     const tile=found.tile;const data=tile.cheatAllProbabilities;
+    const key=JSON.stringify([soloProbabilityDisplayEnabled,currentView?.phase,el.classList.contains('cut'),active,data,currentView?.wbProbabilityError]);
+    if(wbProbabilityNodes.get(el)===key)continue;wbProbabilityNodes.set(el,key);
+    el.querySelectorAll('.tileCheatPercent,.tileRedPercent').forEach(x=>x.remove());
+    if(!soloProbabilityDisplayEnabled||currentView?.phase!=='play'||el.classList.contains('cut'))continue;
     const red=data?.redTotal??tile.redProbability;
     if(typeof red==='number'){const p=wbNode('span','tileRedPercent',wbPct(red));p.title=`赤総確率 ${soloCheatDetailPercent(red)}`;el.append(p);}
     else if(currentView?.wbProbabilityError){const p=wbNode('span','tileRedPercent','—');p.title='確率を算出できません（メニューに詳細）';el.append(p);}
@@ -32262,6 +32343,7 @@ function wbBoardDetail(owner){
   const card=owner.personalCard;if(card)box.append(wbNode('p',null,`${card.name||PERSONAL_CARDS[card.type]?.name} / 残り${card.remainingUses}回`));
 }
 function wbDecorateBoards(view){
+  els.gameCard.classList.toggle('wb-choosing-card',view.phase==='personalCards');
   const own={playerKey:view.playerKey,label:view.label,boards:view.myBoards,infoPlaced:view.infoPlaced,boardFacts:view.myBoardFacts,personalCard:view.personalCard};
   const containers=[...els.oppBoards.querySelectorAll(':scope > .opponentGroup')];
   view.opponents.forEach((p,i)=>{
@@ -32281,6 +32363,23 @@ function wbDecorateBoards(view){
   wb$('wbOpp').style.setProperty('--wb-cpus',view.opponents.length);wb$('wbOpp').classList.toggle('wb-six',view.opponents.length===5);
   els.gameCard.classList.toggle('wb-many-boards',view.myBoards.length>1);
 }
+// Relation symbols have their own lane below the token lane. Horizontal
+// endpoints are the same slot IDs as the original renderer, including holes.
+const wbBasePlaceRelation=placeRelationLabelElement;
+placeRelationLabelElement=function(tiles,left,right,type,lane){
+  wbBasePlaceRelation(tiles,left,right,type,lane);
+  const label=tiles.lastElementChild;
+  label.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+2+lane*12}px`;
+  label.style.setProperty('--wb-lane',String(lane));
+  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*12}px`);
+  tiles.dataset.wbLaneCount=String(Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1));
+};
+const wbBasePlaceChoice=placeRelationChoiceElement;
+placeRelationChoiceElement=function(tiles,left,right,pair,symbol,lane=0){
+  wbBasePlaceChoice(tiles,left,right,pair,symbol,lane);
+  tiles.lastElementChild.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+2+lane*12}px`;
+  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*12+8}px`);
+};
 const wbEquipmentDescriptions={
  radar:'通常数字を1つ選び、その数字が残っている台を公開します。使用開始後は、通常数字の残数帯から選択します。',
  dotchi:'自分の台から異なる2つの通常数字を宣言し、相手のタイル1枚を指定します。',
@@ -32318,51 +32417,61 @@ function wbPersonalDetail(){
 function wbEquipmentBar(view){
   [...els.equipmentCards.querySelectorAll('.equipmentItem')].forEach(el=>{
     const c=view.equipmentCards.find(c=>c.type===el.dataset.equipmentType);if(!c)return;
+    const key=JSON.stringify([c,wbEquipmentStatus(c,view)]);
+    if(el.dataset.wbEquipmentKey===key)return;el.dataset.wbEquipmentKey=key;
     const short={ice:'氷',radar:'なんレー',battery:'電池',dismantleGun:'銃',priorityCut:'優先券',superProbe:'超たん',differentLabel:'コトナル',equalLabel:'イコール',hook:'フック'}[c.type]||c.short;
     el.replaceChildren(wbNode('span',null,short),wbNode('span','wb-eq-number',c.unlockNumber),wbNode('span','wb-eq-status',wbEquipmentStatus(c,view)));
     el.classList.toggle('wb-eq-long',String(short).length>=4);el.setAttribute('role','button');el.tabIndex=0;el.setAttribute('aria-label',`${c.name} 解放${c.unlockNumber} ${wbEquipmentStatus(c,view)}`);el.onclick=()=>wbEquipmentDetail(c.type);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();wbEquipmentDetail(c.type);}};
   });
 }
 function wbRefresh(){
-  if(wbRendering||!currentView)return;wbRendering=true;
+  if(wbRenderDepth||wbRendering||!currentView)return;wbRendering=true;
   try{wbInstall();document.body.classList.add('wb-playing');wbDecorateBoards(currentView);wbWireCandidates(currentView);wbRenderProbabilities();wbEquipmentBar(currentView);wbStatus(currentView);if(soloCpuAwaitingConfirm)els.playControls.classList.add('hidden');}finally{wbRendering=false;}
 }
 // Supply missing display distributions on CPU turns from the SAME existing
 // legal-information marginals used by the original long-press panel. No truth
 // tiles, sampling or independent probability model is read/created here.
-const wbBaseView=makeViewFor;
-makeViewFor=function(playerKey){
-  let view;
-  try{view=wbBaseView(playerKey);}catch(error){
-    if(playerKey!=='p0'||!soloProbabilityDisplayEnabled)throw error;
-    // A display-only DP limit must not abort an already valid game transition.
-    // Never replace unavailable exact probabilities with a guessed value.
-    const enabled=soloProbabilityDisplayEnabled;
-    try{soloProbabilityDisplayEnabled=false;view=wbBaseView(playerKey);}finally{soloProbabilityDisplayEnabled=enabled;}
-    view.wbProbabilityError=String(error.message||error);return view;
-  }
-  if(playerKey!=='p0'||!soloProbabilityDisplayEnabled||!['infoTokens','play'].includes(view.phase))return view;
-  const missing=view.opponents.flatMap(p=>p.boards.flat()).filter(t=>!t.cut&&!t.cheatAllProbabilities);if(!missing.length)return view;
-  let shared;
-  try{const inf=soloBuildInference(view,3);shared=soloUnifiedConstraintMarginals(view,inf);}catch(error){view.wbProbabilityError=String(error.message||error);return view;}
-  if(!shared)return view;
-  for(const tile of missing){
+function wbPopulateProbabilities(view){
+  if(view.playerKey!=='p0'||!soloProbabilityDisplayEnabled||view.phase!=='play')return view;
+  let shared,distributions;
+  try{
+    const inf=soloBuildInference(view,3);
+    distributions=wbDisplayCache.get(inf);
+    if(!distributions){
+      // Preserve the original display probabilities; do not recalibrate the
+      // same inference again when the selected number / HUD / turn changes.
+      shared=soloUnifiedConstraintMarginals(view,inf);distributions=new Map();
+      wbDisplayCache.set(inf,distributions);
+    }
+  }catch(error){view.wbProbabilityError=String(error.message||error);return view;}
+  delete view.wbProbabilityError;
+  for(const tile of view.opponents.flatMap(p=>p.boards.flat()).filter(t=>!t.cut)){
+    const hit=distributions.get(tile.id);if(hit){tile.cheatAllProbabilities=hit;tile.redProbability=hit.redTotal;continue;}
+    if(!shared)continue;
     const items=[];const read=(kind,values,map)=>values.forEach(n=>{const p=Number(map?.get(Number(n))?.get(tile.id)||0);if(p>1e-10)items.push({kind,number:Number(n),probability:p});});
     read('normal',Array.from({length:view.config.maxNumber},(_,i)=>i+1),shared.normal);read('yellow',view.config.yellowCandidates||[],shared.yellowByValue);read('red',view.config.redCandidates||[],shared.redByValue);
     const total=k=>items.filter(x=>x.kind===k).reduce((s,x)=>s+x.probability,0);
     const redTotal=Number(shared.red?.get(tile.id)||0),normalTotal=total('normal'),yellowTotal=total('yellow');
-    tile.cheatAllProbabilities={items,normalTotal,yellowTotal,redTotal,total:normalTotal+yellowTotal+redTotal,method:shared.method};tile.redProbability=redTotal;
+    tile.cheatAllProbabilities={items,normalTotal,yellowTotal,redTotal,total:normalTotal+yellowTotal+redTotal,method:shared.method};tile.redProbability=redTotal;distributions.set(tile.id,tile.cheatAllProbabilities);
   }
   return view;
+}
+const wbBaseView=makeViewFor;
+makeViewFor=function(playerKey){const view=wbBaseView(playerKey);return wbPopulateProbabilities(view);};
+const wbBaseRender=renderPlayerView;renderPlayerView=function(view){
+  const key=JSON.stringify([view,actionState,selectedInfoToken,soloCurrentVisualStep(),soloCpuAwaitingConfirm,soloCpuBusy]);
+  if(key===wbLastRenderKey&&currentView){currentView=view;wbStatus(view);return;}
+  wbRenderDepth++;let result;
+  try{result=wbBaseRender(view);}finally{wbRenderDepth--;}
+  wbLastRenderKey=key;wbRefresh();return result;
 };
-const wbBaseRender=renderPlayerView;renderPlayerView=function(view){const result=wbBaseRender(view);wbRefresh();return result;};
-const wbBaseBoards=rerenderBoardsOnly;rerenderBoardsOnly=function(){const r=wbBaseBoards();wbRefresh();return r;};
-const wbBaseAction=updateActionUi;updateActionUi=function(){const r=wbBaseAction();wbRefresh();return r;};
+const wbBaseBoards=rerenderBoardsOnly;rerenderBoardsOnly=function(){wbRenderDepth++;let r;try{r=wbBaseBoards();}finally{wbRenderDepth--;}wbRefresh();return r;};
+const wbBaseAction=updateActionUi;updateActionUi=function(){const r=wbBaseAction();if(!wbRenderDepth&&currentView){wbWireCandidates(currentView);wbRenderProbabilities();wbStatus(currentView);}return r;};
 const wbBaseCpu=soloUpdateCpuPanel;soloUpdateCpuPanel=function(){const r=wbBaseCpu();if(currentView)wbStatus(currentView);return r;};
-const wbBaseEquipment=renderEquipmentCards;renderEquipmentCards=function(view){const r=wbBaseEquipment(view);wbEquipmentBar(view);return r;};
-const wbBaseNumbers=renderNumberTracker;renderNumberTracker=function(view){const r=wbBaseNumbers(view);if(view)wbWireCandidates(view);return r;};
+const wbBaseEquipment=renderEquipmentCards;renderEquipmentCards=function(view){const r=wbBaseEquipment(view);if(!wbRenderDepth)wbEquipmentBar(view);return r;};
+const wbBaseNumbers=renderNumberTracker;renderNumberTracker=function(view){const r=wbBaseNumbers(view);if(view&&!wbRenderDepth)wbWireCandidates(view);return r;};
 const wbBaseToken=selectInfoTokenTile;selectInfoTokenTile=function(...args){const r=wbBaseToken(...args);if(currentView)wbStatus(currentView);return r;};
-const wbBaseStart=startSoloGame;startSoloGame=function(){wbManual=null;wbLastEvent=null;wbObservedLives=null;wbObservedIce=null;wbObservedCut=-1;wbResultFacts=null;wbClose();document.body.classList.remove('wb-setup');return wbBaseStart();};startOrRedeal=startSoloGame;els.startGameBtn.onclick=startSoloGame;els.redealBtn.onclick=startSoloGame;
+const wbBaseStart=startSoloGame;startSoloGame=function(){wbManual=null;wbLastEvent=null;wbLastRenderKey='';wbDisplayCache=new WeakMap();wbObservedLives=null;wbObservedIce=null;wbObservedCut=-1;wbResultFacts=null;wbClose();document.body.classList.remove('wb-setup');return wbBaseStart();};startOrRedeal=startSoloGame;els.startGameBtn.onclick=startSoloGame;els.redealBtn.onclick=startSoloGame;
 // Add public result text to the EXISTING visual replay event. Its sequence,
 // confirmation boundary, target references and game-state effects are unchanged.
 const wbBaseResult=soloEmitResultVisual;

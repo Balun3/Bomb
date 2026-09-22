@@ -2698,6 +2698,13 @@ body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94p
 #gameCard .board:has(.wb-exchange-lane) .tiles:not(.relationLabelBoard){padding-bottom:0!important}
 #soloHistoryTitle{color:#193c30!important}
 
+#wbEndCause{font-size:14px;line-height:1.65;white-space:pre-line;color:#273c32;font-weight:650;margin:12px 0;text-align:left}
+#wbReviewOpen{display:block;width:100%;min-height:44px;border:1px solid #335d48;background:#365d47;color:#fff6df;font-size:15px;font-weight:750;margin-top:12px}
+#wbReviewControls{display:flex;gap:5px}#wbReviewControls button{padding:6px 3px;font-size:11px;min-width:0}
+#gameCard .tile.wb-fatal{outline:3px solid #db5547!important;outline-offset:1px!important;box-shadow:0 0 0 2px #451b16!important}
+#gameCard.wb-review .tile.wb-fatal::after{content:'!';position:absolute;right:-3px;top:-5px;width:10px;height:10px;border-radius:50%;background:#a32620;color:white;font:bold 9px/10px sans-serif;text-align:center;z-index:5}
+#gameCard.wb-review #gameEndBox{display:none!important}
+
 </style>
 </head>
 <body>
@@ -32294,6 +32301,7 @@ let wbRenderDepth=0,wbLastRenderKey='',wbDisplayCache=new WeakMap();
 const wbProbabilityNodes=new WeakMap();
 let wbObservedLives=null,wbObservedIce=null,wbObservedCut=-1,wbResultFacts=null;
 let wbGameSettings=null;
+let wbPostGame=null,wbPostGameReview=false,wbPostGameReveal=false,wbShownProbability=null;
 const wb$=id=>document.getElementById(id);
 const wbText=(node,text)=>{if(node&&node.textContent!==String(text))node.textContent=String(text);};
 const wbName=label=>String(label||'').replace(/\s*CPU\b/g,'');
@@ -32401,13 +32409,21 @@ function wbRematch(){
 function wbEndActions(view){
   const ended=['clear','gameover'].includes(view.phase);let buttons=wb$('wbEndActions');
   if(!ended){buttons?.remove();return;}
-  if(!buttons){buttons=wbNode('div');buttons.id='wbEndActions';buttons.append(wbButton('同じ設定で再戦',wbRematch),wbButton('設定を変更',wbShowSetup,'secondary'));els.gameEndBox.append(buttons);}
+  if(!buttons){
+    buttons=wbNode('div');buttons.id='wbEndActions';
+    buttons.append(wbButton('同じ設定で再戦',wbRematch),wbButton('設定を変更',wbShowSetup,'secondary'));
+    const review=wbButton('盤面を振り返る',()=>{wbPostGameReview=true;wbClose();wbSyncPostGame();});review.id='wbReviewOpen';
+    const cause=wbNode('p',null,wbPostGame?.cause||'');cause.id='wbEndCause';
+    els.gameEndBox.append(cause,review,buttons);
+  }
   buttons.firstElementChild.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
+  wbSyncPostGame();
 }
 function wbMenu(){
   const box=wbOpen('メニュー');const grid=wbNode('div','wb-menu-grid');box.append(grid);
   grid.append(wbButton('履歴を見る',()=>{wbClose();wb$('soloHistoryBtn').click();}));
   grid.append(wbButton(`確率表示：${soloProbabilityDisplayEnabled?'ON':'OFF'}`,()=>{
+    if(wbEnded())return;
     soloProbabilityDisplayEnabled=!soloProbabilityDisplayEnabled;
     soloProbabilityDisplaySelect.value=soloProbabilityDisplayEnabled?'1':'0';
     if(gameState){gameState.config.probabilityDisplayEnabled=soloProbabilityDisplayEnabled;gameState.config.redProbabilityEnabled=soloProbabilityDisplayEnabled;}
@@ -32420,6 +32436,7 @@ function wbMenu(){
     }
     wbMenu();
   }));
+  if(wbEnded()){const button=grid.children[1];button.disabled=true;button.textContent='確率：終了直前の表示を固定';}
   grid.append(wbButton('表示と操作の説明',wbHelp));
   grid.append(wbButton('現在の設定・新しいゲーム',wbShowSetup));
   if(currentView){const c=currentView.config;box.append(wbNode('p',null,`${c.playerCount}人 / 最大数字${c.maxNumber} / 黄${c.yellowUsedCount}枚 / 赤${c.redUsedCount}枚`));}
@@ -32521,7 +32538,8 @@ function wbProbability(data,selection){
   return items.filter(x=>x.kind===selection.kind&&Number(x.number)===selection.number).reduce((s,x)=>s+Number(x.probability),0);
 }
 function wbRenderProbabilities(root=els.oppBoards){
-  const active=wbActiveProbability();
+  if(wbEnded()){wbPaintPostGame(root);return;}
+  const active=wbActiveProbability();wbShownProbability=active;
   for(const el of root.querySelectorAll('.tile')){
     const found=soloCheatFindViewTileFromElement(el);if(!found)continue;
     const tile=found.tile;const data=tile.cheatAllProbabilities;
@@ -32547,13 +32565,14 @@ function wbWireCandidates(view){
     el.title=`${kind==='yellow'?'黄 ':kind==='red'?'赤 ':''}${number}${selected?' 選択中':''}`;
     const click=e=>{
       e?.preventDefault();e?.stopPropagation();
+      if(wbEnded())return;
       if(radar){if(kind!=='normal'||remainingNormalCount(currentView,number)<=0)return;actionState.selectedNumber=number;updateActionUi();return;}
       if(!soloProbabilityDisplayEnabled||wbActiveProbability()?.auto)return;
       wbManual=wbManual?.kind===kind&&wbManual.number===number?null:{kind,number};
       wbWireCandidates(currentView);wbRenderProbabilities();
     };
     el.onclick=click;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')click(e);};
-    el.setAttribute('aria-disabled',String(radar?kind!=='normal'||remainingNormalCount(view,number)<=0:!soloProbabilityDisplayEnabled||!!active?.auto));
+    el.setAttribute('aria-disabled',String(wbEnded()||(radar?kind!=='normal'||remainingNormalCount(view,number)<=0:!soloProbabilityDisplayEnabled||!!active?.auto)));
   };
   [...els.numberTracker.querySelectorAll('.numberTrackCell')].forEach((el,i)=>{
     if(!el.querySelector('.wb-count'))el.append(wbNode('span','wb-count',remainingNormalCount(view,i+1)));
@@ -32638,7 +32657,7 @@ function wbEquipmentStatus(c,view){if(c.type==='ice'&&view.iceShieldActor)return
 function wbEquipmentDetail(type){
   const c=currentEquipmentCard(type);if(!c)return;const box=wbOpen(c.name);
   const card=wbNode('div','wb-card-face');card.append(wbNode('div','wb-card-kind','EQUIPMENT'),wbNode('div','wb-card-title',c.name),wbNode('p',null,wbEquipmentDescriptions[type]||'使用開始後、盤面の操作案内に従って対象を選択します。'),wbNode('p',null,`解放数字 ${c.unlockNumber} / ${wbEquipmentStatus(c,currentView)} / 残り${c.remainingUses}回`));box.append(card);
-  const use=wbButton('使用する',()=>{wbClose();beginEquipmentCardAction(type);},'wb-use');use.disabled=!equipmentClientCanUse(c,currentView)||soloCpuBusy;box.append(use);
+  const use=wbButton('使用する',()=>{wbClose();beginEquipmentCardAction(type);},'wb-use');use.disabled=wbEnded()||!equipmentClientCanUse(c,currentView)||soloCpuBusy;box.append(use);
   if(c.mode==='auto')box.append(wbNode('p',null,'この装備は自動発動します。'));
   else if(!c.unlocked)box.append(wbNode('p',null,`${c.unlockNumber}を${c.threshold}枚切断すると解放します。`));
   else if(use.disabled&&c.remainingUses>0)box.append(wbNode('p',null,'現在は使用条件を満たしていません。'));
@@ -32702,6 +32721,7 @@ function wbPopulateProbabilities(view){
 const wbBaseView=makeViewFor;
 makeViewFor=function(playerKey){const view=wbBaseView(playerKey);return wbPopulateProbabilities(view);};
 const wbBaseRender=renderPlayerView;renderPlayerView=function(view){
+  if(['clear','gameover'].includes(view.phase)&&!wbPostGame)wbFreezePostGame(view);
   const key=JSON.stringify([view,actionState,selectedInfoToken,soloCurrentVisualStep(),soloCpuAwaitingConfirm,soloCpuBusy,soloHumanControlsBlocked()]);
   if(key===wbLastRenderKey&&currentView){currentView=view;wbStatus(view);return;}
   wbRenderDepth++;let result;
@@ -32715,6 +32735,8 @@ const wbBaseEquipment=renderEquipmentCards;renderEquipmentCards=function(view){c
 const wbBaseNumbers=renderNumberTracker;renderNumberTracker=function(view){const r=wbBaseNumbers(view);if(view&&!wbRenderDepth)wbWireCandidates(view);return r;};
 const wbBaseToken=selectInfoTokenTile;selectInfoTokenTile=function(...args){const r=wbBaseToken(...args);if(currentView)wbStatus(currentView);return r;};
 const wbBaseStart=startSoloGame;startSoloGame=function(){
+  wbPostGame=null;wbPostGameReview=false;wbPostGameReveal=false;wbShownProbability=null;
+  els.gameCard.classList.remove('wb-review');wb$('wbReviewControls')?.remove();
   wbGameSettings=wbCaptureSettings();
   for(const timer of [soloScheduledTimer,soloHumanFlowTimer,soloCpuInterruptTimer])if(timer)clearTimeout(timer);
   soloScheduledTimer=null;soloHumanFlowTimer=null;soloCpuInterruptTimer=null;soloHumanFlowResolving=false;soloCpuPendingHumanActor=null;
@@ -32749,7 +32771,7 @@ soloEmitResultVisual=function(actor,beforeFacts,meta={}){
   return wbBaseResult(actor,beforeFacts,{...meta,text:`${wbName(playerLabel(actor))}${targets?' → '+targets:''} / ${declared!=null?'「'+declared+'」で':''}${card}\n${label}${tokens?'・'+tokens:''}${life}`});
 };
 const wbBaseDetail=soloCheatShowProbabilityOverlay;soloCheatShowProbabilityOverlay=function(el){
-  if(!soloProbabilityDisplayEnabled)return false;
+  if(wbEnded()||!soloProbabilityDisplayEnabled)return false;
   const ok=wbBaseDetail(el);if(!ok)return false;
   const overlay=wb$('soloCheatProbabilityOverlay');
   overlay.querySelector('.cheatProbClose').onclick=e=>{e.stopPropagation();soloCheatHideProbabilityOverlay();};
@@ -32770,6 +32792,74 @@ function wbDealReview(view){
   if(!next){next=wbButton('次へ',()=>{if(!gameState?.soloCaptainReview)return;delete gameState.soloCaptainReview;soloAssignRemainingCpuPersonalCards();broadcastViews();});next.id='wbDealNext';footer.append(next);}
   wbText(wb$('wbGuide'),'配牌を確認して「次へ」 / やり直しもできます');
  }else{next?.remove();}
+}
+
+
+function wbEnded(){return !!currentView&&['gameover','clear'].includes(currentView.phase);}
+function wbFreezePostGame(view){
+  // Capture only the legally visible, pre-transition DOM. Never infer here.
+  const probabilities=new Map();
+  for(const el of els.oppBoards.querySelectorAll('.tile[data-tile-id]')){
+    const copy=selector=>{const p=el.querySelector(selector);return p?{text:p.textContent,title:p.title,cls:p.className}:null;};
+    probabilities.set(el.dataset.tileId,{red:copy('.tileRedPercent'),upper:copy('.tileCheatPercent')});
+  }
+  const e=view.lastEvent||{},refs=(view.lastCutTiles||gameState?.lastCutTiles||[]).map(r=>({...r}));
+  const fatal=e.kind==='redBoom'?refs:[];
+  if(e.kind==='redBoom'&&e.targetPlayer!=null&&e.targetPosition!=null&&!fatal.some(r=>r.playerKey===e.targetPlayer&&r.boardIndex===e.targetBoard&&r.position===e.targetPosition))fatal.push({playerKey:e.targetPlayer,boardIndex:e.targetBoard,position:e.targetPosition});
+  const label=key=>wbName(key===view.playerKey?view.label:view.opponents.find(p=>p.playerKey===key)?.label||key||'');
+  const targets=(e.targetPlayer!=null?[{playerKey:e.targetPlayer,boardIndex:e.targetBoard,position:e.targetPosition}]:refs).filter(r=>r.position!=null).map(r=>{
+    const owner=r.playerKey===view.playerKey?view.myBoards:view.opponents.find(p=>p.playerKey===r.playerKey)?.boards;
+    return label(r.playerKey)+(owner?.length>1?' 第'+(Number(r.boardIndex)+1)+'台':'')+' '+(Number(r.position)+1)+'番';
+  });
+  const declared=e.myKind==='yellow'?'黄':e.myNumber??e.number??null;
+  const card=e.cardType?actionCardName(e.cardType):e.kind==='self'?'自己切断':'通常切断';
+  const lines=[];
+  if(e.actorLabel||targets.length)lines.push(wbName(e.actorLabel||'行動者の記録なし')+(targets.length?' → '+[...new Set(targets)].join('・'):''));
+  if(view.phase==='gameover'){
+    lines.push(card+(declared!=null?'：「'+declared+'」':'')+' → '+(e.kind==='redBoom'?(e.redNumber!=null?'赤'+formatTileNumber(e.redNumber)+'を指定':'赤タイルを指定'):'ライフ0でゲームオーバー'));
+    const step=soloCurrentVisualStep();
+    if(declared==null&&e.cardType&&step?.text&&(step.personalType||step.equipmentType)===e.cardType)lines.push(step.text);
+    if(!e.actorLabel&&view.recentAction?.text)lines.push(view.recentAction.text);
+  }
+  const selection=wbShownProbability;
+  const selectionLabel=!selection?'':selection.kind==='yellowTotal'?'黄の切断成功率':selection.kind==='normalSum'?selection.numbers.join('＋')+'の成功率':(selection.kind==='yellow'?'黄':selection.kind==='red'?'赤':'')+selection.number+(selection.auto?'の成功率':'の確率');
+  wbPostGame={probabilities,fatal,cause:lines.join('\n'),enabled:soloProbabilityDisplayEnabled,selectionLabel};
+}
+function wbSyncPostGame(){
+ if(!wbEnded()||!wbPostGame)return;
+ els.gameCard.classList.toggle('wb-review',wbPostGameReview);
+ els.gameEndBox.classList.toggle('hidden',wbPostGameReview);
+ for(const e of [els.playControls,soloCpuPanel,els.tokenConfirmArea,els.interruptCardArea])e.classList.add('hidden');
+ let controls=wb$('wbReviewControls');
+ if(wbPostGameReview){
+  if(!controls){controls=wbNode('div');controls.id='wbReviewControls';
+   const reveal=wbButton('未切断を公開',()=>{if(!wbEnded()||!wbPostGameReview)return;wbPostGameReveal=!wbPostGameReveal;wbSyncPostGame();});reveal.id='wbReveal';
+   controls.append(reveal,wbButton('履歴',()=>soloOpenHistory()),wbButton('結果に戻る',()=>{wbPostGameReview=false;wbStatus(currentView);}));wb$('wbCommand').append(controls);
+  }
+  controls.classList.remove('hidden');wbText(wb$('wbReveal'),wbPostGameReveal?'未切断を隠す':'未切断を公開');
+  wbText(wb$('wbTurn'),'終了後の振り返り');wbText(wb$('wbTurnSub'),'読み取り専用'+(wbPostGameReveal?'・答えを公開中':''));
+  wbText(wb$('wbGuide'),wbPostGame.enabled?'終了直前：'+(wbPostGame.selectionLabel?wbPostGame.selectionLabel+'／':'')+'赤総確率（固定）':'読み取り専用・終了時は確率表示OFF');
+ }else{controls?.classList.add('hidden');wbText(wb$('wbGuide'),'結果を確認 / 盤面を振り返る');}
+ wbPaintPostGame(els.gameCard);
+}
+function wbPaintPostGame(root){
+ if(!wbPostGame||!wbEnded())return;
+ for(const el of root.querySelectorAll('.tile[data-tile-id]')){
+  const found=soloCheatFindViewTileFromElement(el);if(!found)continue;
+  const t=found.tile,key=el.dataset.playerKey,bi=Number(el.dataset.boardIndex),pos=Number(el.dataset.position);
+  // Truth is read only after explicit post-game reveal. Never attach it to view/state.
+  const reveal=wbPostGameReview&&wbPostGameReveal&&!t.cut;
+  let number=t.number,kind=t.kind,hidden=!!t.faceHidden||(key!==currentView.playerKey&&number==null);
+  if(reveal){const truth=gameState?.players?.[key]?.boards?.[bi]?.find(x=>x.id===t.id);if(truth){number=truth.number;kind=truth.kind;hidden=false;}}
+  el.classList.toggle('hiddenTile',hidden);el.classList.toggle('yellowTile',!hidden&&kind==='yellow');el.classList.toggle('redTile',!hidden&&kind==='red');
+  const num=el.querySelector('.wb-number');if(num){const text=hidden?'?':formatTileNumber(number);wbText(num,text);num.classList.toggle('longNumber',text.length>=4);num.classList.toggle('mediumNumber',text.length===3);}
+  el.classList.remove('selectableTile','playSelectedOwn','playSelectedTarget','selfGroupSelected','selected','wb-probe-hit');el.onclick=null;
+  el.querySelectorAll('.tileCheatPercent,.tileRedPercent').forEach(p=>p.remove());
+  if(wbPostGameReview&&wbPostGame.enabled){const p=wbPostGame.probabilities.get(t.id);for(const item of [p?.red,p?.upper])if(item){const span=wbNode('span',item.cls,item.text);span.title='終了直前：'+item.title;el.append(span);}}
+  const fatal=wbPostGame.fatal.some(r=>r.tileId?r.tileId===t.id:r.playerKey===key&&Number(r.boardIndex)===bi&&Number(r.position)===pos);
+  el.classList.toggle('wb-fatal',fatal);
+  if(fatal)el.setAttribute('aria-label','ゲームオーバーの原因になった位置');
+ }
 }
 
 wbInstall();

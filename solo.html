@@ -2507,7 +2507,7 @@ body.wb-playing #gameCard{height:100dvh;min-height:620px;border:0;border-radius:
 #wbEvent{grid-row:2;min-width:0;width:100%;text-align:left;border:1px solid #516559;border-left:4px solid var(--wb-blue);padding:3px 8px;background:#263b35;color:var(--wb-cream);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11px;line-height:16px;border-radius:7px;white-space:normal}#wbEvent[data-tone=success]{border-left-color:var(--wb-mint)}#wbEvent[data-tone=failure]{border-left-color:var(--wb-amber);background:#453c28}#wbEvent[data-tone=card]{border-left-color:var(--wb-purple)}#wbEvent[data-tone=danger]{border-left-color:var(--wb-red);background:#4b2d2a}
 #wbOpp{grid-row:3;min-height:0;overflow:hidden}#oppBoards{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(var(--wb-cpus,4),minmax(0,1fr));gap:4px;height:100%;margin:0}#wbOpp.wb-six{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}#wbOpp.wb-six #oppBoards{height:auto;grid-template-rows:repeat(5,minmax(76px,auto));gap:5px}#oppBoards>.opponentGroup{min-width:0;min-height:0;margin:0;padding:3px 5px 2px;background:linear-gradient(135deg,#34473d,#293a32);border:1px solid #4c6152;border-radius:8px;box-shadow:0 2px 3px #0002;overflow:visible;display:flex;flex-direction:column;justify-content:center}#oppBoards>.opponentGroup.activeTurn,#oppBoards>.opponentGroup.activeInfoTurn{border-color:#d9c98e;background:#3a4838;box-shadow:inset 3px 0 #d9c98e}
 #gameCard .opponentName,#myPlayerHeading{font-size:10px;line-height:15px;min-height:16px;font-weight:650;margin:0 0 2px;padding:0;color:var(--wb-cream);display:flex;align-items:center;justify-content:space-between;gap:3px}#gameCard .playerHeadingLine{min-width:0;display:flex;flex-wrap:nowrap;align-items:center;gap:3px;line-height:15px;overflow:hidden;white-space:nowrap}#gameCard .playerHeadingName{max-width:85px;overflow:hidden;text-overflow:ellipsis;font-size:11px}#gameCard .personalCardTag{font-size:9px;padding:0 4px;line-height:13px;height:15px;border:1px solid #8e8968;border-radius:3px;background:#eee2bd;color:#54452c;box-shadow:0 1px #0004}#gameCard .personalCardTag.used{background:#384a40;color:#acb8aa;opacity:.8}#gameCard .soloCpuBadge{display:none}#gameCard .soloInlineFacts{display:flex;gap:2px;margin:0;overflow:hidden;min-width:0}#gameCard .soloInlineFactChip{font-size:9px;line-height:13px;min-width:13px;height:14px;padding:0 2px;background:#d8e4cb;color:#253a2e;border-radius:3px}#gameCard .turnArrow{font-size:10px;color:var(--wb-gold)}.wb-expand{font-size:10px!important;min-width:25px;height:18px;line-height:16px;padding:0 4px!important;color:#dcd8bd!important;background:#20352d!important;border:1px solid #61725b!important;flex-shrink:0}
-#gameCard .board{border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;margin:0;padding:0;min-width:0;width:100%;position:relative}#gameCard .board+.board{margin-top:5px}#gameCard .boardFacts{display:none}#gameCard .tiles{display:flex!important;flex-wrap:nowrap!important;gap:3px!important;align-items:flex-start!important;justify-content:flex-start;width:100%;padding:0!important;min-width:0;overflow:visible;position:relative}#gameCard .tileColumn{flex:1 1 0!important;width:0!important;min-width:0!important;margin:0!important;display:flex;flex-direction:column;align-items:stretch;position:relative}#gameCard .tile{width:100%!important;min-width:0!important;height:39px!important;min-height:39px!important;max-height:39px!important;padding:0!important;display:flex;align-items:center;justify-content:center;border:1px solid #e6dcc0!important;border-bottom:3px solid #b9aa86!important;border-radius:4px;background:linear-gradient(#fff9e9,#ece2c9)!important;color:#283b32!important;font-size:16px;line-height:1;box-shadow:0 2px 2px #0004!important;transform:none;position:relative;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;transition:transform .12s,box-shadow .12s}#gameCard .tile.hiddenTile{background:linear-gradient(#f7efdd,#dcd6be)!important;color:#74765f!important;font-size:15px}#gameCard .tile.yellowTile{background:linear-gradient(#ffefaa,#e3c260)!important;color:#705716!important}#gameCard .tile.redTile{background:linear-gradient(#eab5a0,#c88671)!important;color:#692b22!important}#gameCard .tile.cut{background:#536457!important;border-color:#667667!important;color:#b0b8a6!important;box-shadow:inset 0 2px 3px #0002!important;opacity:.65}#gameCard .tile.cut:after{content:'╱';position:absolute;font-size:32px;color:#ced5c766;inset:1px;text-align:center;pointer-events:none}#gameCard .tile.selectableTile{cursor:pointer}#gameCard .tile.playSelectedOwn,#gameCard .tile.playSelectedTarget,#gameCard .tile.selfGroupSelected{outline:2px solid #efcb78!important;outline-offset:1px;transform:translateY(-2px);box-shadow:0 4px 4px #0007!important}#gameCard .tile:active{transform:translateY(1px)}#gameCard .tokenSlot{height:12px!important;min-height:12px!important;margin:2px 0 0!important;display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;gap:1px!important;position:relative}#gameCard .tokenSlot>*{position:static!important;transform:none!important;min-width:0!important;max-width:100%;height:11px!important;line-height:10px!important;font-size:8px!important;padding:0 2px!important;border-width:1px!important;margin:0!important}#gameCard .tileColumn:has(.tokenSlot.hasMultiple) .tokenSlot>*{padding:0 1px!important;font-size:7px!important}#gameCard .exchangeTag{top:13px;left:0;right:auto;font-size:7px;padding:0;background:#cab7e3;line-height:9px;max-width:100%;overflow:hidden}#gameCard .tilePublicNotRed{position:absolute;left:0;right:0;top:14px;font-size:8px;line-height:10px;background:#deecd5;color:#245438;padding:0}#gameCard .tileRedPercent,#gameCard .tileCheatPercent{position:absolute;right:0;left:0;width:100%;text-align:center;min-width:0;padding:0!important;border:0!important;background:transparent!important;font-size:9px!important;line-height:10px!important;font-weight:800!important;letter-spacing:-.25px;box-shadow:none!important;pointer-events:none;text-shadow:none}#gameCard .tileRedPercent{top:auto!important;bottom:1px!important;color:#a3352d!important}#gameCard .tileCheatPercent{top:1px!important;bottom:auto!important;color:#246083!important}#gameCard .tileCheatPercent.yellowCheat{color:#926112!important}#gameCard .tileCheatPercent.redCheat{color:#a3352d!important}#gameCard .wb-dense .tile{font-size:12px}#gameCard .wb-dense .tileRedPercent,#gameCard .wb-dense .tileCheatPercent{font-size:7.5px!important;letter-spacing:-.45px}#gameCard .wb-dense .tiles{gap:2px!important}.exchangeHole{width:100%!important;min-width:0!important;height:39px!important;min-height:39px!important;font-size:9px!important;border:1px dashed #798770!important;background:#21342b!important}
+#gameCard .board{border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;margin:0;padding:0;min-width:0;width:100%;position:relative}#gameCard .board+.board{margin-top:5px}#gameCard .boardFacts{display:none}#gameCard .tiles{display:flex!important;flex-wrap:nowrap!important;gap:3px!important;align-items:flex-start!important;justify-content:flex-start;width:100%;padding:0!important;min-width:0;overflow:visible;position:relative}#gameCard .tileColumn{flex:1 1 0!important;width:0!important;min-width:0!important;margin:0!important;display:flex;flex-direction:column;align-items:stretch;position:relative}#gameCard .tile{width:100%!important;min-width:0!important;height:39px!important;min-height:39px!important;max-height:39px!important;padding:0!important;display:flex;align-items:center;justify-content:center;border:1px solid #e6dcc0!important;border-bottom:3px solid #b9aa86!important;border-radius:4px;background:linear-gradient(#fff9e9,#ece2c9)!important;color:#283b32!important;font-size:16px;line-height:1;box-shadow:0 2px 2px #0004!important;transform:none;position:relative;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;transition:transform .12s,box-shadow .12s}#gameCard .tile.hiddenTile{background:linear-gradient(#f7efdd,#dcd6be)!important;color:#74765f!important;font-size:15px}#gameCard .tile.yellowTile{background:linear-gradient(#ffefaa,#e3c260)!important;color:#705716!important}#gameCard .tile.redTile{background:linear-gradient(#eab5a0,#c88671)!important;color:#692b22!important}#gameCard .tile.cut{background:#536457!important;border-color:#667667!important;color:#b0b8a6!important;box-shadow:inset 0 2px 3px #0002!important;opacity:.65}#gameCard .tile.selectableTile{cursor:pointer}#gameCard .tile.playSelectedOwn,#gameCard .tile.playSelectedTarget,#gameCard .tile.selfGroupSelected{outline:2px solid #efcb78!important;outline-offset:1px;transform:translateY(-2px);box-shadow:0 4px 4px #0007!important}#gameCard .tile:active{transform:translateY(1px)}#gameCard .tokenSlot{height:12px!important;min-height:12px!important;margin:2px 0 0!important;display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;gap:1px!important;position:relative}#gameCard .tokenSlot>*{position:static!important;transform:none!important;min-width:0!important;max-width:100%;height:11px!important;line-height:10px!important;font-size:8px!important;padding:0 2px!important;border-width:1px!important;margin:0!important}#gameCard .tileColumn:has(.tokenSlot.hasMultiple) .tokenSlot>*{padding:0 1px!important;font-size:7px!important}#gameCard .exchangeTag{top:13px;left:0;right:auto;font-size:7px;padding:0;background:#cab7e3;line-height:9px;max-width:100%;overflow:hidden}#gameCard .tilePublicNotRed{position:absolute;left:0;right:0;top:14px;font-size:8px;line-height:10px;background:#deecd5;color:#245438;padding:0}#gameCard .tileRedPercent,#gameCard .tileCheatPercent{position:absolute;right:0;left:0;width:100%;text-align:center;min-width:0;padding:0!important;border:0!important;background:transparent!important;font-size:9px!important;line-height:10px!important;font-weight:800!important;letter-spacing:-.25px;box-shadow:none!important;pointer-events:none;text-shadow:none}#gameCard .tileRedPercent{top:auto!important;bottom:1px!important;color:#a3352d!important}#gameCard .tileCheatPercent{top:1px!important;bottom:auto!important;color:#246083!important}#gameCard .tileCheatPercent.yellowCheat{color:#926112!important}#gameCard .tileCheatPercent.redCheat{color:#a3352d!important}#gameCard .wb-dense .tile{font-size:12px}#gameCard .wb-dense .tileRedPercent,#gameCard .wb-dense .tileCheatPercent{font-size:7.5px!important;letter-spacing:-.45px}#gameCard .wb-dense .tiles{gap:2px!important}.exchangeHole{width:100%!important;min-width:0!important;height:39px!important;min-height:39px!important;font-size:9px!important;border:1px dashed #798770!important;background:#21342b!important}
 #gameCard .insertGap{position:relative!important;flex:0 0 16px!important;min-width:16px!important;width:16px!important;height:39px!important;padding:0!important;inset:auto!important;transform:none!important;z-index:4;background:#617c63!important;color:#fff!important}#gameCard .swapInsertMode{overflow-x:auto!important;padding-bottom:4px!important}#gameCard .swapInsertMode>.tileColumn{flex:0 0 24px!important}#gameCard .probeResolveBanner{position:absolute;bottom:0;font-size:9px;line-height:12px;z-index:3;padding:0 3px;max-width:100%}#gameCard .relationLabel{font-size:9px!important}
 #soloInferenceDock{grid-row:4!important;position:static!important;inset:auto!important;transform:none!important;width:auto!important;max-width:none!important;margin:0!important;padding:3px 5px!important;background:#192d25!important;border:1px solid #4a5e4d!important;border-radius:7px;box-shadow:none!important;z-index:auto!important;display:flex!important;flex-direction:column;gap:2px;min-height:0}#numberTracker{order:0;display:grid!important;gap:3px;margin:0!important;padding:0!important;width:100%;height:29px;min-height:29px}#numberTracker .numberTrackCell{min-width:0;height:29px;min-height:0;padding:1px 0;margin:0;border-radius:3px;background:#3d5143;border:1px solid #62755c;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#f2e6c7;cursor:pointer;line-height:12px}#numberTracker .numberTrackNum{font-size:11px;line-height:12px}#numberTracker .wb-count{font-size:8px;line-height:9px;color:#b8c9b8}#numberTracker .remaining0{opacity:.43}#numberTracker .wb-selected{background:#e7d49f!important;color:#28382f!important;border-color:#f5de97!important;outline:1px solid #eed393;opacity:1}#numberTracker .wb-selected .wb-count{color:#456045}#numberTracker .cardSelectable{outline:1px solid #b8d7e3}#specialTileTracker{order:1;display:flex!important;flex-direction:column!important;gap:1px!important;margin:0!important;padding:0!important;font-size:10px!important;line-height:13px!important;min-height:26px}#specialTileTracker .specialTileLine{font-size:10px!important;line-height:13px!important;min-height:13px!important;margin:0;padding:0!important;display:flex!important;align-items:center;gap:3px;white-space:nowrap;overflow-x:auto;scrollbar-width:none;background:none!important;border:0!important}#specialTileTracker .yellow{color:#efcc75}#specialTileTracker .red{color:#f2a38a}#specialTileTracker .specialTileCount{margin-left:auto;font-size:9px;color:inherit}#specialTileTracker .yellowCheatSep,#specialTileTracker .redCheatSep{display:none}#specialTileTracker .yellowCheatCandidate,#specialTileTracker .redCheatCandidate{padding:0 3px;line-height:13px;border-radius:3px;cursor:pointer}#specialTileTracker .wb-selected{background:#f2d48c;color:#3e3d2b;outline:1px solid #f9e3ac}#specialTileTracker .red .wb-selected{background:#f1b3a0;color:#65372c}
 #equipmentSection{grid-row:5;margin:0!important;padding:0!important;min-width:0;background:transparent!important;border:0!important}#equipmentSection>h3{display:none}#equipmentCards{display:flex!important;flex-wrap:nowrap!important;gap:3px!important;margin:0!important;padding:0!important;height:28px}#equipmentCards .equipmentItem{flex:1 1 0;min-width:0;margin:0!important;display:flex!important;align-items:center;justify-content:center;border:1px solid #7c8363;border-radius:4px;background:linear-gradient(#e2d7b5,#c9be9b);color:#344236;box-shadow:0 2px #1116;cursor:pointer;white-space:nowrap;gap:2px;padding:0 2px;height:27px;font-size:9px}#equipmentCards .equipmentItem.used{background:#34483b;color:#b4bfaa;border-color:#586952}#equipmentCards .equipmentItem.locked{background:#2d3e33;color:#c5cbb6;border-color:#526550}#equipmentCards .equipmentItem.iceActive{background:#c0e4dc;color:#29544b}#equipmentCards .equipmentItem.wb-eq-long{font-size:8px}.wb-eq-number{font-size:9px;border:1px solid currentColor;border-radius:50%;width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.wb-eq-status{font-size:9px}
@@ -2624,7 +2624,7 @@ body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94p
 #gameCard.wb-choosing-card #personalCardChoiceArea:not(.hidden){grid-row:5;align-self:stretch;align-content:start;gap:8px;padding:10px!important}
 #gameCard.wb-choosing-card #wbCommand{grid-row:6}
 #gameCard .tile.cut{background:#435d50!important;color:#f5f8ed!important;opacity:1!important;border-color:#6b8170!important}
-#gameCard .tile.cut:after{content:none!important}
+
 #gameCard .tile.cut:before{content:'✓';position:absolute;bottom:1px;right:1px;font-size:7px;color:#dce7d9}
 #gameCard .playerHeadingName,#wbTurnSub{color:#f3f1e6}
 #gameCard .personalCardTag.used{color:#e3e9dc;opacity:1}
@@ -2654,6 +2654,49 @@ body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94p
 /* On the shortest narrow viewports, preserve legible tokens and relation
    symbols; a few pixels of page scroll are preferable to clipping the last rack. */
 @media(max-width:370px) and (max-height:663px){body.wb-playing:not(.wb-setup){overflow-y:auto}body.wb-playing:not(.wb-setup)>.wrap{height:auto;min-height:664px}body.wb-playing #gameCard{height:664px;min-height:664px}}
+
+/* Final readability pass; keeps inference and rack geometry unchanged. */
+#gameCard .tile.yellowTile.cut{background:#68602f!important;border-color:#a09554!important;color:#fff3bd!important;opacity:1}
+#gameCard .tile.redTile.cut{background:#763e37!important;border-color:#af7467!important;color:#ffe8da!important;opacity:1}
+#gameCard .tile:is(.playSelectedOwn,.playSelectedTarget,.selfGroupSelected,.selected){outline:4px double #ffe391!important;outline-offset:1px!important;border-color:#ffdc70!important;transform:translateY(-3px)!important;box-shadow:0 4px 0 #826522,0 5px 5px #0008!important;z-index:3}
+#gameCard .tile:is(.playSelectedOwn,.playSelectedTarget,.selfGroupSelected,.selected) .wb-number{font-weight:950;text-decoration:underline;text-underline-offset:3px}
+#gameCard .tile .wb-number{font-size:inherit;line-height:1;letter-spacing:-.4px;white-space:nowrap}
+#gameCard .tile .wb-number.mediumNumber{font-size:.78em;letter-spacing:-.6px}
+#gameCard .tile .wb-number.longNumber{font-size:.82em;letter-spacing:-.7px}
+#gameCard .wb-exchange-lane{position:absolute;top:0;left:0;right:0;height:9px;pointer-events:none;transform:translateY(-9px);text-align:center;z-index:4}
+#gameCard .wb-exchange-lane .exchangeTag{position:static!important;display:inline-block;font-size:8px!important;line-height:9px!important;height:9px;padding:0 1px!important;color:#302440;background:#e4d8f3;border-radius:2px;overflow:visible;transform:none!important}
+#gameCard .tile.hasExchangeTag{padding-top:0!important}
+#gameCard .tile.wb-probe-hit{outline:4px double #76dafa!important;outline-offset:1px;box-shadow:0 0 0 2px #1d5364!important;animation:wbHit .9s ease-in-out 2}
+@keyframes wbHit{50%{filter:brightness(1.2)}}
+@media(prefers-reduced-motion:reduce){#gameCard .tile.wb-probe-hit{animation:none}}
+#soloHistoryOverlay .soloHistoryList{background:#f6edda;color:#20362e}
+#soloHistoryOverlay .soloHistoryTurn{background:#f6edda;border-color:#bdbea7}
+#soloHistoryOverlay .soloHistoryTurnHeader{background:#d8dfc9;color:#173b30;font-weight:800}
+#soloHistoryOverlay .soloHistoryEntry{background:#fff9eb;color:#20362e!important;border-left:4px solid #78548f;line-height:1.65}
+#soloHistoryOverlay .soloHistoryEntry[data-tone=success]{border-left-color:#26784d}
+#soloHistoryOverlay .soloHistoryEntry[data-tone=failure]{border-left-color:#a66c00}
+#soloHistoryOverlay .soloHistoryEntry[data-tone=danger]{border-left-color:#b03329}
+#soloHistoryOverlay .soloHistoryEmpty{color:#20362e}
+#wbDealFooter{display:flex;gap:8px;margin-top:auto;min-height:40px}
+#wbDealFooter button{min-height:40px;flex:1}
+#gameCard.wb-choosing-card #wbCommand{min-height:65px}
+#wbCaptainFixed{color:#fff1c8;font-size:16px;text-align:center;width:100%}
+
+#gameCard .wb-exchange-lane{display:flex;align-items:flex-start;justify-content:center;line-height:9px}
+#gameCard .board:has(.wb-exchange-lane) .tiles{margin-top:9px}
+#gameCard .board:has(.wb-exchange-lane){margin-bottom:0}
+#gameCard .board:has(.wb-exchange-lane) .tiles.relationLabelBoard{padding-bottom:var(--wb-label-space,10px)!important}
+
+#gameCard.wb-choosing-card #personalCardChoiceArea:has(#wbCaptainFixed)::before{content:'配牌を確認'}
+
+#gameCard .tile.probeTargeted{outline:2px solid #d89037!important;outline-offset:0}
+#gameCard .tile.wb-probe-hit{outline:4px double #76dafa!important;outline-offset:1px}
+
+#gameCard .tile.wb-probe-target{outline:2px solid #df913d!important;outline-offset:0}
+#gameCard .tile.wb-probe-hit{outline:4px double #76dafa!important;outline-offset:1px}
+
+#gameCard .board:has(.wb-exchange-lane) .tiles:not(.relationLabelBoard){padding-bottom:0!important}
+#soloHistoryTitle{color:#193c30!important}
 
 </style>
 </head>
@@ -4736,7 +4779,7 @@ myTurn
 : `${view.turnLabel}の手番です`;
 els.turnBanner.classList.toggle("mine",myTurn);
 els.phaseHelp.textContent="";
-if(myTurn){
+if(myTurn&&!soloHumanControlsBlocked()){
 els.playControls.classList.remove("hidden");
 }
 return;
@@ -7052,6 +7095,7 @@ return;
 actionState=null;
 }
 function renderInterruptButton(view){
+if(soloHumanControlsBlocked()){els.interruptCardArea.classList.add("hidden");return;}
 els.interruptCardArea.classList.add("hidden");
 if(view.config?.personalCardsEnabled===false)return;
 const c=view.personalCard;
@@ -11381,8 +11425,12 @@ if(shouldPulse){
 el.classList.add("lastCutPulse");
 }
 }
-el.textContent=hidden?"?":formatTileNumber(tile.number);
-if(tile.exchangeTag){const tag=document.createElement("span");tag.className="exchangeTag";tag.textContent=tile.exchangeTag;el.appendChild(tag)}
+const numberText=hidden?"?":formatTileNumber(tile.number);
+const numberEl=document.createElement('span');numberEl.className='wb-number'+(numberText.length>=4?' longNumber':numberText.length===3?' mediumNumber':'');numberEl.textContent=numberText;el.appendChild(numberEl);
+if(tile.exchangeTag){const lane=document.createElement('div');lane.className='wb-exchange-lane';const tag=document.createElement('span');tag.className='exchangeTag';tag.textContent=tile.exchangeTag;lane.appendChild(tag);col.appendChild(lane);}
+if(!isOpponent&&view.phase==='infoTokens'&&selectedInfoToken?.boardIndex===bi&&selectedInfoToken?.position===tile.position)el.classList.add('selected');
+const legalProbe=view.cardFlow;
+if(!isOpponent&&legalProbe?.stage==='probeResolve'&&legalProbe.resolution==='cut'&&legalProbe.resolver===view.playerKey&&bi===Number(legalProbe.targetBoard)&&legalProbe.allowedPositions?.includes(tile.position))el.classList.add('wb-probe-hit');
 if(isOpponent&&!tile.cut&&tile.publicNotRed){
 const tag=document.createElement("span");
 tag.className="tilePublicNotRed";
@@ -11566,6 +11614,7 @@ renderCurrentTurnDock(view);
 renderRecentAction(view);
 }
 function updateActionUi(){
+if(soloHumanControlsBlocked()){els.playControls.classList.add("hidden");return;}
 renderEquipmentChoicePanel();
 if(!currentView){
 hideReceivedTilePreview();
@@ -17877,6 +17926,7 @@ function soloProbePlan(actor,view,inference,cardType){
             resourceCost +
             soloActionNoise(params.level);
 
+          if(level===3 && success-Math.max(Number(normalOpportunity.bestSuccess||0),Number(ordinary.success||0))<=1e-6 && Math.max(deltaRed,deltaDecisionRed)<=1e-6)continue;
           const plan={
             kind:"probe",cardType,source:src,sourceNumber:n,
             targetPlayer:opp.playerKey,targetBoard:bi,
@@ -18856,6 +18906,7 @@ function soloApplyVisualDecorations(view){
         );
     }
     if(!el)continue;
+    if(step.tone==='card'&&['futsu','mitsu','superProbe'].includes(step.personalType||step.equipmentType))el.classList.add('wb-probe-target');
     el.classList.add(
       step.tone==="success"?"soloVisualSuccess":
       step.tone==="failure"?"soloVisualFailure":
@@ -19497,6 +19548,9 @@ function soloFinalizeDotchiDeclaredFacts(actor,info,targetBefore,eventAfter){
   }
 }
 
+function soloProbePreviewText(type,number,target,positions){
+ return actionCardName(type)+'：'+formatTileNumber(number)+'を探知\n対象：'+playerLabel(target).replace(/\s*CPU/g,'')+' '+(positions||[]).map(p=>Number(p)+1).join('・')+'番';
+}
 function soloBuildCpuSpecialPreview(actor,bestSpecial){
   const plan=bestSpecial?.plan;
   if(!plan)return null;
@@ -19509,6 +19563,7 @@ function soloBuildCpuSpecialPreview(actor,bestSpecial){
     );
     return {
       actorKey:actor,tone:"card",
+      text:soloProbePreviewText(plan.cardType,plan.sourceNumber??plan.source?.tile?.number,plan.targetPlayer,plan.targetPositions),
       personalType:bestSpecial.source==="personal"?plan.cardType:null,
       equipmentType:bestSpecial.source==="equipment"?"mitsu":null,
       tiles:refs,
@@ -19556,6 +19611,7 @@ function soloBuildCpuSpecialPreview(actor,bestSpecial){
     );
     return {
       actorKey:actor,tone:"card",equipmentType:"superProbe",
+      text:soloProbePreviewText('superProbe',plan.sourceNumber??plan.source?.tile?.number,plan.targetPlayer,refs.map(r=>r.position)),
       tiles:refs,
       boardTarget:{playerKey:plan.targetPlayer,boardIndex:Number(plan.targetBoard)}
     };
@@ -20239,6 +20295,7 @@ function soloUpdateTokenAges(){
 }
 
 function soloRenderQuickActions(){
+if(soloHumanControlsBlocked()){soloQuickActions?.replaceChildren();soloQuickActions?.classList.add("hidden");return;}
   if(!soloQuickActions)return;
   soloQuickActions.innerHTML="";
   soloQuickActions.classList.add("hidden");
@@ -21296,12 +21353,15 @@ function soloAssignRemainingCpuPersonalCards(){
   }
   return false;
 }
+function soloHumanControlsBlocked(){
+ return !!(soloCpuBusy||soloCpuAwaitingConfirm||soloVisualReplayActive||soloCpuDeferredAction||soloCpuResumeAfterReplay);
+}
 function soloPreparePersonalCardsAtStart(){
   if(!gameState||gameState.config.personalCardsEnabled===false)return;
-  // 人間が隊長ならCPU子分をすぐ自動選択。
+  // 隊長も配牌確認を表示し、「次へ」でCPU子分を決定する。
   // 人間が子分なら、人間が先にカードを選んでからCPUが残りを選ぶ。
   if(gameState.players.p0?.role==="captain"){
-    soloAssignRemainingCpuPersonalCards();
+    if(gameState.phase==="personalCards")gameState.soloCaptainReview=true;
   }
 }
 function startSoloGame(){
@@ -21654,7 +21714,7 @@ function soloClearVisualDecorations(){
   document.querySelectorAll(".tile").forEach(el=>{
     el.classList.remove(
       "soloVisualSuccess","soloVisualFailure","soloVisualDanger",
-      "soloVisualCardTarget","soloVisualMove"
+      "soloVisualCardTarget","soloVisualMove","wb-probe-target"
     );
   });
   document.querySelectorAll(".board").forEach(el=>{
@@ -21714,6 +21774,7 @@ soloApplyVisualDecorations=function(view){
         );
     }
     if(!el)continue;
+    if(step.tone==='card'&&['futsu','mitsu','superProbe'].includes(step.personalType||step.equipmentType))el.classList.add('wb-probe-target');
     el.classList.add(
       step.tone==="success"?"soloVisualSuccess":
       step.tone==="failure"?"soloVisualFailure":
@@ -21784,6 +21845,7 @@ processProbeCard=function(actor,cardType,payload){
   if(targetRefs.length){
     soloEmitExplicitVisualStep({
       actorKey:actor,tone:"card",personalType:cardType,
+      text:soloProbePreviewText(cardType,getStateTile(actor,payload.sourceBoard,payload.sourcePosition)?.number,payload.targetPlayer,targetRefs.map(r=>r.position)),
       // 使用時は対象側だけオレンジ。使用者の元タイルは成功結果が出るまで示さない。
       tiles:targetRefs,
       boardTarget:{playerKey:payload.targetPlayer,boardIndex:Number(payload.targetBoard)}
@@ -21805,6 +21867,7 @@ processEquipmentProbe=function(actor,payload){
   if(targetRefs.length){
     soloEmitExplicitVisualStep({
       actorKey:actor,tone:"card",equipmentType:"mitsu",
+      text:soloProbePreviewText('mitsu',getStateTile(actor,payload.sourceBoard,payload.sourcePosition)?.number,payload.targetPlayer,targetRefs.map(r=>r.position)),
       // 使用時は対象側だけオレンジ。使用者の元タイルは成功結果が出るまで示さない。
       tiles:targetRefs,
       boardTarget:{playerKey:payload.targetPlayer,boardIndex:Number(payload.targetBoard)}
@@ -21827,6 +21890,7 @@ processEquipmentSuperProbe=function(actor,payload){
   if(targetRefs.length){
     soloEmitExplicitVisualStep({
       actorKey:actor,tone:"card",equipmentType:"superProbe",
+      text:soloProbePreviewText('superProbe',getStateTile(actor,payload.sourceBoard,payload.sourcePosition)?.number,payload.targetPlayer,targetRefs.map(r=>r.position)),
       // 使用者側の元タイルは伏せたまま、対象台だけをオレンジ表示。
       tiles:targetRefs,
       boardTarget:{playerKey:payload.targetPlayer,boardIndex:Number(payload.targetBoard)}
@@ -31445,7 +31509,8 @@ function soloPersonalProbeCurrentLegitimacy(plan,view,actor){
     !f.edgeWaste
   );
   const baseLegitimate=safe&&!!(f.redAvoid||f.locationSearch);
-  const legitimate=baseLegitimate&&!f.tokenLocationWaste;
+  const dominated=f.locationGain<=1e-6&&f.redGain<=1e-6;
+  const legitimate=baseLegitimate&&!f.tokenLocationWaste&&!dominated;
   return {flags:f,legitimate};
 }
 
@@ -32382,7 +32447,7 @@ function wbStatus(view){
   else if(soloCpuAwaitingConfirm){title='CPUの結果を確認';sub='盤面と直前アクションを確認 → 次へ';tone='card';}
   else if(soloCpuBusy){title=`${wbName(playerLabel(soloCpuActor))}が考え中`;sub='CPUが行動を選んでいます';}
   else if(view.cardFlow&&(view.cardFlow.resolver===own||view.cardFlow.actor===own)){title='あなたの選択が必要';sub=actionCardName(view.cardFlow.type);tone='card';}
-  else if(view.phase==='personalCards'){title='個人カードを選択';sub='今回使うカードを選んでください';}
+  else if(view.phase==='personalCards'){title=gameState?.soloCaptainReview?'配牌を確認':'個人カードを選択';sub=gameState?.soloCaptainReview?'隊長：フツたん固定':'今回使うカードを選んでください';}
   else if(view.phase==='infoTokens'){title=view.infoTurn===own?'情報トークンを配置':`${wbName(view.infoTurnLabel)}が配置中`;sub='自分の通常数字を1枚公開します';}
   else if(view.turn===own){title='あなたの番';sub=wbName(view.label);tone='success';}
   else {title=`${wbName(view.turnLabel)}の番`;sub='次へ → CPUの行動';}
@@ -32401,12 +32466,12 @@ function wbStatus(view){
     event={text,tone:step.tone};
   }
   if(event?.text)wbLastEvent={text:event.text,tone:event.tone};
-  const initial={personalCards:'手牌と黄・赤候補を確認して個人カードを選択',infoTokens:'情報トークンを配置',play:`${title} / 盤面を確認して行動を選択`,clear:'解除成功 / すべてのタイルを切断しました',gameover:view.lastEvent?.kind==='redBoom'?'赤タイルによるゲームオーバー':'ライフがなくなりゲーム終了'};
+  const initial={personalCards:gameState?.soloCaptainReview?'手牌と黄・赤候補を確認 → 次へ':'手牌と黄・赤候補を確認して個人カードを選択',infoTokens:'情報トークンを配置',play:`${title} / 盤面を確認して行動を選択`,clear:'解除成功 / すべてのタイルを切断しました',gameover:view.lastEvent?.kind==='redBoom'?'赤タイルによるゲームオーバー':'ライフがなくなりゲーム終了'};
   let text=wbLastEvent?.text||initial[view.phase]||title;
   if(view.lastEvent?.kind==='redBoom'&&view.phase==='gameover')text=`赤タイルによるゲームオーバー / ${text}`;
   if(/氷|保護/.test(text)&&/失敗|防/.test(text))text=`失敗・万能氷で保護 / ${text}`;
   wbText(wb$('wbEvent'),text.replace(/\s*CPU/g,'').replace(/数字の/g,''));wb$('wbEvent').dataset.tone=/失敗・万能氷/.test(text)?'failure':wbLastEvent?.tone||'card';
-  wbGuide(view);wbEndActions(view);els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
+  wbGuide(view);wbDealReview(view);wbEndActions(view);els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
 }
 function wbGuide(view){
   const a=actionState;let s='';
@@ -32518,11 +32583,12 @@ function wbDecorateBoards(view){
   els.gameCard.querySelectorAll('.board').forEach(b=>{const tiles=b.querySelectorAll('.tileColumn').length;b.classList.toggle('wb-dense',tiles>13);});
   const tag=els.myPlayerHeading.querySelector('.personalCardTag');if(tag){tag.onclick=()=>wbPersonalDetail();tag.setAttribute('role','button');tag.tabIndex=0;tag.onkeydown=e=>{if(e.key==='Enter')wbPersonalDetail();};}
   // Optional direct entry into normal selection; execution still needs the button.
-  if(!actionState&&view.phase==='play'&&view.turn===view.playerKey&&!view.cardFlow&&!soloCpuAwaitingConfirm){
+  if(!actionState&&view.phase==='play'&&view.turn===view.playerKey&&!view.cardFlow&&!soloHumanControlsBlocked()){
     els.myBoards.querySelectorAll('.tile:not(.cut):not(.redTile)').forEach(el=>{
       el.classList.add('selectableTile');el.onclick=e=>{e.stopPropagation();const bi=Number(el.dataset.boardIndex),pos=Number(el.dataset.position);const tile=view.myBoards[bi].find(t=>t.position===pos);if(!tile)return;beginAction('normal');selectPlayTile(false,view.playerKey,bi,pos,tile.number,tile.kind);};
     });
   }
+  wbDealReview(view);
   wb$('wbOpp').style.setProperty('--wb-cpus',view.opponents.length);wb$('wbOpp').classList.toggle('wb-six',view.opponents.length===5);
   els.gameCard.classList.toggle('wb-many-boards',view.myBoards.length>1);
 }
@@ -32636,7 +32702,7 @@ function wbPopulateProbabilities(view){
 const wbBaseView=makeViewFor;
 makeViewFor=function(playerKey){const view=wbBaseView(playerKey);return wbPopulateProbabilities(view);};
 const wbBaseRender=renderPlayerView;renderPlayerView=function(view){
-  const key=JSON.stringify([view,actionState,selectedInfoToken,soloCurrentVisualStep(),soloCpuAwaitingConfirm,soloCpuBusy]);
+  const key=JSON.stringify([view,actionState,selectedInfoToken,soloCurrentVisualStep(),soloCpuAwaitingConfirm,soloCpuBusy,soloHumanControlsBlocked()]);
   if(key===wbLastRenderKey&&currentView){currentView=view;wbStatus(view);return;}
   wbRenderDepth++;let result;
   try{result=wbBaseRender(view);}finally{wbRenderDepth--;}
@@ -32690,6 +32756,22 @@ const wbBaseDetail=soloCheatShowProbabilityOverlay;soloCheatShowProbabilityOverl
   overlay.onkeydown=e=>{if(e.key==='Escape')soloCheatHideProbabilityOverlay();};
   return true;
 };
+
+const wbConfirmToken=confirmInfoToken;confirmInfoToken=function(...args){const r=wbConfirmToken(...args);if(!selectedInfoToken)els.myBoards.querySelectorAll('.tile.selected').forEach(e=>e.classList.remove('selected'));return r;};
+function wbDealReview(view){
+ let footer=wb$('wbDealFooter');
+ if(view.phase!=='personalCards'){footer?.remove();return;}
+ if(!footer){footer=wbNode('div');footer.id='wbDealFooter';footer.append(wbButton('配牌をやり直す',wbRematch));wb$('wbCommand').append(footer);}
+ const captain=!!gameState?.soloCaptainReview;
+ let next=wb$('wbDealNext');
+ if(captain){
+  els.personalCardChoiceArea.classList.remove('hidden');
+  if(!wb$('wbCaptainFixed')){els.personalCardChoiceArea.replaceChildren();const label=wbNode('p',null,'隊長：フツたん固定');label.id='wbCaptainFixed';els.personalCardChoiceArea.append(label);}
+  if(!next){next=wbButton('次へ',()=>{if(!gameState?.soloCaptainReview)return;delete gameState.soloCaptainReview;soloAssignRemainingCpuPersonalCards();broadcastViews();});next.id='wbDealNext';footer.append(next);}
+  wbText(wb$('wbGuide'),'配牌を確認して「次へ」 / やり直しもできます');
+ }else{next?.remove();}
+}
+
 wbInstall();
 })();
 

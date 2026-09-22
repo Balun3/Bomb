@@ -2555,7 +2555,7 @@ body.wb-playing:not(.wb-setup)>.wrap>p{display:none!important}
 #lobbyCard{padding:16px!important}#hostLobby{min-width:0}#hostLobby h2{color:var(--wb-cream);margin:0 0 14px}#hostLobby .setupGrid,#hostLobby .setupTilePair{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}#hostLobby .setupField{min-width:0;background:#233b33;border:1px solid #526b5c;border-radius:9px;padding:10px!important;color:#f5eedc}#hostLobby label{display:block;color:#f5eedc!important;font-size:13px!important;font-weight:700;margin-bottom:6px}#hostLobby select,#hostLobby input{display:block;width:100%!important;min-width:0!important;max-width:100%!important;font-size:15px!important;min-height:42px;border:1px solid #b8b598;border-radius:6px;padding:7px 5px!important;box-sizing:border-box}#hostLobby .small{font-size:11px!important;color:#c4d1c5!important;line-height:1.55;margin-top:6px}#hostLobby .setupTilePair{grid-column:1/-1}#setupPreview{padding:12px!important;line-height:1.65;font-size:12px;border:1px solid #536657;border-radius:8px;margin:12px 0;color:#e9e6cf!important}#soloSetupBox{background:#233b33!important;border-color:#526b5c!important;color:#f5eedc!important;min-width:0}#soloSetupBox .row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#soloSetupBox .row>*{min-width:0!important;flex:initial!important}#soloCpuSettingsBox{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}#soloCpuSettingsBox .soloCpuSetupRow{background:#2d493e!important;border:1px solid #536b5c!important;border-radius:7px;padding:7px!important;display:flex;flex-wrap:wrap;gap:4px;min-width:0}#soloCpuSettingsBox .soloCpuSetupName{color:#e5e3c9!important;font-size:12px}#soloCpuSettingsBox select{font-size:13px!important;min-height:36px}#startGameBtn{width:100%;min-height:46px;font-size:16px;background:#d2dfb7;color:#223c2f;border:1px solid #bbc993;box-shadow:0 3px #657958}#hostLobby .setupSection{min-width:0;background:transparent!important}#hostLobby .setupSectionTitle{color:#ede4c6!important}#hostLobby .setupGrid>*{min-width:0}#hostLobby .setupField:has(#maxNumberSelect){grid-column:1/-1}
 /* The entire own hand sits ABOVE the personal-card options, with no overlay. */
 body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px auto minmax(0,1fr) auto}
-#gameCard.wb-choosing-card #wbOpp,#gameCard.wb-choosing-card #soloInferenceDock,#gameCard.wb-choosing-card #equipmentSection{display:none!important}
+#gameCard.wb-choosing-card #wbOpp,#gameCard.wb-choosing-card #equipmentSection{display:none!important}
 #gameCard.wb-choosing-card #wbOwn{grid-row:3;align-self:start;margin:8px 0}
 #gameCard.wb-choosing-card #wbCommand{grid-row:5}
 #gameCard.wb-choosing-card #personalCardChoiceArea:not(.hidden){grid-row:4;position:static!important;inset:auto!important;max-height:none!important;align-self:start;width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px!important;background:#253d32;box-shadow:none!important;overflow:auto;min-height:0}
@@ -2563,24 +2563,97 @@ body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px auto min
 #personalCardChoiceArea button{min-width:0;min-height:64px;white-space:normal;font-size:14px!important;background:linear-gradient(#f5ebd0,#d7c79f)!important;color:#314435!important;border:1px solid #b2a176!important;box-shadow:0 3px #837552!important;border-radius:8px}
 #personalCardChoiceArea button:disabled{opacity:.45}
 #hostLobby .soloNote{color:#c8d6cc!important;font-size:12px;line-height:1.6}#hostLobby .setupField:has(#soloProbabilityDisplaySelect){grid-column:1/-1}
-body.wb-playing #gameCard:has(.relationLabelBoard):not(.wb-choosing-card){grid-template-rows:44px 40px minmax(180px,1fr) 67px 28px minmax(76px,auto) minmax(72px,auto)}
+
 /* Separate relation lane: tile faces, information tokens and labels never overlap. */
-#gameCard .tiles.relationLabelBoard,.wb-sheet .tiles.relationLabelBoard{padding-top:0!important;padding-bottom:var(--wb-label-space,12px)!important}
+#gameCard .tiles.relationLabelBoard,.wb-sheet .tiles.relationLabelBoard{padding-top:0!important;padding-bottom:10px!important}
 #gameCard .relationLabelPlaced,.wb-sheet .relationLabelPlaced{height:8px!important;border:0;border-top:1px solid currentColor;border-radius:0;z-index:4;transform:none!important}
 #gameCard .relationLabelPlaced:before,#gameCard .relationLabelPlaced:after,.wb-sheet .relationLabelPlaced:before,.wb-sheet .relationLabelPlaced:after{width:3px;height:3px;bottom:5px;box-shadow:none}
 #gameCard .relationLabelSymbol,.wb-sheet .relationLabelSymbol{top:0!important;min-width:12px!important;width:12px;height:10px!important;padding:0!important;border-radius:2px;font-size:11px!important;background:#eee4c7;color:inherit!important;box-shadow:none!important}
 #gameCard .relationLabelPlaced.equal,.wb-sheet .relationLabelPlaced.equal{color:#bfe4c2}#gameCard .relationLabelPlaced.different,.wb-sheet .relationLabelPlaced.different{color:#d2bde8}
 #gameCard .relationLabelPlaced.equal .relationLabelSymbol{color:#235c46!important}#gameCard .relationLabelPlaced.different .relationLabelSymbol{color:#684987!important}
 #gameCard .relationChoice{width:20px;height:18px;z-index:7}#gameCard .relationChoiceSymbol{width:17px;height:17px;font-size:12px;border-width:1px}
-#gameCard .opponentGroup:has(.relationLabelBoard){justify-content:flex-start}#wbOpp:has(.relationLabelBoard){overflow-y:auto;scrollbar-width:thin}#wbOpp:has(.relationLabelBoard) #oppBoards{height:auto;grid-auto-rows:minmax(76px,auto);grid-template-rows:none}
+
 #hostLobby .soloIntro{color:#c8d6cc!important;line-height:1.6}
 /* Make room for relation lanes without shrinking the tile faces. */
-#gameCard #wbOpp:has(.relationLabelBoard) .opponentGroup{padding:1px 5px 0!important}
-#gameCard #wbOpp:has(.relationLabelBoard) .opponentName{min-height:14px!important;height:14px;margin-bottom:1px!important}
-#gameCard #wbOpp:has(.relationLabelBoard) .wb-expand{min-height:14px!important;height:14px!important;max-height:14px!important;line-height:12px!important}
-#gameCard #wbOpp:has(.relationLabelBoard) .infoTokenSlot{height:10px!important;min-height:10px!important;margin-top:1px!important}
-#gameCard #wbOpp:has(.relationLabelBoard) .infoTokenSlot>*{height:10px!important;line-height:9px!important}
-#wbOpp:has(.relationLabelBoard) #oppBoards{grid-auto-rows:minmax(64px,auto)}
+
+
+
+
+
+
+
+/* Compact setup: original controls and their handlers, with optional details. */
+body:not(.wb-playing)>.wrap,body.wb-setup>.wrap{max-width:560px;padding:8px}
+body:not(.wb-playing)>.wrap>h1,body.wb-setup>.wrap>h1{font-size:18px;margin:5px 0 10px}
+body:not(.wb-playing)>.wrap>p,body.wb-setup>.wrap>p{display:none}
+#lobbyCard{padding:10px!important;margin:0!important}
+#lobbyCard>h2{display:none}
+#hostLobby .wb-setup-head{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-bottom:10px}
+#hostLobby .wb-setup-head h2{margin:0;font-size:17px}
+#hostLobby .wb-setup-head button{font-size:11px;min-height:32px;padding:4px 7px}
+#wbSetupGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#hostLobby .wb-setup-field{display:flex;align-items:center;gap:5px;min-width:0;padding:7px 5px;background:#233b33;border:1px solid #526b5c;border-radius:7px}
+#hostLobby .wb-setup-field label{font-size:11px!important;flex:none;margin:0;white-space:nowrap}
+#hostLobby .wb-setup-field select{flex:1;width:0!important;min-width:0!important;font-size:12px!important;min-height:33px;height:33px;padding:3px 1px!important}
+#hostLobby .wb-setup-details{margin:10px 0;border:1px solid #536b5c;border-radius:7px;padding:0 8px;color:#f6f1df}
+#hostLobby .wb-setup-details summary{font-size:12px;cursor:pointer;min-height:36px;line-height:36px}
+#hostLobby .wb-setup-details p{font-size:11px;line-height:1.5}
+#hostLobby .wb-setup-details input{min-height:35px;margin-bottom:8px}
+#hostLobby .wb-setup-details #soloCpuSettingsBox{margin-top:8px}
+#wbBackToGame:not(.hidden){font-size:12px;min-height:32px;padding:4px 8px;margin:0 0 8px}
+#hostLobby #startGameBtn{margin:0;min-height:44px}
+/* Reserve the same relation lane before and after placement. */
+#gameCard .tiles{padding-bottom:10px!important}
+#gameCard .tiles.relationLabelBoard{padding-top:0!important;padding-bottom:10px!important}
+.wb-sheet .tiles.relationLabelBoard{padding-bottom:calc(var(--wb-label-space,9px) + 10px)!important}
+body.wb-playing #gameCard:not(.wb-many-boards):not(.wb-choosing-card){grid-template-rows:44px 40px minmax(280px,1fr) 67px 28px 94px minmax(72px,auto)}
+#gameCard #oppBoards>.opponentGroup{padding:1px 5px 0!important}
+#gameCard #oppBoards .opponentName{height:14px;min-height:14px!important;margin-bottom:1px!important}
+#gameCard #oppBoards .wb-expand{height:14px!important;min-height:14px!important;max-height:14px!important;line-height:12px!important}
+#gameCard #oppBoards .infoTokenSlot{height:10px!important;min-height:10px!important;margin-top:1px!important}
+#gameCard #oppBoards .infoTokenSlot>*{height:10px!important;line-height:9px!important}
+#gameCard #oppBoards .tile{height:38px!important;min-height:38px!important;max-height:38px!important}
+#gameCard #wbOwn{justify-content:flex-start}
+#gameCard .relationChoice{height:16px;transform:translateY(-2px)}
+#gameCard .relationChoiceSymbol{height:14px;width:15px;font-size:11px}
+#gameCard .relationLabelSymbol{height:8px!important;line-height:8px!important;font-size:10px!important}
+#gameCard.wb-choosing-card #soloInferenceDock{grid-row:3!important;display:flex!important;min-height:35px}
+#gameCard.wb-choosing-card #numberTracker{display:none!important}
+body.wb-playing #gameCard.wb-choosing-card{grid-template-rows:44px 40px 39px 94px minmax(0,1fr) auto}
+#gameCard.wb-choosing-card #wbOwn{grid-row:4;margin:0!important}
+#gameCard.wb-choosing-card #personalCardChoiceArea:not(.hidden){grid-row:5;align-self:stretch;align-content:start;gap:8px;padding:10px!important}
+#gameCard.wb-choosing-card #wbCommand{grid-row:6}
+#gameCard .tile.cut{background:#435d50!important;color:#f5f8ed!important;opacity:1!important;border-color:#6b8170!important}
+#gameCard .tile.cut:after{content:none!important}
+#gameCard .tile.cut:before{content:'✓';position:absolute;bottom:1px;right:1px;font-size:7px;color:#dce7d9}
+#gameCard .playerHeadingName,#wbTurnSub{color:#f3f1e6}
+#gameCard .personalCardTag.used{color:#e3e9dc;opacity:1}
+#numberTracker .remaining4,#numberTracker .remaining2{color:#fffdf5!important}
+#numberTracker .remaining4 .numberTrackNum,#numberTracker .remaining2 .numberTrackNum{color:#fffdf5!important}
+#numberTracker .remaining0 .numberTrackNum{color:#b4b9b0!important}
+#numberTracker .remaining4 .wb-count,#numberTracker .remaining2 .wb-count{color:#fffdf5}
+#numberTracker .remaining0{color:#b4b9b0!important;opacity:.42}
+#numberTracker .wb-selected{color:#28382f!important}
+#numberTracker .wb-selected .wb-count{color:#456045!important}
+#equipmentCards .equipmentItem>span:first-child{overflow:visible;text-overflow:clip;flex-shrink:0}
+#equipmentCards .equipmentItem.locked,#equipmentCards .equipmentItem.used{color:#f1f0df}
+#equipmentCards .equipmentItem{font-weight:650;font-size:9px;gap:1px}
+#gameCard .tile.selectableTile{border-top:1px dashed #66877a!important;outline:1px dashed #91aa9b;outline-offset:0}
+#gameCard .tile.playSelectedOwn,#gameCard .tile.playSelectedTarget,#gameCard .tile.selfGroupSelected{outline:3px double #ffdb89!important;outline-offset:1px}
+#gameCard .tile.soloVisualCardTarget,#gameCard .tile.soloVisualFailure,#gameCard .tile.soloVisualDanger,#gameCard .tile.soloVisualSuccess{outline-width:3px!important;outline-style:solid!important}
+#wbEndActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+#wbEndActions button{min-height:44px;padding:8px;font-size:13px;background:#3e634c;color:#fff9e9;border:1px solid #637e60;flex:1}
+#wbEndActions button:disabled{opacity:.45}
+@media(max-width:370px){
+ #hostLobby .wb-setup-field{padding:6px 4px;gap:3px}#hostLobby .wb-setup-field label{font-size:10px!important}#hostLobby .wb-setup-field select{font-size:11px!important}
+ body.wb-playing #gameCard:not(.wb-many-boards):not(.wb-choosing-card){grid-template-rows:42px 38px minmax(280px,1fr) 65px 28px 94px minmax(68px,auto)}
+ #gameCard #oppBoards .tile{height:36px!important;min-height:36px!important;max-height:36px!important}
+ #equipmentCards .equipmentItem{font-size:8px;gap:1px}#equipmentCards .wb-eq-status{font-size:8px}#equipmentCards .wb-eq-number{width:12px;height:12px;font-size:8px}
+}
+@media(min-height:780px){body.wb-playing #gameCard:not(.wb-many-boards):not(.wb-choosing-card){grid-template-rows:46px 42px minmax(300px,1fr) 72px 30px 102px minmax(76px,auto)}#gameCard #oppBoards .tile{height:46px!important;min-height:46px!important;max-height:46px!important}}
+/* On the shortest narrow viewports, preserve legible tokens and relation
+   symbols; a few pixels of page scroll are preferable to clipping the last rack. */
+@media(max-width:370px) and (max-height:663px){body.wb-playing:not(.wb-setup){overflow-y:auto}body.wb-playing:not(.wb-setup)>.wrap{height:auto;min-height:664px}body.wb-playing #gameCard{height:664px;min-height:664px}}
 
 </style>
 </head>
@@ -17527,6 +17600,21 @@ function soloProbeAllRedRisk(selected,inference){
 // 同じ数字を同じ台へ探知するとき、上位1/2/3枚と台全体で
 // どこまで候補を覆えるかを比較する。強いCPUは「最大成功率」ではなく
 // 「必要十分な最小資源」を選ぶために使う。
+
+function soloProbeDominatedBySingleCurrent(scored,number){
+  const possible=scored.filter(x=>Number(x.p)>0);
+  if(possible.length!==1)return false;
+  const only=possible[0];
+  if(Number(only.red)>0)return false; // even a small real safety benefit remains
+  return scored.every(x=>{
+    if(x===only)return true;
+    const t=x.tile,tok=t?.infoToken;
+    if(tok && (tok.type==='number'||tok.type==='yellow'))return true;
+    if(t?.faceHidden===false && t?.kind)return true;
+    return Number(x.red)>=1; // cannot be chosen to reveal a safe failure token
+  });
+}
+
 function soloProbeCoverageStats(
   view,
   inference,
@@ -17558,11 +17646,13 @@ function soloProbeCoverageStats(
     };
   };
 
+  let locationBestSingle=0;
   const bestFor=count=>{
     if(scored.length<count)return summarizeSelected(scored);
     let best=null;
     for(const combo of soloProbeCombinations(scored,count)){
       const stats=summarizeSelected(combo);
+      if(count===1)locationBestSingle=Math.max(locationBestSingle,stats.success);
       // 探知機は「個別赤率」ではなく全赤だけが即死。成功率を主に、全赤を強く罰する。
       const utility=stats.success-stats.allRed*9+stats.safeFail*.015;
       if(!best||utility>best.utility+1e-12||(
@@ -17585,7 +17675,8 @@ function soloProbeCoverageStats(
   }
   const meaningful=scored.filter(x=>x.p>=.06);
   return {
-    top1,top2,top3,all,requiredCoverCount,
+    top1,top2,top3,all,requiredCoverCount,locationBestSingle,
+    onlyCandidateRed:scored.filter(x=>x.p>1e-5).length===1?scored.find(x=>x.p>1e-5).red:0,
     compatible:scored.filter(x=>x.p>1e-5).length,
     meaningfulCount:meaningful.length,
     meaningfulRedPeak:meaningful.reduce((m,x)=>Math.max(m,x.red),0),
@@ -30719,6 +30810,8 @@ soloProbePlan=function(actor,view,inference,cardType){
           };
         });
 
+        if(level===3&&soloProbeDominatedBySingleCurrent(scored,n))return;
+
         for(const selected of soloProbeCombinations(scored,need)){
           const joint=soloProbeJointStats(view,inference,n,selected,level);
           const success=joint.success;
@@ -30977,6 +31070,8 @@ function soloFutsuNewBClassify(plan,view){
     allRed<=Math.max(p.redFloor,ordinaryRed*p.redRatio)
   );
   const locationSearch=(
+    Number(plan?.personalProbeCompatible??Infinity)>1 &&
+    boardAny-bestSingle>=p.locationGain &&
     boardAny>=p.boardAny &&
     success>=p.probeSuccess &&
     locationGain>=p.locationGain &&
@@ -31282,7 +31377,7 @@ function soloPersonalProbeCurrentClassify(plan,view){
   const success=soloClamp(Number(plan?.success||0),0,1);
   const allRed=soloClamp(Number(plan?.allRed??plan?.red??0),0,1);
   const safeFail=soloClamp(Number(plan?.safeFail??(1-success-allRed)),0,1);
-  const ordinaryRed=soloClamp(Number(same.decisionRed??same.red??0),0,1);
+  const ordinaryRed=soloClamp(Math.max(Number(same.decisionRed??same.red??0),Number(plan?.personalProbeCompatible)===1?Number(plan?.personalProbeOnlyCandidateRed||0):0),0,1);
   const redGain=Math.max(
     Number(plan?.deltaDecisionRed||0),
     Number(plan?.deltaRed||0),
@@ -31333,7 +31428,9 @@ function soloPersonalProbeCurrentAttachCoverage(plan,view,inference,actor,cache)
     cache.set(key,cov||{});
   }
   plan.personalProbeBoardAnySuccess=Number(cov?.all?.success??plan.success??0);
-  plan.personalProbeBestSingleSuccess=Number(cov?.top1?.success??plan.sameNumberBaseline?.success??0);
+  plan.personalProbeBestSingleSuccess=Number(cov?.locationBestSingle??cov?.top1?.success??plan.sameNumberBaseline?.success??0);
+  plan.personalProbeCompatible=Number(cov?.compatible??Infinity);
+  plan.personalProbeOnlyCandidateRed=Number(cov?.onlyCandidateRed||0);
   plan.personalProbeBestTwoSuccess=Number(cov?.top2?.success??plan.success??0);
   plan.personalProbeBestThreeSuccess=Number(cov?.top3?.success??plan.success??0);
   return plan;
@@ -31406,6 +31503,8 @@ function soloPersonalProbePlanCurrent(actor,view,inference,cardType){
             )
           };
         });
+
+        if(level===3&&soloProbeDominatedBySingleCurrent(scored,n))return;
 
         for(const selected of soloProbeCombinations(scored,need)){
           const joint=soloProbeJointStats(view,inference,n,selected,level);
@@ -32129,6 +32228,7 @@ let wbInstalled=false, wbRendering=false;
 let wbRenderDepth=0,wbLastRenderKey='',wbDisplayCache=new WeakMap();
 const wbProbabilityNodes=new WeakMap();
 let wbObservedLives=null,wbObservedIce=null,wbObservedCut=-1,wbResultFacts=null;
+let wbGameSettings=null;
 const wb$=id=>document.getElementById(id);
 const wbText=(node,text)=>{if(node&&node.textContent!==String(text))node.textContent=String(text);};
 const wbName=label=>String(label||'').replace(/\s*CPU\b/g,'');
@@ -32175,7 +32275,69 @@ function wbInstall(){
   updateRecentActionDockPosition=()=>{};soloPositionInferenceDock=()=>{};
   const back=wbButton('ゲームへ戻る',()=>document.body.classList.remove('wb-setup'),'secondary');back.id='wbBackToGame';els.hostLobby.prepend(back);
   wb$('wbBackToGame').classList.add('hidden');
+  wbCompactSetup();
   window.addEventListener('resize',()=>{const v=wb$('wbViewport');if(v)wbText(v,`viewport: ${window.innerWidth} × ${window.innerHeight} CSS px`);});
+}
+function wbSyncCpuLevel(){
+  const levels=[...soloCpuSettingsBox.querySelectorAll('.soloLevelSelect')].map(el=>el.value);
+  const common=wb$('wbCpuLevel');if(common)common.value=levels.every(v=>v===levels[0])?(levels[0]||'3'):'mixed';
+}
+function wbCompactSetup(){
+  if(wb$('wbSetupGrid'))return;
+  const panel=wbNode('section','wb-setup-panel'),head=wbNode('header','wb-setup-head');
+  head.append(wbNode('h2',null,'ゲーム準備'),wbButton('ⓘ 設定の説明',wbSetupHelp,'secondary'));
+  const grid=wbNode('div');grid.id='wbSetupGrid';
+  const field=(label,control)=>{document.querySelectorAll(`label[for="${control.id}"]`).forEach(l=>l.removeAttribute('for'));const row=wbNode('div','wb-setup-field'),l=wbNode('label',null,label);l.htmlFor=control.id;row.append(l,control);grid.append(row);};
+  field('人数',soloPlayerCountSelect);field('最大数字',els.maxNumberSelect);
+  field('個人カード',els.personalCardsEnabledSelect);field('装備',els.equipmentCardsEnabledSelect);
+  field('黄候補',els.yellowCandidateSelect);field('黄使用',els.yellowUsedSelect);
+  field('赤候補',els.redCandidateSelect);field('赤使用',els.redUsedSelect);
+  field('確率表示',soloProbabilityDisplaySelect);
+  [...soloProbabilityDisplaySelect.options].forEach(o=>o.textContent=o.value==='1'?'ON':'OFF');
+  const level=wbNode('select');level.id='wbCpuLevel';level.innerHTML='<option value="3">自称プロ</option><option value="2">ポンコツ</option><option value="mixed" disabled>個別設定</option>';
+  level.onchange=()=>{soloCpuSettingsBox.querySelectorAll('.soloLevelSelect').forEach(el=>{el.value=level.value;});};field('CPU強さ',level);
+  const details=wbNode('details','wb-setup-details');details.append(wbNode('summary',null,'名前・CPUごとの強さ'));
+  const name=wbNode('label',null,'あなたの名前');name.htmlFor=soloHumanNameInput.id;details.append(name,soloHumanNameInput,soloCpuSettingsBox,wbNode('p',null,'CPUの性格は全員「慎重派」で固定です。'));
+  soloCpuSettingsBox.addEventListener('change',wbSyncCpuLevel);
+  const legacy=wbNode('div','hidden');legacy.id='wbLegacySetup';
+  const back=wb$('wbBackToGame');const start=els.startGameBtn;
+  [...els.hostLobby.childNodes].forEach(n=>legacy.append(n));
+  panel.append(head,grid,details,start);els.hostLobby.append(back,panel,legacy);
+  wbSyncCpuLevel();
+}
+const wbBaseCpuSetup=soloBuildCpuSetupRows;
+soloBuildCpuSetupRows=function(){const r=wbBaseCpuSetup();wbSyncCpuLevel();return r;};
+function wbSetupHelp(){
+  const box=wbOpen('設定の説明');
+  ['通常数字は1〜最大数字を各4枚使います。黄・赤は公開候補から使用数だけ秘密で採用します。黄色の使用数は偶数です。',
+   '個人カード：通常は従来の配布・選択。フツたんのみは全員フツたん。なしは配布しません。',
+   '装備：ONは全装備候補から抽選。ON（2枚のみ）は「2枚切断で解放される装備」のみが候補です。',
+   'CPUは全員慎重派です。強さは全員共通で選べます。「名前・CPUごとの強さ」では個別に指定できます。',
+   '確率ONでは候補の確率・赤総確率・長押し詳細を表示します。ゲーム中もメニューで切り替えられます。'
+  ].forEach(t=>box.append(wbNode('p',null,t)));
+  box.append(wbNode('p',null,els.setupPreview?.textContent||wb$('setupPreview')?.textContent||''));
+}
+function wbShowSetup(){wbClose();document.body.classList.add('wb-setup');els.lobbyCard.classList.remove('hidden');wb$('wbBackToGame').classList.remove('hidden');els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);window.scrollTo(0,0);}
+function wbCaptureSettings(){
+  return {values:Object.fromEntries([...wb$('wbSetupGrid').querySelectorAll('select'),soloHumanNameInput].map(e=>[e.id,e.value])),levels:soloReadCpuSetup()};
+}
+function wbRematch(){
+  if(!wbGameSettings||soloCpuBusy||soloHumanFlowResolving)return;
+  const {values,levels}=wbGameSettings,prob=soloProbabilityDisplayEnabled;
+  soloPlayerCountSelect.value=values[soloPlayerCountSelect.id];soloPlayerCountSelect.onchange();
+  els.maxNumberSelect.value=values[els.maxNumberSelect.id];updateSetupSelectors();
+  els.yellowCandidateSelect.value=values[els.yellowCandidateSelect.id];updateYellowUsedSelector(true);
+  els.redCandidateSelect.value=values[els.redCandidateSelect.id];updateRedUsedSelector(true);
+  for(const [id,value]of Object.entries(values)){const e=wb$(id);if(e)e.value=value;}
+  soloProbabilityDisplaySelect.value=prob?'1':'0';
+  soloCpuSettingsBox.querySelectorAll('.soloCpuSetupRow').forEach(row=>{row.querySelector('select').value=String(levels[row.dataset.key]?.level||3);});wbSyncCpuLevel();
+  startSoloGame();
+}
+function wbEndActions(view){
+  const ended=['clear','gameover'].includes(view.phase);let buttons=wb$('wbEndActions');
+  if(!ended){buttons?.remove();return;}
+  if(!buttons){buttons=wbNode('div');buttons.id='wbEndActions';buttons.append(wbButton('同じ設定で再戦',wbRematch),wbButton('設定を変更',wbShowSetup,'secondary'));els.gameEndBox.append(buttons);}
+  buttons.firstElementChild.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
 }
 function wbMenu(){
   const box=wbOpen('メニュー');const grid=wbNode('div','wb-menu-grid');box.append(grid);
@@ -32194,7 +32356,7 @@ function wbMenu(){
     wbMenu();
   }));
   grid.append(wbButton('表示と操作の説明',wbHelp));
-  grid.append(wbButton('現在の設定・新しいゲーム',()=>{wbClose();document.body.classList.add('wb-setup');els.lobbyCard.classList.remove('hidden');wb$('wbBackToGame').classList.remove('hidden');window.scrollTo(0,0);}));
+  grid.append(wbButton('現在の設定・新しいゲーム',wbShowSetup));
   if(currentView){const c=currentView.config;box.append(wbNode('p',null,`${c.playerCount}人 / 最大数字${c.maxNumber} / 黄${c.yellowUsedCount}枚 / 赤${c.redUsedCount}枚`));}
   const viewport=wbNode('p',null,`viewport: ${window.innerWidth} × ${window.innerHeight} CSS px`);viewport.id='wbViewport';box.append(viewport);
   if(currentView?.wbProbabilityError)box.append(wbNode('p',null,`確率は現在算出できません：${currentView.wbProbabilityError}。値を推測で補っていません。`));
@@ -32216,7 +32378,7 @@ function wbStatus(view){
   wbObservedLives=view.lives;wbObservedIce=view.iceShieldActor;
   let title='',sub='',tone='';const own=view.playerKey;
   if(view.phase==='clear'){title='解除成功';sub='すべてのタイルを切断しました';tone='success';}
-  else if(view.phase==='gameover'){title=view.lastEvent?.kind==='redBoom'?'赤タイルでゲーム終了':'ゲーム終了';sub='メニューから新しいゲームへ';tone='danger';}
+  else if(view.phase==='gameover'){title=view.lastEvent?.kind==='redBoom'?'赤タイルでゲーム終了':'ゲーム終了';sub='同じ設定で再戦できます';tone='danger';}
   else if(soloCpuAwaitingConfirm){title='CPUの結果を確認';sub='盤面と直前アクションを確認 → 次へ';tone='card';}
   else if(soloCpuBusy){title=`${wbName(playerLabel(soloCpuActor))}が考え中`;sub='CPUが行動を選んでいます';}
   else if(view.cardFlow&&(view.cardFlow.resolver===own||view.cardFlow.actor===own)){title='あなたの選択が必要';sub=actionCardName(view.cardFlow.type);tone='card';}
@@ -32239,21 +32401,22 @@ function wbStatus(view){
     event={text,tone:step.tone};
   }
   if(event?.text)wbLastEvent={text:event.text,tone:event.tone};
-  let text=wbLastEvent?.text||'情報トークンを置いて、解除を始めましょう。';
+  const initial={personalCards:'手牌と黄・赤候補を確認して個人カードを選択',infoTokens:'情報トークンを配置',play:`${title} / 盤面を確認して行動を選択`,clear:'解除成功 / すべてのタイルを切断しました',gameover:view.lastEvent?.kind==='redBoom'?'赤タイルによるゲームオーバー':'ライフがなくなりゲーム終了'};
+  let text=wbLastEvent?.text||initial[view.phase]||title;
   if(view.lastEvent?.kind==='redBoom'&&view.phase==='gameover')text=`赤タイルによるゲームオーバー / ${text}`;
   if(/氷|保護/.test(text)&&/失敗|防/.test(text))text=`失敗・万能氷で保護 / ${text}`;
   wbText(wb$('wbEvent'),text.replace(/\s*CPU/g,'').replace(/数字の/g,''));wb$('wbEvent').dataset.tone=/失敗・万能氷/.test(text)?'failure':wbLastEvent?.tone||'card';
-  wbGuide(view);
+  wbGuide(view);wbEndActions(view);els.startGameBtn.disabled=!!(soloCpuBusy||soloHumanFlowResolving);
 }
 function wbGuide(view){
   const a=actionState;let s='';
   const target=a?.targetPlayer?wbName(view.opponents.find(p=>p.playerKey===a.targetPlayer)?.label||a.targetPlayer):'';
   const pos=a?.targetPosition!=null?` ${Number(a.targetPosition)+1}番`:'';
-  if(soloCpuAwaitingConfirm)s='結果を確認したら「次へ」';
+  if(view.phase==='clear'||view.phase==='gameover')s='終了結果を確認して「同じ設定で再戦」';
+  else if(soloCpuAwaitingConfirm)s='結果を確認したら「次へ」';
   else if(soloCpuBusy)s='CPUが考えています';
   else if(view.phase==='infoTokens')s=selectedInfoToken?'選択した数字に情報トークンを置く':view.infoTurn===view.playerKey?'自分の通常数字を1枚選ぶ':'CPUの情報トークンを確認';
   else if(view.phase==='personalCards')s='今回使う個人カードを選んでください';
-  else if(view.phase==='clear'||view.phase==='gameover')s='メニューから次のゲームを始められます';
   else if(!a)s=view.turn===view.playerKey?'自分のタイルを選ぶ / またはカードを使う':'「次へ」でCPUの手番を進める';
   else if(a.mode==='normal'){
     const n=a.myKind==='yellow'?'黄色':a.number;
@@ -32367,18 +32530,24 @@ function wbDecorateBoards(view){
 // endpoints are the same slot IDs as the original renderer, including holes.
 const wbBasePlaceRelation=placeRelationLabelElement;
 placeRelationLabelElement=function(tiles,left,right,type,lane){
+  // Disjoint relations share a lane; the old renderer assigned a new lane
+  // even to labels at opposite ends of a rack.
+  const lanes=tiles.wbRelationLanes||(tiles.wbRelationLanes=[]);
+  const start=Math.min(left.offsetLeft,right.offsetLeft)+left.offsetWidth/2,end=Math.max(left.offsetLeft,right.offsetLeft)+right.offsetWidth/2;
+  lane=lanes.findIndex(ranges=>ranges.every(r=>end<=r[0]||start>=r[1]));
+  if(lane<0){lane=lanes.length;lanes.push([]);}lanes[lane].push([start,end]);
   wbBasePlaceRelation(tiles,left,right,type,lane);
   const label=tiles.lastElementChild;
-  label.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+2+lane*12}px`;
+  label.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+lane*9}px`;
   label.style.setProperty('--wb-lane',String(lane));
-  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*12}px`);
+  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*9}px`);
   tiles.dataset.wbLaneCount=String(Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1));
 };
 const wbBasePlaceChoice=placeRelationChoiceElement;
 placeRelationChoiceElement=function(tiles,left,right,pair,symbol,lane=0){
   wbBasePlaceChoice(tiles,left,right,pair,symbol,lane);
-  tiles.lastElementChild.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+2+lane*12}px`;
-  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*12+8}px`);
+  tiles.lastElementChild.style.top=`${Math.max(left.offsetHeight,right.offsetHeight)+1+lane*9}px`;
+  tiles.style.setProperty('--wb-label-space',`${Math.max(Number(tiles.dataset.wbLaneCount||0),lane+1)*9+8}px`);
 };
 const wbEquipmentDescriptions={
  radar:'通常数字を1つ選び、その数字が残っている台を公開します。使用開始後は、通常数字の残数帯から選択します。',
@@ -32419,7 +32588,7 @@ function wbEquipmentBar(view){
     const c=view.equipmentCards.find(c=>c.type===el.dataset.equipmentType);if(!c)return;
     const key=JSON.stringify([c,wbEquipmentStatus(c,view)]);
     if(el.dataset.wbEquipmentKey===key)return;el.dataset.wbEquipmentKey=key;
-    const short={ice:'氷',radar:'なんレー',battery:'電池',dismantleGun:'銃',priorityCut:'優先券',superProbe:'超たん',differentLabel:'コトナル',equalLabel:'イコール',hook:'フック'}[c.type]||c.short;
+    const short={ice:'氷',radar:'なんレ',battery:'電池',dismantleGun:'銃',priorityCut:'優先券',superProbe:'超たん',differentLabel:'コト',equalLabel:'イコ',singleLabel:'単ラベ',hook:'フック',futatabiBox:'フタ箱',lifeCancel:'帳消し',infoToken:'付箋',coffee:'珈琲',mitsu:'ミツたん',dotchi:'ドチアタ',swap:'イレシー'}[c.type]||c.short;
     el.replaceChildren(wbNode('span',null,short),wbNode('span','wb-eq-number',c.unlockNumber),wbNode('span','wb-eq-status',wbEquipmentStatus(c,view)));
     el.classList.toggle('wb-eq-long',String(short).length>=4);el.setAttribute('role','button');el.tabIndex=0;el.setAttribute('aria-label',`${c.name} 解放${c.unlockNumber} ${wbEquipmentStatus(c,view)}`);el.onclick=()=>wbEquipmentDetail(c.type);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();wbEquipmentDetail(c.type);}};
   });
@@ -32447,6 +32616,14 @@ function wbPopulateProbabilities(view){
   delete view.wbProbabilityError;
   for(const tile of view.opponents.flatMap(p=>p.boards.flat()).filter(t=>!t.cut)){
     const hit=distributions.get(tile.id);if(hit){tile.cheatAllProbabilities=hit;tile.redProbability=hit.redTotal;continue;}
+    // The shared display projection is sparse: exact legal knowledge is not
+    // an unknown marginal. Materialize it from THIS observer's public/private
+    // descriptor, never from the underlying game's hidden tile values.
+    const known=soloKnownDescriptor(tile);
+    if(known?.exact&&Number.isFinite(known.number)){
+      const data={items:[{kind:known.kind,number:known.number,probability:1}],normalTotal:Number(known.kind==='normal'),yellowTotal:Number(known.kind==='yellow'),redTotal:Number(known.kind==='red'),total:1,method:'observer-known-exact'};
+      tile.cheatAllProbabilities=data;tile.redProbability=data.redTotal;distributions.set(tile.id,data);continue;
+    }
     if(!shared)continue;
     const items=[];const read=(kind,values,map)=>values.forEach(n=>{const p=Number(map?.get(Number(n))?.get(tile.id)||0);if(p>1e-10)items.push({kind,number:Number(n),probability:p});});
     read('normal',Array.from({length:view.config.maxNumber},(_,i)=>i+1),shared.normal);read('yellow',view.config.yellowCandidates||[],shared.yellowByValue);read('red',view.config.redCandidates||[],shared.redByValue);
@@ -32471,7 +32648,19 @@ const wbBaseCpu=soloUpdateCpuPanel;soloUpdateCpuPanel=function(){const r=wbBaseC
 const wbBaseEquipment=renderEquipmentCards;renderEquipmentCards=function(view){const r=wbBaseEquipment(view);if(!wbRenderDepth)wbEquipmentBar(view);return r;};
 const wbBaseNumbers=renderNumberTracker;renderNumberTracker=function(view){const r=wbBaseNumbers(view);if(view&&!wbRenderDepth)wbWireCandidates(view);return r;};
 const wbBaseToken=selectInfoTokenTile;selectInfoTokenTile=function(...args){const r=wbBaseToken(...args);if(currentView)wbStatus(currentView);return r;};
-const wbBaseStart=startSoloGame;startSoloGame=function(){wbManual=null;wbLastEvent=null;wbLastRenderKey='';wbDisplayCache=new WeakMap();wbObservedLives=null;wbObservedIce=null;wbObservedCut=-1;wbResultFacts=null;wbClose();document.body.classList.remove('wb-setup');return wbBaseStart();};startOrRedeal=startSoloGame;els.startGameBtn.onclick=startSoloGame;els.redealBtn.onclick=startSoloGame;
+const wbBaseStart=startSoloGame;startSoloGame=function(){
+  wbGameSettings=wbCaptureSettings();
+  for(const timer of [soloScheduledTimer,soloHumanFlowTimer,soloCpuInterruptTimer])if(timer)clearTimeout(timer);
+  soloScheduledTimer=null;soloHumanFlowTimer=null;soloCpuInterruptTimer=null;soloHumanFlowResolving=false;soloCpuPendingHumanActor=null;
+  soloCpuInstantUsageGameState=null;soloCpuInstantUsageTurnSerial=-1;soloCpuInstantUsageTurn=null;soloCpuTurnInstantUsed=false;
+  soloInferenceCache=null;soloInferenceCacheKey='';soloFactContext=null;soloProbeResolveEvalCache={key:null,view:null,inference:null};
+  tp6.cache.clear();tp6CacheGame=null;soloVisualStepSeq=1;
+  soloCheatCancelLongPress();soloCheatClearSelection();soloCheatHideProbabilityOverlay();soloCloseHistory();
+  if(soloCheatEquipmentGuardTimer)clearTimeout(soloCheatEquipmentGuardTimer);
+  soloCheatEquipmentGuardTimer=null;soloCheatEquipmentGuardUntil=0;soloCheatSuppressTileClickUntil=0;els.equipmentSection.classList.remove('cheatTapGuard');lastAnimatedCutId=-1;
+  wbManual=null;wbLastEvent=null;wbLastRenderKey='';wbDisplayCache=new WeakMap();wbObservedLives=null;wbObservedIce=null;wbObservedCut=-1;wbResultFacts=null;wbClose();
+  document.body.classList.remove('wb-setup');return wbBaseStart();
+};startOrRedeal=startSoloGame;els.startGameBtn.onclick=startSoloGame;els.redealBtn.onclick=startSoloGame;
 // Add public result text to the EXISTING visual replay event. Its sequence,
 // confirmation boundary, target references and game-state effects are unchanged.
 const wbBaseResult=soloEmitResultVisual;

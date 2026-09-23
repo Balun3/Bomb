@@ -11828,7 +11828,47 @@ function soloProbeTargetJointModel(view,inference,number,level){
   inference._soloProbeTargetJointModels.set(cacheKey,model);
   return model;
 }
+// Reduce nested hit events using legal DP support and the sorted rack order.
+// Never treat marginal probabilities as mutually exclusive tile events.
+function soloProbeOrderedTargets(inference,number,selected){
+  const racks=inference?._tp6Model?.racks;
+  if(!racks)return selected;
+  if(!inference._soloProbeOrderedIndex){
+    const index=new Map();
+    racks.forEach((rack,r)=>rack.ids.forEach((id,pos)=>{
+      const support=inference.supportByTileId?.get(String(id));
+      let min=Infinity,max=-Infinity,valid=!!support?.size;
+      for(const key of support||[]){
+        const value=Number(String(key).split(':')[1]);
+        if(!Number.isFinite(value)){valid=false;break;}
+        min=Math.min(min,value);max=Math.max(max,value);
+      }
+      index.set(String(id),{rack:r,pos,min,max,valid});
+    }));
+    inference._soloProbeOrderedIndex=index;
+  }
+  const index=inference._soloProbeOrderedIndex,n=Number(number);
+  const unique=[...new Map(selected.map(item=>[String((item.tile||item).id),item])).values()];
+  const implies=(a,b)=>{
+    const x=index.get(String((a.tile||a).id)),y=index.get(String((b.tile||b).id));
+    if(!x||!y||!y.valid||x.rack!==y.rack)return false;
+    // a=n forces a left-hand b<=n; if b cannot be below n, b=n.
+    return y.pos<x.pos?y.min>=n:y.pos>x.pos&&y.max<=n;
+  };
+  return unique.filter((a,i)=>!unique.some((b,j)=>i!==j&&implies(a,b)&&(!implies(b,a)||j<i)));
+}
 function soloProbeTargetSetSuccess(view,inference,number,selected,level){
+  selected=soloProbeOrderedTargets(inference,number,selected||[]);
+  // A single surviving event must retain its original marginal, without
+  // conditioning the same marginal on the remaining-copy count a second time.
+  if(selected.length===1){
+    const item=selected[0],tile=item.tile||item,known=soloKnownDescriptor(tile);
+    if(known?.exact)return known.kind==='normal'&&Number(known.number)===Number(number)?1:0;
+    const shared=soloCpuSharedMarginals(view,inference,level);
+    const p=shared?.normal?.get(Number(number))?.get(tile.id)??inference?.byTileId?.get(tile.id)?.probs?.get('N:'+Number(number));
+    if(Number.isFinite(p))return soloClamp(p,0,1);
+  }
+
   const n=Number(number);
   const unknownIds=[];
   for(const item of selected||[]){

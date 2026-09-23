@@ -24969,7 +24969,7 @@ function wbEquipmentStatus(c,view){if(c.type==='ice'&&view.iceShieldActor)return
 function wbEquipmentDetail(type){
   const c=currentEquipmentCard(type);if(!c)return;const box=wbOpen(c.name);
   const card=wbNode('div','wb-card-face');card.append(wbNode('div','wb-card-kind','EQUIPMENT'),wbNode('div','wb-card-title',c.name),wbNode('p',null,wbEquipmentDescriptions[type]||'使用開始後、盤面の操作案内に従って対象を選択します。'),wbNode('p',null,`解放数字 ${c.unlockNumber} / ${wbEquipmentStatus(c,currentView)} / 残り${c.remainingUses}回`));box.append(card);
-  const use=wbButton('使用する',()=>{wbClose();beginEquipmentCardAction(type);},'wb-use');use.disabled=wbEnded()||!equipmentClientCanUse(c,currentView)||soloCpuBusy||(type==='infoToken'&&soloHumanInstantBlocked());box.append(use);
+  const use=wbButton('使用する',()=>{wbClose();beginEquipmentCardAction(type);},'wb-use');use.disabled=wbEnded()||!equipmentClientCanUse(c,currentView)||soloCpuBusy||(soloEquipmentUsesPlacementSession(type)&&soloHumanInstantBlocked());box.append(use);
   if(c.mode==='auto')box.append(wbNode('p',null,'この装備は自動発動します。'));
   else if(!c.unlocked)box.append(wbNode('p',null,`${c.unlockNumber}を${c.threshold}枚切断すると解放します。`));
   else if(use.disabled&&c.remainingUses>0)box.append(wbNode('p',null,'現在は使用条件を満たしていません。'));
@@ -25294,10 +25294,13 @@ startInstantCard=function(actor,serial=null,turn=null){
  const s=soloSuspendForHumanInstant();
  try{return soloInstantSafeStart.apply(this,arguments);}finally{if(!gameState?.cardFlow)soloRestoreAfterHumanInstant(true);}
 };
-// Hint placement shares the existing interruption lifecycle; its rule handler is unchanged.
+// Hint and relation-label placement share the existing interruption lifecycle; rule handlers are unchanged.
+function soloEquipmentUsesPlacementSession(type){
+ return type==='infoToken'||type==='equalLabel'||type==='differentLabel';
+}
 const soloHintSafeStartEquipment=startEquipmentCard;
 startEquipmentCard=function(actor,type,serial=null,turn=null){
- if(actor!=='p0'||type!=='infoToken')return soloHintSafeStartEquipment.apply(this,arguments);
+ if(actor!=='p0'||!soloEquipmentUsesPlacementSession(type))return soloHintSafeStartEquipment.apply(this,arguments);
  if(soloHumanInstantBlocked())return;
  const saved=soloSuspendForHumanInstant();saved.preserveDeferred=true;
  try{return soloHintSafeStartEquipment.apply(this,arguments);}

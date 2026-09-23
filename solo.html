@@ -13549,14 +13549,10 @@ function soloPauseCpuForHuman(actor){
   if(!gameState?.cardFlow||gameState.cardFlow.resolver!=="p0")return false;
   soloCpuPendingHumanActor=actor;
   soloCpuBusy=false;
-  soloCpuAwaitingConfirm=true;
+  soloCpuAwaitingConfirm=false;
   soloCpuActor=actor;
-  if(!soloVisualReplayActive){
-    soloVisualReplaySteps=soloCompressVisualSteps(soloVisualPendingSteps);
-    soloVisualReplayIndex=soloVisualReplaySteps.length?0:-1;
-    soloVisualReplayActive=soloVisualReplaySteps.length>0;
-    soloStandaloneVisualStep=null;
-  }
+  soloClearVisualReplay();
+  soloStandaloneVisualStep=soloCompressVisualSteps(soloVisualPendingSteps)[0]||null;
   renderPlayerView(makeViewFor("p0"));
   soloUpdateCpuPanel();
   return true;
@@ -13684,29 +13680,12 @@ function soloBuildCpuSpecialPreview(actor,bestSpecial){
   return null;
 }
 function soloPauseBeforeCpuItem(actor,visualStep,run,mode="result",suppressCardVisual=true){
-  if(!soloIsCpu(actor)||!visualStep||typeof run!=="function"||soloCpuDeferredAction){
-    return false;
-  }
+  if(!soloIsCpu(actor)||!visualStep||typeof run!=="function"||soloCpuDeferredAction)return false;
   lastAnimatedCutId=Number(gameState?.lastCutId||0);
-  soloCpuDeferredAction={actor,run,mode,suppressCardVisual};
-  if(
-    (visualStep.personalType==="dotchi"||visualStep.equipmentType==="dotchi") &&
-    visualStep.facts?.length
-  ){
-    soloCommitDotchiDeclaredFacts(visualStep.facts);
-  }
-  soloVisualPendingSteps=[];
-  soloStandaloneVisualStep=null;
-  soloClearVisualReplay();
-  soloEmitExplicitVisualStep(visualStep);
-  soloVisualReplaySteps=soloCompressVisualSteps(soloVisualPendingSteps);
-  soloVisualReplayIndex=soloVisualReplaySteps.length?0:-1;
-  soloVisualReplayActive=soloVisualReplaySteps.length>0;
-  soloCpuBusy=false;
-  soloCpuAwaitingConfirm=true;
-  soloCpuActor=actor;
-  renderPlayerView(makeViewFor("p0"));
-  soloUpdateCpuPanel();
+  soloCpuDeferredAction={actor,run,mode,suppressCardVisual:false,preview:visualStep};
+  soloCpuAwaitingConfirm=false;
+  // Resolve the selected action now; only a result or a human decision may stop it.
+  void soloRunDeferredCpuItem();
   return true;
 }
 async function soloRunDeferredCpuItem(){
@@ -13715,11 +13694,12 @@ async function soloRunDeferredCpuItem(){
   const actor=deferred.actor;
   soloCpuDeferredAction=null;
   soloCpuAwaitingConfirm=false;
-  soloVisualPendingSteps=[];
+  soloVisualPendingSteps=soloVisualPendingSteps.filter(s=>s.equipmentType==='ice');
   soloStandaloneVisualStep=null;
   soloClearVisualReplay();
   soloCpuBusy=true;
   soloCpuActor=actor;
+  if(deferred.preview){soloEmitExplicitVisualStep(deferred.preview);soloLog(playerLabel(actor)+'：'+actionCardName(deferred.preview.equipmentType||deferred.preview.personalType)+'を使用');}
   soloSuppressCpuItemPreview=
     deferred.suppressCardVisual!==false;
   try{
@@ -13732,6 +13712,7 @@ async function soloRunDeferredCpuItem(){
     soloCpuPendingHumanActor=actor;
     soloCpuAwaitingConfirm=false;
     soloCpuActor=actor;
+    soloStandaloneVisualStep=soloCompressVisualSteps(soloVisualPendingSteps)[0]||null;
     renderPlayerView(makeViewFor("p0"));
     soloUpdateCpuPanel();
     return true;
@@ -13741,7 +13722,7 @@ async function soloRunDeferredCpuItem(){
     gameState?.phase==="play" &&
     gameState.turn===actor
   ){
-    if(soloVisualPendingSteps.length){
+    if(soloVisualPendingSteps.length && deferred.preview?.equipmentType!=="ice") {
       soloCpuBusy=false;
       soloCpuAwaitingConfirm=true;
       soloCpuResumeAfterReplay=actor;
@@ -15273,15 +15254,43 @@ processResolveProbe=soloWrapFactFunction("probe",processResolveProbe);
 soloQueueVisualStepFromState=function(){
 };
 soloCompressVisualSteps=function(steps){
-  const out=[];
-  for(const step of steps||[]){
-    if(!step)continue;
-    const prev=out[out.length-1];
-    if(prev&&prev.explicitKey&&prev.explicitKey===step.explicitKey)continue;
-    out.push(step);
-  }
-  return out;
+  const list=(steps||[]).filter(Boolean);if(!list.length)return [];
+  const last=list[list.length-1];
+  const result=[...list].reverse().find(s=>['success','failure','danger'].includes(s.tone));
+  const card=[...list].reverse().find(s=>s.equipmentType||s.personalType);
+  const unique=(items,key)=>[...new Map(items.map(x=>[key(x),x])).values()];
+  const groups=new Map();
+  for(const s of list){const type=s.equipmentType||s.personalType;if(!type)continue;const key=s.actorKey+':'+type;const g=groups.get(key)||[];g.push(s);groups.set(key,g);}
+  const descriptions=[...groups.values()].map(g=>{
+    const last=g[g.length-1];const text=[...g].reverse().find(s=>s.text)?.text||'';
+    return soloCardStepSummary({...last,text,tiles:unique(g.flatMap(s=>s.tiles||[]),r=>r.tileId||[r.playerKey,r.boardIndex,r.position].join(':'))});
+  }).filter(Boolean);
+  if(result?.text)descriptions.push(result.text);
+  return [{...last,actorKey:card?.actorKey||last.actorKey,tone:result?.tone||last.tone,
+    equipmentType:card?.equipmentType||null,personalType:card?.personalType||null,
+    tiles:result?result.tiles:unique(list.flatMap(s=>s.tiles||[]),x=>x.tileId||[x.playerKey,x.boardIndex,x.position].join(':')),
+    facts:unique(list.flatMap(s=>s.facts||[]),x=>[x.playerKey,x.boardIndex,x.value].join(':')),
+    secondaryActors:[...new Set(list.flatMap(s=>s.secondaryActors||[]))],
+    text:descriptions.map(s=>s.replace(/\s*CPU/g,'').replace(/\n/g,' / ')).join('\n')}];
 };
+function soloCardStepSummary(step){
+ if(step.text&&step.tone!=='state'){
+   const actor=step.actorKey?playerLabel(step.actorKey).replace(/\s*CPU/g,''):'';
+   return actor&&(step.equipmentType||step.personalType)&&!step.text.replace(/\s*CPU/g,'').includes(actor)?actor+'：'+step.text:step.text;
+ }
+ const type=step.equipmentType||step.personalType;
+ const name=(step.equipmentType?EQUIPMENT_CARDS[type]:PERSONAL_CARDS[type])?.name;
+ const actor=step.actorKey?playerLabel(step.actorKey):'';
+ const refs=(step.tiles||[]).map(r=>playerLabel(r.playerKey)+(Number(r.position)+1)+'番').join('・');
+ const others=(step.secondaryActors||[]).map(playerLabel).join('・');
+ const facts=(step.facts||[]).map(f=>f.value).filter((v,i,a)=>a.indexOf(v)===i).join('・');
+ if(type==='coffee'&&others)return actor+'：'+name+' → '+others+'へ手番を渡した';
+ if(type==='battery')return actor+'：'+name+' → '+(others?others+'と自分':'自分')+'の個人カードを回復';
+ if(type==='radar')return actor+'：'+name+(facts?'「'+facts+'」':'')+' → '+new Set((step.facts||[]).map(f=>f.playerKey+':'+f.boardIndex)).size+'台に公開情報';
+ if(type)return actor+'：'+name+(refs?' → '+refs:'')+(facts?' / 宣言 '+facts:'');
+ return step.tone==='state'?'':step.text||'';
+}
+
 function soloVisualRef(playerKey,boardIndex,position,tileId=null){
   const bi=Number(boardIndex),pos=Number(position);
   let id=tileId;
@@ -15353,14 +15362,14 @@ function soloEmitExplicitVisualStep(raw){
     equipmentType:raw.equipmentType||null,
     personalType:raw.personalType||null,
     secondaryActors:[...(raw.secondaryActors||[])],
-    text:raw.text||""
+    text:raw.text||((raw.tone!=="card"&&raw.tone!=="move"&&raw.tone!=="state")?gameState.recentAction?.text:"")||""
   };
   if(step.fact&&!step.facts.length)step.facts=[step.fact];
   step.explicitKey=[
     step.actorKey||"",step.tone||"",step.equipmentType||"",step.personalType||"",
     step.tiles.map(x=>x.tileId||`${x.playerKey}:${x.boardIndex}:${x.position}`).join(","),
     step.facts.map(x=>`${x.playerKey}:${x.boardIndex}:${x.value}`).join(","),
-    step.secondaryActors.join(",")
+    step.secondaryActors.join(","),step.text
   ].join("|");
   const cpuActor=step.actorKey&&step.actorKey!=="p0";
   if(soloCpuBusy||soloCpuPendingHumanActor||cpuActor){
@@ -15645,9 +15654,10 @@ processRadar=function(actor,number){
   const before=soloVisualFactSnapshot();
   const result=_soloVisualV2Radar(actor,number);
   const facts=soloVisualFactDiff(before);
-  if(facts.length){
+  if(flow?.type==="radar"&&!gameState?.cardFlow){
     soloEmitExplicitVisualStep({
       actorKey:actor,tone:"card",facts,
+      text:playerLabel(actor)+"：なんでもレーダー「"+number+"」 → "+(gameState.radarScans?.[String(number)]?.positiveBoards?.length??0)+"台で反応",
       equipmentType:flow?.equipmentType||null,
       personalType:flow?.equipmentType?null:"radar"
     });
@@ -15674,8 +15684,8 @@ processEquipmentLabel=function(actor,boardIndex,leftSlotId,rightSlotId){
   if(flow&&!gameState?.cardFlow){
     soloEmitExplicitVisualStep({
       actorKey:actor,
-      tone:"state",
-      text:flow.equipmentType||"relationLabel"
+      tone:"card",equipmentType:flow.equipmentType,
+      tiles:soloVisualRefsForRelationSlots(actor,boardIndex,leftSlotId,rightSlotId)
     });
   }
   return result;
@@ -25149,6 +25159,20 @@ soloAfterBroadcast=function(){
 };
 const soloInstantRunCpu=soloRunCpuTurn;
 soloRunCpuTurn=function(actor){if(soloHumanInstantSession){soloHumanInstantSession.queued=actor;return Promise.resolve();}return soloInstantRunCpu.apply(this,arguments);};
+// The final single-label rule is defined after the earlier visual wrapper.
+const soloTempoSingleLabel=processEquipmentSingleLabel;
+processEquipmentSingleLabel=function(actor,boardIndex,position,tileId){
+ const tile=getStateTile(actor,boardIndex,position),before=!!tile?.singleLabel;
+ const result=soloTempoSingleLabel.apply(this,arguments);
+ if(!before&&tile?.singleLabel)soloEmitExplicitVisualStep({actorKey:actor,tone:"card",equipmentType:"singleLabel",tiles:[soloVisualRef(actor,boardIndex,tile.position,tile.id)]});
+ return result;
+};
+const soloTempoAuto=runEquipmentAutoCard;
+runEquipmentAutoCard=function(card,log){
+ const start=log.length,result=soloTempoAuto.apply(this,arguments);
+ if(soloCpuBusy&&soloCpuActor&&log.length>start)soloEmitExplicitVisualStep({actorKey:soloCpuActor,tone:"card",equipmentType:card.type,text:log.slice(start).join(' / '),tiles:card.type==='dismantleGun'?(gameState.lastCutTiles||[]):[]});
+ return result;
+};
 const soloInstantNext=soloCpuNextBtn.onclick;
 soloCpuNextBtn.onclick=function(){if(soloHumanInstantSession||gameState?.cardFlow||soloHumanFlowResolving)return;return soloInstantNext.apply(this,arguments);};
 </script>

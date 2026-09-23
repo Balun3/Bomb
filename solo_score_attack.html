@@ -9054,11 +9054,11 @@ function soloSeededRandom(seedText){
 function soloGenerateGameSeed(){
   try{
     if(globalThis.crypto?.getRandomValues){
-      const a=new Uint32Array(2);globalThis.crypto.getRandomValues(a);
-      return `${a[0].toString(36)}-${a[1].toString(36)}`;
+      const a=new Uint32Array(1);globalThis.crypto.getRandomValues(a);
+      return String(a[0]);
     }
   }catch(_){}
-  return `${Date.now().toString(36)}-${Math.floor(soloNativeRandom()*0xffffffff).toString(36)}`;
+  return String(Math.floor((Date.now()+Math.floor(soloNativeRandom()*10000000000))%10000000000));
 }
 function soloInstallGameSeed(seedText){
   const rng=soloSeededRandom(seedText);
@@ -15357,7 +15357,8 @@ function startSoloGame(){
   soloHistoryReset();
   role="host";localPlayerKey="p0";
   const seedInput=document.getElementById("wbSeedInput");
-  const requestedSeed=String(seedInput?.value||"").trim();
+  const requestedSeed=String(seedInput?.value||"").replace(/\D/g,"").slice(0,10);
+  if(seedInput&&seedInput.value!==requestedSeed)seedInput.value=requestedSeed;
   const officialScore=requestedSeed.length===0;
   const gameSeed=officialScore?soloGenerateGameSeed():requestedSeed;
   soloInstallGameSeed(gameSeed);
@@ -24957,7 +24958,7 @@ function wbCompactSetup(){
   const lifeSelect=wbNode('select');lifeSelect.id='wbInitialLife';lifeSelect.innerHTML='<option value="auto">人数と同じ</option>'+Array.from({length:10},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'</option>').join('');lifeSelect.onchange=updateSetupPreview;field('ライフ',lifeSelect);
   field('成功率表示',soloProbabilityDisplaySelect);
   [...soloProbabilityDisplaySelect.options].forEach(o=>o.textContent=o.value==='1'?'ON（選択中のみ）':'OFF');
-  const seed=wbNode('input');seed.id='wbSeedInput';seed.type='text';seed.maxLength=40;seed.placeholder='空欄＝ランダム（正式）';seed.autocomplete='off';seed.spellcheck=false;seed.addEventListener('input',updateSetupPreview);field('seed',seed);
+  const seed=wbNode('input');seed.id='wbSeedInput';seed.type='text';seed.inputMode='numeric';seed.pattern='[0-9]*';seed.maxLength=10;seed.placeholder='空欄＝ランダム（正式）';seed.autocomplete='off';seed.spellcheck=false;seed.addEventListener('input',()=>{const clean=String(seed.value||'').replace(/\D/g,'').slice(0,10);if(seed.value!==clean)seed.value=clean;updateSetupPreview();});field('seed（数字10桁まで）',seed);
   const level=wbNode('select');level.id='wbCpuLevel';level.innerHTML='<option value="3">自称プロ</option><option value="2">ポンコツ</option><option value="mixed" disabled>個別設定</option>';
   level.onchange=()=>{soloCpuSettingsBox.querySelectorAll('.soloLevelSelect').forEach(el=>{el.value=level.value;});};field('CPU強さ',level);
   const details=wbNode('details','wb-setup-details');details.append(wbNode('summary',null,'名前・CPUごとの強さ'));
@@ -24978,7 +24979,7 @@ function wbSetupHelp(){
    '装備：ONは全装備候補から抽選。ON（2枚のみ）は「2枚切断で解放される装備」のみが候補です。',
    'CPUは全員慎重派です。強さは全員共通で選べます。「名前・CPUごとの強さ」では個別に指定できます。',
    '成功率表示ONでは、通常切断で自分のタイルを選んだ時だけ相手の全未切断タイルに成功率を表示します。赤確率・手動の全候補確率・長押し確率は表示しません。',
-   'seed空欄で開始したゲームだけが正式スコアです。seedを入力したゲームは同じ初期条件を再現できる参考プレイになります。情報トークン付きの場所・自己切断・カードによる切断は0点です。'
+   'seed空欄で開始したゲームだけが正式スコアです。seedは数字のみ10桁まで指定でき、入力したゲームは同じ初期条件を再現できる参考プレイになります。情報トークン付きの場所・自己切断・カードによる切断は0点です。'
   ].forEach(t=>box.append(wbNode('p',null,t)));
   box.append(wbNode('p',null,els.setupPreview?.textContent||wb$('setupPreview')?.textContent||''));
 }
@@ -25038,7 +25039,7 @@ function wbHelp(){const box=wbOpen('表示と操作');[
   '自分のタイル → 相手のタイル → 下部の実行ボタン。タップだけでは切断しません。',
   '成功率表示ON：通常切断で自分のタイルを選ぶと、相手の未切断タイルすべてにその切断の成功率を表示します。OFFでは表示しません。',
   '赤確率・数字/黄/赤候補の全タイル確率・長押しによる全候補確率は、高得点モードでは表示しません。',
-  'seed空欄で開始したゲームだけが正式スコアです。seed指定ゲームは参考スコアですが、同じ設定＋同じseedで初期条件を再現できます。',
+  'seed空欄で開始したゲームだけが正式スコアです。seedは数字のみ10桁まで指定でき、seed指定ゲームは参考スコアですが、同じ設定＋同じseedで初期条件を再現できます。',
   '装備：丸枠内の数字は解放数字。○は使用可能、分数は解放進捗、済は使用済みです。手番や対象の条件によって、その場で使用できない場合があります。',
   '緑＝切断成功、琥珀＝通常失敗、紫＝カード・移動、赤＝赤タイルによる危険。CPUの結果は「次へ」で確認します。'
 ].forEach(t=>box.append(wbNode('p',null,t)));}

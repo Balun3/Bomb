@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>何切る？ 一人用CPU版 ゲームマニュアル</title>
+<style>
+:root{--ink:#26342f;--muted:#66746f;--line:#d9e1dc;--paper:#fffdf7;--panel:#f5f8f4;--accent:#2f6d55;--amber:#9a6b16;--red:#a83e35;--purple:#6f5a8c;--blue:#3f6f8c}
+*{box-sizing:border-box}html{background:#eef2ee}body{margin:0;font-family:system-ui,-apple-system,"Noto Sans JP","Yu Gothic",sans-serif;color:var(--ink);line-height:1.72;background:linear-gradient(#f3f6f2,#eef2ee)}
+main{width:min(920px,calc(100% - 24px));margin:24px auto 56px;background:var(--paper);border:1px solid #dfe5df;border-radius:18px;padding:clamp(20px,4vw,46px);box-shadow:0 12px 34px #26342f12}
+h1{font-size:clamp(1.7rem,4vw,2.55rem);line-height:1.2;margin:0 0 8px;color:#244c3c}h2{margin:2.4em 0 .7em;border-bottom:2px solid #dce7df;padding-bottom:.28em;color:#285742;font-size:1.35rem}h3{margin:1.7em 0 .45em;color:#375e4d;font-size:1.05rem}p{margin:.55em 0}ul,ol{padding-left:1.45em}.lead{font-size:1.08rem;color:#40524b}.meta{color:var(--muted);font-size:.9rem;margin-bottom:20px}.toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin:22px 0}.toc strong{display:block;margin-bottom:5px}.toc ol{columns:2;column-gap:36px;margin:.3em 0}.note,.warn,.tip{border-left:4px solid var(--accent);background:#f2f7f3;padding:10px 13px;margin:14px 0;border-radius:0 8px 8px 0}.warn{border-left-color:var(--red);background:#fbf1ef}.tip{border-left-color:var(--blue);background:#f0f5f8}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:#fff}.card h3{margin:.05em 0 .35em;font-size:1rem}.badge{display:inline-block;border:1px solid #bac9c0;border-radius:999px;padding:1px 8px;font-size:.8rem;background:#f7faf7;color:#3c574b;margin-right:5px}.badge.turn{border-color:#afc8b8;background:#edf6ef}.badge.instant{border-color:#c5bdd5;background:#f4f0f9;color:#5e4b78}.badge.auto{border-color:#dbc993;background:#faf5e6;color:#765d19}.success{color:var(--accent);font-weight:700}.danger{color:var(--red);font-weight:700}.amber{color:var(--amber);font-weight:700}.purple{color:var(--purple);font-weight:700}.steps{counter-reset:step}.step{position:relative;padding:0 0 15px 44px;min-height:38px}.step:before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:29px;height:29px;border-radius:50%;background:#365e4c;color:#fff;display:grid;place-items:center;font-weight:800}.step:not(:last-child):after{content:"";position:absolute;left:14px;top:31px;bottom:1px;width:1px;background:#cbd8d0}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.94rem}th,td{border:1px solid var(--line);padding:8px 9px;vertical-align:top}th{background:#eef4ef;text-align:left}.quick{background:#263b33;color:#f4f0e4;border-radius:13px;padding:17px 18px;margin-top:20px}.quick h2{color:#fff;border-color:#536b5e;margin-top:0}.quick strong{color:#dcebcf}code{background:#eef1ed;padding:1px 4px;border-radius:4px}.small{font-size:.88rem;color:var(--muted)}
+@media(max-width:680px){main{width:100%;margin:0;border:0;border-radius:0;padding:20px 16px 42px;box-shadow:none}.toc ol{columns:1}.grid{grid-template-columns:1fr}table{font-size:.86rem}th,td{padding:7px}}
+@media print{html,body{background:#fff}main{width:100%;margin:0;padding:0;border:0;box-shadow:none}.toc{break-after:page}.card,.note,.warn,.tip,table{break-inside:avoid}h2{break-after:avoid}.quick{background:#fff;color:#222;border:2px solid #555}.quick h2,.quick strong{color:#222}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>何切る？ 一人用CPU版<br>ゲームマニュアル</h1>
+<p class="lead">人間1人＋CPUで遊ぶ、協力型のタイル切断ゲームです。公開情報と自分だけが知る手牌を組み合わせ、赤タイルを避けながら全タイルの切断を目指します。</p>
+<p class="meta">最新版 solo.html 準拠 / 2026年9月23日版</p>
+</header>
+
+<div class="toc">
+<strong>目次</strong>
+<ol>
+<li>ゲームの目的</li><li>ゲーム開始前の設定</li><li>ゲーム開始まで</li><li>画面の見方</li><li>通常切断</li><li>自己切断</li><li>失敗・赤タイル・ライフ</li><li>個人カード</li><li>装備カード</li><li>確率表示</li><li>CPU手番と履歴</li><li>終了条件</li><li>クイックリファレンス</li>
+</ol>
+</div>
+
+<h2>1. ゲームの目的</h2>
+<p>全員で協力し、盤面に残っている<strong>すべてのタイルを切断</strong>できればクリアです。通常数字は自分の手牌を手掛かりに、相手の伏せタイルを推理して切断していきます。</p>
+<div class="warn"><strong>ゲームオーバーになる主な条件</strong><br>赤タイルを通常の切断対象として指定すると、原則その時点でゲームオーバーです。また、切断失敗でライフが0になった場合もゲーム終了です。</div>
+
+<h2>2. ゲーム開始前の設定</h2>
+<table>
+<tr><th>設定</th><th>内容</th></tr>
+<tr><td>人数</td><td>参加人数を選択します。人間は1人で、残りをCPUが担当します。初期ライフは通常、参加人数と同じです。</td></tr>
+<tr><td>最大数字</td><td>通常数字の上限です。通常数字は<strong>1〜最大数字を各4枚</strong>使用します。</td></tr>
+<tr><td>黄候補 / 黄使用</td><td>公開された黄色候補の中から、実際に使用する黄色タイルだけが秘密で採用されます。黄色の使用枚数は偶数です。</td></tr>
+<tr><td>赤候補 / 赤使用</td><td>公開された赤候補の中から、実際に使用する赤タイルだけが秘密で採用されます。</td></tr>
+<tr><td>個人カード</td><td>「通常」「フツたんのみ」「なし」から選択します。通常では個人カードを配布・選択します。</td></tr>
+<tr><td>装備</td><td>ONでは装備候補から採用します。「ON（2枚のみ）」では2枚切断で解放される装備だけを候補にします。</td></tr>
+<tr><td>CPU</td><td><strong>自称プロ</strong>または<strong>ポンコツ</strong>を選べます。CPUのカード使用方針は慎重派です。</td></tr>
+<tr><td>確率表示</td><td>ONにすると候補確率・赤総確率・長押し詳細を表示します。ゲーム途中でもメニューから切り替えられます。</td></tr>
+</table>
+
+<h2>3. ゲーム開始まで</h2>
+<div class="steps">
+<div class="step"><strong>配牌を確認</strong><br>自分のタイル、黄候補・赤候補を確認します。必要なら「配牌をやり直す」で再配牌できます。</div>
+<div class="step"><strong>個人カードを決定</strong><br>個人カードありの場合、隊長は<strong>フツたん固定</strong>です。子分は使用するカードを選びます。固有カードは重複できません。</div>
+<div class="step"><strong>情報トークンを配置</strong><br>各プレイヤーが順番に、自分の通常数字タイル1枚に情報トークンを置きます。置いた数字は全員に公開されます。</div>
+<div class="step"><strong>プレイ開始</strong><br>隊長から順番に手番が進みます。人間の手番では通常切断・自己切断・カード使用などを選択します。</div>
+</div>
+
+<h2>4. 画面の見方</h2>
+<ul>
+<li><strong>上部</strong>：現在の手番、直前のアクション、残りライフを表示します。</li>
+<li><strong>相手の台</strong>：伏せタイルと公開済み情報を表示します。手番中のプレイヤーは強調されます。</li>
+<li><strong>自分の台</strong>：自分の数字・黄・赤を確認できます。</li>
+<li><strong>タイル下</strong>：情報トークン、交換情報、ラベルなどの公開情報を表示します。</li>
+<li><strong>装備カード</strong>：解放数字、解放進捗、使用可能・使用済み状態を表示します。</li>
+<li><strong>下部操作欄</strong>：その時点で必要な操作が表示されます。</li>
+</ul>
+<div class="tip"><strong>色の目安</strong><br><span class="success">緑＝切断成功</span>、<span class="amber">琥珀＝通常失敗</span>、<span class="purple">紫＝カード・移動</span>、<span class="danger">赤＝赤タイルによる危険</span>です。</div>
+
+<h2>5. 通常切断</h2>
+<p>通常切断は、このゲームの基本行動です。</p>
+<div class="steps">
+<div class="step"><strong>自分のタイルを選ぶ</strong><br>切断に使う自分の通常数字、または黄色タイルを選択します。赤タイルは通常切断の起点には使えません。</div>
+<div class="step"><strong>相手の伏せタイルを選ぶ</strong><br>「ここに同じ数字がある」と考える相手タイルを選びます。</div>
+<div class="step"><strong>実行ボタンで確定</strong><br>タイルをタップしただけでは切断されません。最後に下部の「○で切断する」を押して確定します。</div>
+</div>
+<p><span class="success">成功：</span>自分のタイルと相手のタイルが一致していれば、両方を切断します。通常数字同士は同じ数字で一致し、黄色同士も一致として扱います。</p>
+<p><span class="amber">失敗：</span>一致しなければ切断できず、原則ライフを1失います。その代わり、指定した相手タイルには情報が付き、通常数字なら正しい数字、黄色なら「黄」が公開されます。</p>
+
+<h2>6. 自己切断</h2>
+<p>条件を満たしたときは、相手を指定せず自分のタイルだけをまとめて切断できます。使用可能なときだけ画面上で選択できます。</p>
+<ul>
+<li><strong>通常数字</strong>：まだその数字が1枚も切られておらず、自分が4枚すべて持っている場合、または2枚切断済みで自分が残り2枚をすべて持っている場合。</li>
+<li><strong>黄色</strong>：盤面に残っている未切断の黄色を自分がすべて持っている場合。</li>
+<li><strong>赤</strong>：自分の未切断タイルが赤だけになった場合。自分の残り赤をまとめて切断できます。</li>
+</ul>
+
+<h2>7. 失敗・赤タイル・ライフ</h2>
+<h3>通常の失敗</h3>
+<p>切断に失敗すると原則ライフが1減り、指定したタイルの情報が公開されます。ライフが0になるとゲームオーバーです。</p>
+<h3>赤タイル</h3>
+<p>相手の赤タイルを通常切断で指定すると、原則として<span class="danger">即ゲームオーバー</span>です。赤タイルは情報トークンの通常公開対象にはなりません。</p>
+<h3>万能氷</h3>
+<p>万能氷の保護中であれば、通常失敗によるライフ減少を防ぎます。赤タイルを指定した場合も、その1回は赤即死を防いで失敗として処理します。</p>
+
+<h2>8. 個人カード</h2>
+<div class="grid">
+<div class="card"><h3>フツーノ探知機（フツたん）</h3><span class="badge turn">手番カード</span><p>自分の通常数字1つを宣言し、相手の同じ台から<strong>2枚</strong>を候補として指定します。候補内に同じ数字があれば、その中から該当タイルを切断します。なければ候補の1枚に情報を付け、失敗として処理します。</p></div>
+<div class="card"><h3>ミッツケル探知機（ミツたん）</h3><span class="badge turn">手番カード</span><p>フツたんの3枚版です。相手の同じ台から原則<strong>3枚</strong>を指定して調べます。残り枚数が少ない台では、その枚数に合わせて候補数が調整されます。</p></div>
+<div class="card"><h3>ドッチカアタレイ（ドチアタ）</h3><span class="badge turn">手番カード</span><p>自分の同じ台から<strong>異なる2つの通常数字</strong>を選び、相手のタイル1枚を指定します。相手がどちらかの数字なら該当する自分の1枚と相手を切断。外れた場合は2数字が公開され、相手タイルに情報が付きます。</p></div>
+<div class="card"><h3>なんでもレーダー（なんレー）</h3><span class="badge instant">いつでも</span><p>未切断で残っている通常数字を1つ選び、その数字が残っている台を公開します。手番外でも使用できます。</p></div>
+<div class="card"><h3>イレカエシーバー（イレシー）</h3><span class="badge instant">いつでも</span><p>自分のタイル1枚を相手に渡し、相手の台から1枚を受け取って交換します。交換後は昇順を保てる位置へ挿入します。交換したタイルは、交換に関わったプレイヤーには分かる私的情報になります。</p></div>
+</div>
+
+<h2>9. 装備カード</h2>
+<p>装備カードには<strong>解放数字</strong>があります。指定された数字を必要枚数切断すると使用可能になります。装備欄では、○＝使用可能、分数＝解放進捗、済＝使用済みを表します。</p>
+<table>
+<tr><th>装備</th><th>解放</th><th>効果</th></tr>
+<tr><td>ドチアタ</td><td>2枚</td><td>個人カード版と同様のドチアタ。</td></tr>
+<tr><td>ミツたん</td><td>2枚</td><td>個人カード版と同様のミツたん。</td></tr>
+<tr><td>イレシー</td><td>2枚</td><td>個人カード版と同様のタイル交換。</td></tr>
+<tr><td>なんレー</td><td>2枚</td><td>個人カード版と同様の数字位置公開。</td></tr>
+<tr><td>失敗帳消し機</td><td>2枚</td><td><span class="badge auto">自動</span>解放時にライフを1回復します。</td></tr>
+<tr><td>ヒント付箋</td><td>2枚</td><td>自分の通常数字タイル1枚へ追加の公開情報を置きます。</td></tr>
+<tr><td>イコールラベル</td><td>2枚</td><td>自分の台で、同じ数字である隣接位置にイコールラベルを置きます。</td></tr>
+<tr><td>コトナルラベル</td><td>2枚</td><td>自分の台で、異なる数字である隣接位置にコトナルラベルを置きます。</td></tr>
+<tr><td>万能氷</td><td>2枚</td><td>失敗・赤指定から1回保護します。</td></tr>
+<tr><td>いつでもコーヒー</td><td>2枚</td><td>次に手番を渡す相手を選びます。</td></tr>
+<tr><td>スーパー探知機（スパたん）</td><td>2枚</td><td>自分の通常数字を宣言し、相手の台全体を対象に探知します。同じ数字があれば切断へ、なければ情報公開へ進みます。</td></tr>
+<tr><td>非常電池</td><td>2枚</td><td>使い切った自分の個人カードを復活させます。条件を満たせば、さらに他プレイヤー1人の使用済み個人カードも復活させられます。</td></tr>
+<tr><td>分解銃</td><td>4枚</td><td><span class="badge auto">自動</span>解放時に通常数字をランダムに1つ選び、残っているその数字をすべて自動切断します。</td></tr>
+<tr><td>シングルラベル</td><td>4枚</td><td>自分の台のシングル対象にラベルを置きます。選択可能位置は盤面で強調されます。</td></tr>
+<tr><td>フタタビボックス</td><td>4枚</td><td><span class="badge auto">自動</span>使用済みの他の装備カードを再使用可能にします。</td></tr>
+<tr><td>優先切断券</td><td>4枚</td><td>自分の同じ通常数字2枚を選び、その2枚を切断します。</td></tr>
+<tr><td>ひっかけフック</td><td>4枚</td><td>相手から受け取るタイルと、自分側の受け取り先の台を選び、昇順を保つ位置へ挿入します。</td></tr>
+</table>
+<div class="note"><strong>装備の使用タイミング</strong><br>装備によって「自分の手番で使う」「いつでも使える」「解放時に自動発動する」が異なります。使用可能なカードだけが操作対象になります。</div>
+
+<h2>10. 確率表示</h2>
+<p>確率表示をONにすると、CPUが使っている推理情報を人間も確認できます。</p>
+<ul>
+<li>タイル<strong>上側</strong>：選択した数字・黄・赤候補、または現在の行動の成功率。</li>
+<li>タイル<strong>下側の赤文字</strong>：そのタイルが赤である合計確率。</li>
+<li>相手の伏せタイルを約<strong>0.5秒長押し</strong>：そのタイルの全候補確率を表示。</li>
+<li>数字・黄候補・赤候補は同時に1つだけ選択できます。もう一度押すと解除します。</li>
+<li>ゲーム中でもメニューからON/OFFを変更できます。</li>
+</ul>
+<div class="tip">確率表示OFFでもゲームルール・CPU判断は変わりません。表示だけを隠して、自力推理で遊べます。</div>
+
+<h2>11. CPU手番と履歴</h2>
+<ul>
+<li>CPUの行動結果は画面上部に表示されます。</li>
+<li>CPUの結果を確認したら<strong>「次へ」</strong>で進行します。</li>
+<li>直前の切断・失敗・カード使用は色分けして表示されます。</li>
+<li><strong>履歴</strong>から、それまでの行動を手番ごとに確認できます。</li>
+<li>各プレイヤーの<strong>「拡大」</strong>では、公開情報と大きなタイル表示を確認できます。</li>
+</ul>
+
+<h2>12. 終了条件</h2>
+<div class="grid">
+<div class="card"><h3 class="success">解除成功</h3><p>盤面のすべてのタイルを切断すると勝利です。</p></div>
+<div class="card"><h3 class="danger">ゲームオーバー</h3><p>赤タイルを指定して保護できなかった場合、またはライフが0になった場合に敗北です。</p></div>
+</div>
+<p>ゲーム終了後は、終了直前の盤面を確認したり、未切断タイルを公開して答え合わせできます。同じ設定で再戦することもできます。</p>
+
+<section class="quick">
+<h2>13. クイックリファレンス</h2>
+<p><strong>基本操作：</strong> 自分のタイル → 相手のタイル → 実行ボタン。</p>
+<p><strong>成功：</strong> 同じ数字なら2枚とも切断。</p>
+<p><strong>失敗：</strong> ライフ−1＋相手タイルの情報公開。</p>
+<p><strong>赤：</strong> 原則即ゲームオーバー。万能氷保護中のみ1回防げる。</p>
+<p><strong>勝利：</strong> 全タイル切断。</p>
+<p><strong>CPU：</strong> 結果を確認して「次へ」。</p>
+<p><strong>困ったとき：</strong> 下部の操作案内とメニューの設定説明を確認。</p>
+</section>
+
+<p class="small" style="margin-top:24px">このマニュアルは一人用CPU版の操作・ルール説明を目的としたものです。CPU最適化の内部ロジックや攻略上の優先順位は扱っていません。</p>
+</main>
+</body>
+</html>

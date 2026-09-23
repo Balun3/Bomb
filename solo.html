@@ -12,6 +12,60 @@
 #gameCard.wb-has-instant #wbCommand #soloCpuPanel{width:calc(100% - 94px)!important;margin-right:94px!important}
 #gameCard.wb-has-instant #wbCommand #wbInstant{z-index:30}
 </style>
+<style>
+body.wb-playing #gameCard:not(.wb-many-boards):not(.wb-choosing-card):has(.wb-insert-lane){grid-template-rows:42px 38px minmax(240px,1fr) 65px 28px minmax(128px,auto) minmax(68px,auto);overflow-y:auto}
+/* Insertion arrows use a separate lane; tile columns retain normal flex sizing. */
+#gameCard .swapInsertMode{overflow:visible!important;padding-bottom:10px!important}
+#gameCard .swapInsertMode>.tileColumn{flex:1 1 0!important}
+.wb-insert-lane{position:relative;height:34px;margin:2px 0 0;width:100%;isolation:isolate}
+#gameCard .wb-insert-lane .insertGap,.wb-sheet .wb-insert-lane .insertGap{position:absolute!important;left:clamp(12px,var(--insert-position),calc(100% - 12px))!important;top:0!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;flex:none!important;width:var(--insert-width)!important;max-width:30px;min-width:0!important;height:32px!important;min-height:32px!important;margin:0!important;padding:0!important;border-radius:6px;background:transparent!important;color:#f0d590!important}
+.wb-insert-lane .insertGapArrow{width:20px;height:24px;border:1px solid #9caa83;background:#344f42;color:#fff1c6;border-radius:5px}
+.wb-insert-lane .insertGap.selected .insertGapArrow{background:#ffe391;color:#352e1e;border:2px solid #fff4c9;box-shadow:0 0 0 2px #b28d37;transform:translateY(-2px)}
+#gameCard .board:has(>.wb-insert-lane){padding-bottom:2px}
+</style>
+
+<style id="wb-exchange-tag-visibility-fix">
+/* Exchange / hook tags are metadata: never let them cover the tile number. */
+#gameCard .receivedTilePreviewCard{
+  overflow:visible!important;
+}
+#gameCard .receivedTilePreviewCard > .exchangeTag{
+  position:absolute!important;
+  top:-11px!important;
+  bottom:auto!important;
+  left:50%!important;
+  right:auto!important;
+  transform:translateX(-50%)!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  max-width:40px!important;
+  height:10px!important;
+  min-height:10px!important;
+  padding:0 3px!important;
+  margin:0!important;
+  border:1px solid #a58bc4!important;
+  border-radius:3px!important;
+  background:#f4eef9!important;
+  color:#432b59!important;
+  font-size:7px!important;
+  font-weight:950!important;
+  line-height:9px!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  z-index:8!important;
+}
+/* Board tags already have their own lane; keep the badge light and compact. */
+#gameCard .wb-exchange-lane .exchangeTag{
+  border:1px solid #9f8bb5!important;
+  background:#f4eef9!important;
+  color:#432b59!important;
+  font-weight:950!important;
+  white-space:nowrap!important;
+}
+</style>
+
 </head>
 <body>
 <div class="wrap">
@@ -6604,6 +6658,8 @@ const insertFlow=insertionFlowForBoard(view,owner.playerKey,bi);
 if(insertFlow){
 tiles.classList.add("swapInsertMode");
 }
+const insertLane=insertFlow?document.createElement("div"):null;
+if(insertLane){insertLane.className="wb-insert-lane";insertLane.setAttribute("aria-label","タイルの挿入位置");}
 const insertSet=new Set(
 (insertFlow?.insertOptions||[])
 .map(Number)
@@ -6632,7 +6688,9 @@ Number(actionState.insertIndex)===normalizedIndex
 ? " selected"
 : ""
 );
-gap.setAttribute("aria-label","ここに置く");
+gap.setAttribute("aria-label",normalizedIndex===0?"先頭に置く":normalizedIndex===layout.length?"末尾に置く":`${normalizedIndex}番目と${normalizedIndex+1}番目の間に置く`);
+gap.style.setProperty("--insert-position",`${layout.length?normalizedIndex/layout.length*100:50}%`);
+gap.style.setProperty("--insert-width",`${100/Math.max(1,layout.length+1)}%`);
 arrow.className="insertGapArrow";
 arrow.textContent="↑";
 gap.onclick=e=>{
@@ -6651,7 +6709,7 @@ gap
 }
 };
 gap.appendChild(arrow);
-tiles.appendChild(gap);
+insertLane.appendChild(gap);
 };
 appendInsertGap(0);
 layout.forEach((item,layoutIndex)=>{
@@ -6817,6 +6875,7 @@ col.appendChild(el);col.appendChild(renderTokenSlot(tile));tiles.appendChild(col
 appendInsertGap(layoutIndex+1);
 });
 wrap.appendChild(tiles);
+if(insertLane)wrap.appendChild(insertLane);
 container.appendChild(wrap);
 });
 decorateRelationLabels(

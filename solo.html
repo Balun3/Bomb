@@ -22009,13 +22009,29 @@ function soloMaybeUseInstant(actor,snapshot){
       "equipment"
     );
   }
-  const infoPlacement=soloBestEquipmentInfoPlacement(actor);
+  let infoPlacement=null;
+  const infoTokenLegal=equipmentInstantHasLegalUse(actor,"infoToken");
+  const infoTokenReady=soloEquipmentReady("infoToken");
+  if(infoTokenReady&&infoTokenLegal){
+    infoPlacement=soloBestEquipmentInfoPlacement(actor);
+  }else if(infoTokenLegal){
+    // soloBestEquipmentInfoPlacement() used to consume one noise draw per
+    // eligible tile even when add() later rejected an unavailable card.
+    // Preserve those draws so fixed-seed CPU decisions stay identical.
+    const p=gameState?.players?.[actor];
+    for(const board of p?.boards||[]){
+      for(const tile of board){
+        if(tile.cut||tile.kind!=="normal"||tile.infoToken)continue;
+        Math.random();
+      }
+    }
+  }
   add(
     "infoToken",
     Number(infoPlacement?.score||-1e9) +
       (life.survivalMode?8:0) +
       futatabiUseBonus,
-    !!infoPlacement && equipmentInstantHasLegalUse(actor,"infoToken"),
+    !!infoPlacement,
     infoPlacement
   );
   add(
@@ -22028,7 +22044,13 @@ function soloMaybeUseInstant(actor,snapshot){
       20*life.resourceCostMultiplier,
     equipmentInstantHasLegalUse(actor,"swap")
   );
-  const singlePlacement=soloBestSingleLabelPlacement(actor);
+  let singlePlacement=null;
+  if(
+    soloEquipmentReady("singleLabel") &&
+    validSingleLabelTiles(actor).length>0
+  ){
+    singlePlacement=soloBestSingleLabelPlacement(actor);
+  }
   add(
     "singleLabel",
     Number(singlePlacement?.score||-1e9) +
@@ -22038,7 +22060,13 @@ function soloMaybeUseInstant(actor,snapshot){
     singlePlacement
   );
   for(const type of ["equalLabel","differentLabel"]){
-    const bestPair=soloBestRelationLabelPlacement(actor,type);
+    let bestPair=null;
+    if(
+      soloEquipmentReady(type) &&
+      validEquipmentLabelPairs(actor,type).length>0
+    ){
+      bestPair=soloBestRelationLabelPlacement(actor,type);
+    }
     add(
       type,
       Number(bestPair?.score||-1e9) + futatabiUseBonus,
@@ -24336,6 +24364,133 @@ function tp4RunDP(model){
   }
   return {total,posCounts,adoptY,adoptR,ms:performance.now()-t0,maxStates,forwardTransitions,backTransitions,layerSizes:layers.map(x=>x.size),rootBack:bn.get(start)||0n,storedEdges,storedBytes,maxLayerEdges};
 }
+// === Safe DP optimization: normal-state fast path + packed edge allocations + dense posCounts ===
+const tp4RunDPBaseline=tp4RunDP;
+function tp4CompileF2(model){
+  const {c,evidence}=model,events=tp4Events(c),R=c.rackSizes.length;
+  const normalizePoints=e=>{
+    if(Array.isArray(e.points))return tp4PointsUnique(e.points);
+    if(e.op==='contains'||e.op==='absent')return Array.from({length:c.rackSizes[e.r]||0},(_,pos)=>({r:Number(e.r),pos}));
+    if(e.op==='anypos'||e.op==='nonepos')return (e.positions||[]).map(pos=>({r:Number(e.r),pos:Number(pos)}));
+    return [];
+  };
+  const exist=evidence.filter(e=>['contains','anypos','anyset'].includes(e.op)).map((e,i)=>({...e,points:normalizePoints(e),bit:2**i})),fullMask=exist.reduce((m,e)=>m+e.bit,0);
+  const exact=new Map(),kind=new Map(),not=new Map(),notred=new Set(),relations=evidence.filter(e=>['equal','different','singleDifferent','leq'].includes(e.op));
+  const negative=evidence.filter(e=>['absent','nonepos','noneset'].includes(e.op)).map(e=>({...e,points:normalizePoints(e)})),negByPk=new Map();
+  for(const e of negative)for(const p of e.points){const pk=`${p.r}:${p.pos}`;if(!negByPk.has(pk))negByPk.set(pk,[]);negByPk.get(pk).push(e);}
+  for(const e of evidence){if('pos' in e){const pk=`${e.r}:${e.pos}`;if(e.op==='exact')exact.set(pk,e.key);else if(e.op==='kind')kind.set(pk,e.kindOnly);else if(e.op==='not'){if(!not.has(pk))not.set(pk,[]);not.get(pk).push(e);}else if(e.op==='notred')notred.add(pk);}}
+  const suffixY=Array(events.length+1).fill(0),suffixR=Array(events.length+1).fill(0);for(let i=events.length-1;i>=0;i--){suffixY[i]=suffixY[i+1]+(events[i].kind==='yellow'?1:0);suffixR[i]=suffixR[i+1]+(events[i].kind==='red'?1:0);}
+  const bases=c.rackSizes.map(x=>x+1),mul=[],posProd=bases.reduce((prod,b,i)=>{mul[i]=prod;return prod*b;},1),yBase=c.yUsed+1,rBase=c.rUsed+1;
+  const encode=(pos,y,r,mask)=>{let pc=0;for(let i=0;i<R;i++)pc+=pos[i]*mul[i];return pc+posProd*(y+yBase*(r+rBase*mask));};
+  const posTmp=Array(R).fill(0);const decode=(code,pos=posTmp)=>{const pc=code%posProd;for(let i=0;i<R;i++)pos[i]=Math.floor(pc/mul[i])%bases[i];const q=Math.floor(code/posProd),y=q%yBase,q2=Math.floor(q/yBase),r=q2%rBase,mask=Math.floor(q2/rBase);return {pos,y,r,mask};};
+  const limitedAllocCache=new Map();
+  function limitedAllocs(total,limits){
+    const lim=limits.map(x=>Math.max(0,Math.min(total,Number(x)||0))),key=lim.join(',');
+    const hit=limitedAllocCache.get(key);if(hit)return hit;
+    const out=[],a=Array(R).fill(0);
+    function rec(i,left){
+      if(i===R-1){if(left<=lim[i]){a[i]=left;out.push({a:[...a],w:tp4Multi(total,a)});}return;}
+      const mx=Math.min(left,lim[i]);for(let x=0;x<=mx;x++){a[i]=x;rec(i+1,left-x);}
+    }
+    rec(0,total);limitedAllocCache.set(key,out);return out;
+  }
+  function setBit(mask,bit){return Math.floor(mask/bit)%2?mask:mask+bit;}function covered(pos,alloc,r,p){return p>=pos[r]&&p<pos[r]+alloc[r];}
+  const badPrefix=events.map(ev=>c.rackSizes.map((size,rr)=>{const pref=Array(size+1).fill(0);for(let p=0;p<size;p++){const pk=`${rr}:${p}`,ex=exact.get(pk),kd=kind.get(pk);let bad=(ex&&ex!==ev.key)||(kd&&!tp4Match(ev,{kindOnly:kd}))||(ev.kind==='red'&&notred.has(pk));if(!bad)for(const ne of not.get(pk)||[])if(tp4Match(ev,ne)){bad=true;break;}if(!bad)for(const ne of negByPk.get(pk)||[])if(tp4Match(ev,ne)){bad=true;break;}pref[p+1]=pref[p]+(bad?1:0);}return pref;}));
+  const goodRun=badPrefix.map((byRack)=>byRack.map((pref,rr)=>{
+    const size=c.rackSizes[rr],g=Array(size+1).fill(0);
+    for(let p=size-1;p>=0;p--)g[p]=(pref[p+1]-pref[p]===0)?g[p+1]+1:0;
+    return g;
+  }));
+  const existByEventRack=events.map(ev=>Array.from({length:R},(_,rr)=>exist.filter(x=>tp4Match(ev,x)&&x.points.some(p=>p.r===rr))));
+  const futureFit=Array.from({length:events.length+1},()=>c.rackSizes.map(s=>new Uint8Array(s+1)));
+  for(let rr=0;rr<R;rr++)futureFit[events.length][rr][c.rackSizes[rr]]=1;
+  for(let i=events.length-1;i>=0;i--)for(let rr=0;rr<R;rr++)for(let p=0;p<=c.rackSizes[rr];p++){
+    const max=Math.min(events[i].count,goodRun[i][rr][p]);
+    for(let n=0;n<=max;n++)if(futureFit[i+1][rr][p+n]){futureFit[i][rr][p]=1;break;}
+  }
+  const dueMask=Array(events.length+1).fill(0);
+  for(const e of exist){let last=-1;for(let i=0;i<events.length;i++)if(tp4Match(events[i],e))last=i;for(let next=last+1;next<=events.length;next++)dueMask[next]+=e.bit;}
+  const simpleGeometry=exist.length===0&&relations.length===0;
+  const encodeParts=(pc,y,r,mask)=>pc+posProd*(y+yBase*(r+rBase*mask));
+  const packAlloc=alloc=>{let x=0;for(let rr=0;rr<R;rr++)x|=(Number(alloc[rr])&7)<<(rr*3);return x>>>0;};
+  function futurePossible(next,pos,mask){
+    if((mask&dueMask[next])!==dueMask[next])return false;
+    for(let rr=0;rr<R;rr++)if(!futureFit[next][rr][pos[rr]])return false;
+    return true;
+  }
+  function placement(i,state,ev,alloc){let mask=state.mask;
+    for(let rr=0;rr<R;rr++){const cnt=alloc[rr];if(!cnt)continue;const start=state.pos[rr],end=start+cnt;if(end>c.rackSizes[rr])return null;const pref=badPrefix[i][rr];if(pref[end]-pref[start]>0)return null;for(const x of existByEventRack[i][rr])if(x.points.some(p=>p.r===rr&&p.pos>=start&&p.pos<end))mask=setBit(mask,x.bit);}
+    if(relations.length)for(const rel of relations){const h1=covered(state.pos,alloc,rel.r1,rel.p1),h2=covered(state.pos,alloc,rel.r2,rel.p2),aBefore=rel.p1<state.pos[rel.r1],bBefore=rel.p2<state.pos[rel.r2];
+      if(rel.op==='equal'){if((h1||h2)&&(ev.kind!=='normal'||!h1||!h2))return null;}
+      else if(rel.op==='different'){if((h1||h2)&&ev.kind!=='normal')return null;if(h1&&h2)return null;}
+      else if(rel.op==='singleDifferent'){if(h1&&ev.kind!=='normal')return null;if(h1&&h2&&ev.kind==='normal')return null;}
+      else if(rel.op==='leq'){
+        if(bBefore&&!aBefore)return null;
+        if(h2&&!h1&&!aBefore)return null;
+      }
+    }
+    return mask;
+  }
+  function forEachTransition(i,code,cb,needPlacements=false){
+    const ev=events[i],st=decode(code);
+    if(simpleGeometry&&!needPlacements){
+      const pc=code%posProd;
+      if(ev.optional){
+        let posOk=true;for(let rr=0;rr<R;rr++)if(!futureFit[i+1][rr][st.pos[rr]]){posOk=false;break;}
+        if(posOk&&st.y+suffixY[i+1]>=c.yUsed&&st.r+suffixR[i+1]>=c.rUsed)cb(code,1n,null,null,0);
+        const can=ev.kind==='yellow'?st.y<c.yUsed:st.r<c.rUsed;if(!can)return;
+        const y=st.y+(ev.kind==='yellow'?1:0),r=st.r+(ev.kind==='red'?1:0);
+        if(y>c.yUsed||r>c.rUsed||y+suffixY[i+1]<c.yUsed||r+suffixR[i+1]<c.rUsed)return;
+        for(let rr=0;rr<R;rr++){
+          const p=st.pos[rr];if(p>=c.rackSizes[rr]||!(goodRun[i][rr][p]>0)||!futureFit[i+1][rr][p+1])continue;
+          let ok=true;for(let jj=0;jj<R;jj++)if(jj!==rr&&!futureFit[i+1][jj][st.pos[jj]]){ok=false;break;}
+          if(ok)cb(encodeParts(pc+mul[rr],y,r,0),1n,null,ev.key,(1<<(rr*3))>>>0);
+        }
+        return;
+      }
+      if(st.y+suffixY[i+1]<c.yUsed||st.r+suffixR[i+1]<c.rUsed)return;
+      const limits=Array(R);for(let rr=0;rr<R;rr++)limits[rr]=Math.min(c.copies,c.rackSizes[rr]-st.pos[rr],goodRun[i][rr][st.pos[rr]]||0);
+      for(const co of limitedAllocs(c.copies,limits)){
+        const a=co.a;let pc2=pc,ok=true;
+        for(let rr=0;rr<R;rr++){const p=st.pos[rr]+a[rr];if(!futureFit[i+1][rr][p]){ok=false;break;}pc2+=a[rr]*mul[rr];}
+        if(ok)cb(encodeParts(pc2,st.y,st.r,0),co.w,null,null,packAlloc(a));
+      }
+      return;
+    }
+    const caps=c.rackSizes.map((s,j)=>s-st.pos[j]);
+    const push=(alloc,w,adopt)=>{const mask=placement(i,st,ev,alloc);if(mask===null)return;const pos=st.pos.map((v,j)=>v+alloc[j]);let y=st.y,r=st.r;if(adopt&&ev.kind==='yellow')y++;if(adopt&&ev.kind==='red')r++;if(y>c.yUsed||r>c.rUsed)return;if(y+suffixY[i+1]<c.yUsed||r+suffixR[i+1]<c.rUsed)return;if(!futurePossible(i+1,pos,mask))return;const to=encode(pos,y,r,mask);let pls=null;if(needPlacements){pls=[];for(let rr=0;rr<R;rr++)if(alloc[rr])pls.push({r:rr,start:st.pos[rr],count:alloc[rr],key:ev.key});}cb(to,w,pls,adopt?ev.key:null,packAlloc(alloc));};
+    if(ev.optional){if(st.y+suffixY[i+1]>=c.yUsed&&st.r+suffixR[i+1]>=c.rUsed&&futurePossible(i+1,st.pos,st.mask))cb(code,1n,needPlacements?[]:null,null,0);const can=ev.kind==='yellow'?st.y<c.yUsed:st.r<c.rUsed;if(can)for(let rr=0;rr<R;rr++)if(caps[rr]>0){const a=Array(R).fill(0);a[rr]=1;push(a,1n,true);}}
+    else{const limits=Array(R);for(let rr=0;rr<R;rr++)limits[rr]=Math.min(c.copies,caps[rr],goodRun[i][rr][st.pos[rr]]||0);for(const co of limitedAllocs(c.copies,limits))push(co.a,co.w,false);}
+  }
+  return {c,events,R,exist,fullMask,encode,decode,forEachTransition,simpleGeometry};
+}
+function tp4RunDPF2(model){
+  const cp=tp4CompileF2(model),{c,events,R,encode,forEachTransition}=cp,t0=performance.now(),start=encode(Array(R).fill(0),0,0,0),layers=[new Map([[start,1n]])],edgeLayers=[];let forwardTransitions=0,maxStates=1,storedEdges=0,storedBytes=0,maxLayerEdges=0;
+  const STATE_CAP=350000,TRANS_CAP=65000000;
+  for(let i=0;i<events.length;i++){
+    const fm=layers[i],nx=new Map(),offsets=new Uint32Array(fm.size+1),tos=[],packedEdges=[];let si=0;
+    for(const [code,f] of fm){offsets[si++]=tos.length;forEachTransition(i,code,(to,w,_pls,_adopt,allocCode=0)=>{tp4Add(nx,to,f*w);forwardTransitions++;tos.push(to);packedEdges.push((((Number(w)&255)<<24)|(allocCode&0xFFFFFF))>>>0);},false);}offsets[si]=tos.length;
+    if(nx.size>STATE_CAP)throw new Error(`DP状態爆発: layer ${i+1} states=${nx.size} > ${STATE_CAP}`);if(forwardTransitions>TRANS_CAP)throw new Error(`DP遷移上限: ${forwardTransitions} > ${TRANS_CAP}`);
+    const toA=new Float64Array(tos),edgeA=Uint32Array.from(packedEdges);edgeLayers.push({offsets,toA,edgeA});storedEdges+=toA.length;maxLayerEdges=Math.max(maxLayerEdges,toA.length);storedBytes+=toA.byteLength+edgeA.byteLength+offsets.byteLength;layers.push(nx);maxStates=Math.max(maxStates,nx.size);
+  }
+  const finalCode=encode(c.rackSizes,c.yUsed,c.rUsed,cp.fullMask),total=layers[layers.length-1].get(finalCode)||0n;
+  const posDense=c.rackSizes.map(s=>Array.from({length:s},()=>Array(events.length).fill(0n)));
+  const adoptY=new Map(c.yCand.map(v=>[String(v),0n])),adoptR=new Map(c.rCand.map(v=>[String(v),0n]));let bn=new Map([[finalCode,1n]]),backTransitions=0;
+  const srcPos=Array(R).fill(0);
+  for(let i=events.length-1;i>=0;i--){const bm=new Map(),fm=layers[i],ed=edgeLayers[i],ev=events[i];let si=0;
+    for(const [code,f] of fm){const lo=ed.offsets[si],hi=ed.offsets[si+1];backTransitions+=hi-lo;let srcReady=false;
+      for(let ei=lo;ei<hi;ei++){const to=ed.toA[ei],z=bn.get(to)||0n;if(!z)continue;const packed=ed.edgeA[ei],w=BigInt(packed>>>24);tp4Add(bm,code,w*z);const q=f*w*z;if(!q)continue;
+        if(!srcReady){cp.decode(code,srcPos);srcReady=true;}
+        const ac=packed&0xFFFFFF;for(let rr=0;rr<R;rr++){const cnt=(ac>>>(rr*3))&7;if(cnt>0)for(let p=srcPos[rr];p<srcPos[rr]+cnt;p++)posDense[rr][p][i]+=q;}
+        if(ev.optional&&to!==code){if(ev.key.startsWith('Y:'))tp4Add(adoptY,ev.key.slice(2),q);else tp4Add(adoptR,ev.key.slice(2),q);}
+      }si++;
+    }bn=bm;
+  }
+  const posCounts=c.rackSizes.map((s,rr)=>Array.from({length:s},(_,p)=>{const m=new Map();for(let i=0;i<events.length;i++){const v=posDense[rr][p][i];if(v)m.set(events[i].key,v);}return m;}));
+  return {total,posCounts,adoptY,adoptR,ms:performance.now()-t0,maxStates,forwardTransitions,backTransitions,layerSizes:layers.map(x=>x.size),rootBack:bn.get(start)||0n,storedEdges,storedBytes,maxLayerEdges,simpleGeometry:cp.simpleGeometry};
+}
+tp4RunDP=tp4RunDPF2;
+
 const tp6={
   enabled:true,running:false,stop:false,baseSeed:20260905,gamesDone:0,wins:0,losses:0,redBooms:0,lifeZero:0,
   theoryBuilds:0,cacheHits:0,buildMs:[],maxStates:[],decisions:0,theoryPlans:0,nonTheoryPlans:0,
@@ -24405,7 +24560,7 @@ soloCpuSharedMarginals=function(view,inference,level,...rest){
   if(Number(level)===3&&inference?._tp6SharedMarginals)return inference._tp6SharedMarginals;
   return tp6.baseShared(view,inference,level,...rest);
 };
-NANIKIRU_CPU_PROBABILITY_VERSION="theoreticalDP-v40-optimized";
+NANIKIRU_CPU_PROBABILITY_VERSION="theoreticalDP-v40-optimized-fastpath3";
 </script>
 <script>
 const soloInfoProofByCounts=new WeakMap();

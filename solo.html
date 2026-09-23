@@ -23321,6 +23321,7 @@ soloSuperProbeWorthUsing=function(normalPlan,probePlan,level,view,actor){
   const success=Number(probePlan?.success||0);
   const successGain=success-sameSuccess;
   const redGain=sameRed; // スーパーは直接赤を踏まない。
+  if(successGain<=1e-6&&redGain<=.01+1e-12)return false;
   if(successGain<=.025&&redGain<=.005)return false;
   if(sameSuccess>=.82&&redGain<.020)return false;
   return true;
@@ -23741,7 +23742,7 @@ function soloPersonalProbeCurrentLegitimacy(plan,view,actor){
     !f.edgeWaste
   );
   const baseLegitimate=safe&&!!(f.redAvoid||f.locationSearch);
-  const dominated=f.locationGain<=1e-6&&f.redGain<=1e-6;
+  const dominated=f.locationGain<=1e-6&&f.redGain<=.01+1e-12;
   const legitimate=baseLegitimate&&!f.tokenLocationWaste&&!dominated;
   return {flags:f,legitimate};
 }
@@ -24062,6 +24063,12 @@ function soloSuperProbeMitsuDecisionCandidateCurrent(actor,view,inference,normal
     coverage,normalOpportunity:shadow.normalOpportunity,
     reservePressure:Number(shadow.reservePressure||0)
   };
+  // Filter the actual super-probe outcome, not the Mitsu timing proxy.
+  if(Number(level)===3){
+    const successGain=actual.success-actual.bestSingle;
+    const redGain=Number(actual.normalOpportunity?.redAtBestSuccess||0)-actual.red;
+    if(successGain<=1e-6&&redGain<=.01+1e-12)return null;
+  }
   return {plan:actual,decisionPlan:shadow,compareAsMitsuTiming:true,type:'superProbe',source:'equipment'};
 }
 function soloCurrentDecisionPlan(candidate){

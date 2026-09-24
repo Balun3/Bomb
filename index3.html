@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111827">
-<title>何切る？ マルチプレイ＋CPU v9</title>
+<title>何切る？ マルチプレイ＋CPU v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -7850,6 +7850,15 @@ board=>board.some(tile=>!tile.cut)
 }
 const _t4BaseEquipmentClientCanUse=
 equipmentClientCanUse;
+function hyInstantEquipmentUiBlocked(view){
+ if(!view||view.phase!=="play"||view.cardFlow||actionState)return true;
+ const kind=view.sharedTransition?.kind||"";
+ return new Set([
+  "cpuBusy","cpuConfirm","cardOwn","cardCpu","cardActorWait","cardWait",
+  "personalCaptainReview","personalChoose","personalWait","personalCpuAssign",
+  "infoOwn","infoCpu","infoWait","ended"
+ ]).has(kind);
+}
 equipmentClientCanUse=function(card,view){
 const base=
 _t4BaseEquipmentClientCanUse(
@@ -7857,6 +7866,9 @@ card,
 view
 );
 if(!base)return false;
+// All "instant" equipment uses the same multiplayer transition gate.
+// turnWait/cpuReady remain legal interruption windows; busy/confirm/card flows do not.
+if(EQUIPMENT_CARDS[card.type]?.mode==="instant"&&hyInstantEquipmentUiBlocked(view))return false;
 if(card.type==="singleLabel"){
 return (
 clientSingleLabelCandidates(view)
@@ -25388,6 +25400,9 @@ function wbLocalCards(view){
  els.gameCard.classList.toggle('wb-has-instant',instant);
  if(!instant){button?.remove();return;}
  if(!button){button=wbButton('',()=>{if(button.disabled)return;beginPersonalCardAction();});button.id='wbInstant';wb$('wbCommand').append(button);}
+ // A previous CPU/card wait may have hidden this button. Restore visibility on every
+ // personal-card render, then let the authoritative transition hide it again if needed.
+ button.classList.remove('hidden');
  wbText(button,short+(c.remainingUses<=0?' 済':''));button.title='いつでも使える個人カード';
  button.disabled=c.remainingUses<=0||soloHumanInstantBlocked()||!hyInstantCardHasLegalUseView(view,c.type);
  els.interruptCardArea.classList.add('hidden');els.personalCardBtn.classList.add('hidden');
@@ -27951,7 +27966,7 @@ function hyInit(){
  if(hyInitialized)return;hyInitialized=true;
  hyBindConnectionControls();
  hyShowConnectionStart();
- document.title="何切る？ マルチプレイ＋CPU v9";document.documentElement.dataset.hybridVersion="9";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
+ document.title="何切る？ マルチプレイ＋CPU v10";document.documentElement.dataset.hybridVersion="10";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
  soloProbabilityDisplayEnabled=false;if(soloProbabilityDisplaySelect)soloProbabilityDisplaySelect.value="0";
  if(els.personalCardsEnabledSelect)els.personalCardsEnabledSelect.value="1";if(els.equipmentCardsEnabledSelect)els.equipmentCardsEnabledSelect.value="all";if(els.maxNumberSelect){els.maxNumberSelect.value="12";updateSetupSelectors();}if(els.yellowCandidateSelect){els.yellowCandidateSelect.value="4";updateYellowUsedSelector(false);els.yellowUsedSelect.value="2";}if(els.redCandidateSelect){els.redCandidateSelect.value="3";updateRedUsedSelector(false);els.redUsedSelect.value="2";}
  expectedHumanCount=Number(els.playerCountSelect.value)||2;expectedPlayerCount=expectedHumanCount;soloPlayerCountSelect.value=String(expectedPlayerCount);soloPlayerCountSelect.disabled=true;

@@ -88,6 +88,17 @@ body.wb-playing #hyConnectionShell{display:none!important}body.wb-setup #hyConne
 @media(max-width:520px){.hyConnCard{padding:10px!important;margin:7px 0!important}.hyConnCard .row{gap:5px}.hyConnCard button{font-size:13px;padding:8px}.hyNameField{padding:6px}}
 
 .hyRoleChoices{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}.hyRoleChoices .rolebtn{width:100%!important;min-width:0!important;display:block!important}.hyCardHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.hyCardHead h2{margin:0!important}.hyBackBtn{min-height:32px!important;padding:4px 10px!important;font-size:12px!important;flex:0 0 auto}.hyHumanCpuNotice{padding:8px 10px;margin:8px 0;border:1px solid #63786a;border-radius:8px;background:#22372f;color:#efe6cb;font-size:12px;line-height:1.55}@media(max-width:420px){.hyRoleChoices{grid-template-columns:1fr!important}}
+
+/* v6: host-authoritative shared transition / wait-state UI */
+body.hyTransitionLocked #gameCard .selectableTile,
+body.hyTransitionLocked #gameCard .cardSelectable,
+body.hyTransitionLocked #gameCard .selectableBoard,
+body.hyTransitionLocked #gameCard .relationChoice,
+body.hyTransitionLocked #gameCard .insertGap{pointer-events:none!important;cursor:default!important}
+#hyCaptainReviewBox{display:flex;flex-direction:column;gap:8px;width:100%;padding:10px;border:1px solid #8e8968;border-radius:8px;background:#31483e;color:#fff1c8;text-align:center}
+#hyCaptainReviewBox .hyCaptainReviewTitle{font-size:15px;font-weight:900}
+#hyCaptainReviewBox .hyCaptainReviewSub{font-size:11px;line-height:1.5;color:#d8dfcf}
+#hyCaptainReviewBtn{width:100%;min-height:42px!important;background:#d8c899!important;color:#273b31!important;border:1px solid #d7be75!important}
 </style>
 
 </head>
@@ -4635,7 +4646,9 @@ playerHasUncut(key)
 );
 }
 function soloPublishCoffeeLastTileNotRed(actor){
-if(!gameState?.config?.soloMode||actor==="p0")return null;
+// This is a CPU-only solo aid. In hybrid play every human seat (including
+// guests p1/p2/...) must be treated as human, not merely p0.
+if(!gameState?.config?.soloMode||!soloIsCpu(actor))return null;
 const uncut=[];
 for(const board of gameState.players?.[actor]?.boards||[]){
 for(const tile of board||[]){if(!tile.cut)uncut.push(tile);}
@@ -13193,19 +13206,20 @@ function soloClearVisualReplay(){
   }
 }
 function soloFindActorContainer(view,actorKey){
-  if(actorKey==="p0"){
+  // "my" is the player who owns this view, not always p0.
+  if(actorKey===view?.playerKey){
     return els.myPlayerHeading?.closest(".playerBlock")||null;
   }
   const groups=[...els.oppBoards.querySelectorAll(":scope > .opponentGroup")];
-  const index=(view.opponents||[]).findIndex(x=>x.playerKey===actorKey);
+  const index=(view?.opponents||[]).findIndex(x=>x.playerKey===actorKey);
   return index>=0?groups[index]||null:null;
 }
 function soloFindActorHeading(view,actorKey){
-  if(actorKey==="p0"){
+  if(actorKey===view?.playerKey){
     return els.myPlayerHeading?.querySelector(".playerHeadingLine")||els.myPlayerHeading;
   }
   const groups=[...els.oppBoards.querySelectorAll(":scope > .opponentGroup")];
-  const index=(view.opponents||[]).findIndex(x=>x.playerKey===actorKey);
+  const index=(view?.opponents||[]).findIndex(x=>x.playerKey===actorKey);
   return groups[index]?.querySelector(".opponentName .playerHeadingLine")||null;
 }
 function soloApplyVisualDecorations(view){
@@ -25147,7 +25161,7 @@ function wbPersonalDetail(){
   const c=currentView?.personalCard;if(!c)return;const box=wbOpen(c.name||PERSONAL_CARDS[c.type].name);const face=wbNode('div','wb-card-face');face.append(wbNode('div','wb-card-kind','PERSONAL CARD'),wbNode('div','wb-card-title',c.name||PERSONAL_CARDS[c.type].name),wbNode('p',null,`残り${c.remainingUses}回`));box.append(face);
   face.append(wbNode('p',null,c.type==='futsu'?'自分の通常数字を宣言し、相手の同じ台から2枚を指定します。相手の応答で結果を確定します。':wbEquipmentDescriptions[c.type]||''));
   const fn=currentView.turn===currentView.playerKey?beginPersonalCardAction:requestStartInstantCard;
-  const use=wbButton('使用する',()=>{wbClose();fn();},'wb-use');use.disabled=currentView.phase!=='play'||c.remainingUses<=0||!!currentView.cardFlow||(PERSONAL_CARDS[c.type]?.mode==='instant'?soloHumanInstantBlocked():soloHumanControlsBlocked())||!!actionState||(currentView.turn!==currentView.playerKey&&PERSONAL_CARDS[c.type]?.mode!=='instant');box.append(use);
+  const use=wbButton('使用する',()=>{wbClose();fn();},'wb-use');const isInstant=PERSONAL_CARDS[c.type]?.mode==='instant';use.disabled=currentView.phase!=='play'||c.remainingUses<=0||!!currentView.cardFlow||(isInstant?soloHumanInstantBlocked():soloHumanControlsBlocked())||!!actionState||(currentView.turn!==currentView.playerKey&&!isInstant)||(isInstant&&!hyInstantCardHasLegalUseView(currentView,c.type));box.append(use);
 }
 function wbEquipmentBar(view){
   [...els.equipmentCards.querySelectorAll('.equipmentItem')].forEach(el=>{
@@ -25334,6 +25348,20 @@ const wbLifeRead=readSetupSettings;readSetupSettings=function(){return {...wbLif
 const wbLifeCreate=createGameState;createGameState=function(settings){const state=wbLifeCreate(settings);const mode=settings.initialLifeMode||'auto';const n=Number(mode);state.config.initialLifeMode=mode==='auto'||!Number.isInteger(n)||n<1||n>10?'auto':String(n);state.lives=state.config.initialLifeMode==='auto'?state.config.playerCount:n;state.config.initialLives=state.lives;return state;};
 const wbLifePreview=updateSetupPreview;updateSetupPreview=function(){wbLifePreview();const mode=wb$('wbInitialLife')?.value||'auto',text='ライフ：'+(mode==='auto'?'人数と同じ':mode);if(els.setupPreview&&!els.setupPreview.textContent.includes(text))els.setupPreview.textContent+='　'+text;let label=wb$('wbLifePreview');if(!label&&wb$('wbSetupGrid')){label=wbNode('p');label.id='wbLifePreview';wb$('wbSetupGrid').after(label);}wbText(label,text);};
 const wbInstantRequest=requestStartInstantCard;requestStartInstantCard=function(){if(soloHumanInstantBlocked())return;return wbInstantRequest();};
+function hyInstantCardHasLegalUseView(view,type){
+ if(!view||view.phase!=="play")return false;
+ if(type==="radar"){
+  const max=Number(view.config?.maxNumber||0);
+  for(let n=1;n<=max;n++)if(remainingNormalCount(view,n)>0)return true;
+  return false;
+ }
+ if(type==="swap"){
+  const ownHas=(view.myBoards||[]).some(board=>board.some(t=>!t.cut));
+  const otherHas=(view.opponents||[]).some(p=>(p.boards||[]).some(board=>board.some(t=>!t.cut)));
+  return ownHas&&otherHas;
+ }
+ return false;
+}
 function wbLocalCards(view){
  const c=view.personalCard,def=c?PERSONAL_CARDS[c.type]:null,short=def?.short||c?.short||'個人カード';
  wbText(els.personalCardBtn,short+(c&&c.remainingUses<=0?' 済':''));
@@ -25342,7 +25370,7 @@ function wbLocalCards(view){
  if(!instant){button?.remove();return;}
  if(!button){button=wbButton('',()=>{if(button.disabled)return;beginPersonalCardAction();});button.id='wbInstant';wb$('wbCommand').append(button);}
  wbText(button,short+(c.remainingUses<=0?' 済':''));button.title='いつでも使える個人カード';
- button.disabled=c.remainingUses<=0||soloHumanInstantBlocked()||!instantCardHasLegalUse(view.playerKey,c.type);
+ button.disabled=c.remainingUses<=0||soloHumanInstantBlocked()||!hyInstantCardHasLegalUseView(view,c.type);
  els.interruptCardArea.classList.add('hidden');els.personalCardBtn.classList.add('hidden');
 }
 function wbSpecialZeros(view){
@@ -25453,6 +25481,25 @@ function soloSourceRevealGains(view,sources){
 var soloHumanInstantSession=null;
 function soloHumanInstantBlocked(){
  const replayBusy=soloVisualReplayActive&&soloVisualReplayIndex<soloVisualReplaySteps.length-1;
+ // Hybrid guests do not own gameState. Judge local availability from the legal
+ // player view and the authoritative shared transition sent by the host.
+ if(role==="guest"||(!gameState&&currentView)){
+  const view=currentView;
+  const t=view?.sharedTransition;
+  const hardBlockedKinds=new Set([
+   "cpuBusy","cpuConfirm","cardOwn","cardCpu","cardActorWait","cardWait",
+   "personalCaptainReview","personalChoose","personalWait","personalCpuAssign",
+   "infoOwn","infoCpu","infoWait","ended"
+  ]);
+  return !!(
+   !view ||
+   view.phase!=="play" ||
+   view.cardFlow ||
+   actionState ||
+   replayBusy ||
+   (t&&hardBlockedKinds.has(t.kind))
+  );
+ }
  return !!(soloHumanInstantSession||soloCpuBusy||soloHumanFlowResolving||replayBusy||gameState?.cardFlow||actionState||gameState?.phase!=='play');
 }
 function soloSuspendForHumanInstant(){
@@ -27243,6 +27290,199 @@ function hyKeyIsCpu(key,view=currentView){
 soloIsCpu=function(playerKey){return hyKeyIsCpu(playerKey);};
 soloCheatHumanTurn=function(view){return !!(soloProbabilityDisplayEnabled&&view&&view.config?.soloMode&&view.playerKey===localPlayerKey&&view.phase==="play"&&view.turn===localPlayerKey);};
 
+// v6 shared transition model. The host derives one authoritative state and includes
+// a viewer-specific projection in every view. UI never guesses "CPU or human" from p0.
+function hyStateHumanKeys(){
+ const keys=gameState?.config?.humanPlayerKeys;
+ return Array.isArray(keys)?[...keys]:hyHumanKeys();
+}
+function hyStateIsHuman(key){return !!key&&hyStateHumanKeys().includes(key);}
+function hyStateLabel(key){
+ if(!key)return "";
+ return gameState?.players?.[key]?.label || (key===localPlayerKey?currentView?.label:currentView?.opponents?.find(p=>p.playerKey===key)?.label) || key;
+}
+function hyShortLabel(key){return String(hyStateLabel(key)||key||"").replace(/\s*CPU/g,"");}
+function hyFlowCardName(flow){
+ if(!flow)return "カード";
+ const type=flow.equipmentType||flow.type;
+ return EQUIPMENT_CARDS?.[type]?.name || PERSONAL_CARDS?.[type]?.name || (typeof actionCardName==="function"?actionCardName(type):type) || "カード";
+}
+function hyFlowGuide(stage){
+ const guides={
+  radarInput:"調べる通常数字を選んでください",
+  swapInput:"渡す自分のタイルと交換相手を選んでください",
+  probeChooseCut:"指定された候補から切断するタイルを選んでください",
+  probeChooseInfo:"公開する情報トークンの位置を選んでください",
+  swapChooseGive:"交換で渡すタイルを選んでください",
+  swapInsert:"受け取ったタイルを置く隙間（↑）を選んでください",
+  equipmentInfoInput:"ヒント付箋を置く通常タイルを選んでください",
+  equipmentLabelInput:"ラベルを置く2枚の間を選んでください",
+  coffeeChoosePlayer:"対象プレイヤーを選んでください",
+  batteryChoosePlayer:"対象プレイヤーを選んでください",
+  singleLabelInput:"シングルラベルを置くタイルを選んでください",
+  hookInput:"ひっかけフックで取るタイルを選んでください",
+  hookInsert:"受け取ったタイルを置く隙間（↑）を選んでください"
+ };
+ return guides[stage]||"カードの処理を進めてください";
+}
+function hyInitPersonalReadiness(){
+ if(!gameState)return;
+ gameState.hyPersonalReady={};
+ for(const key of hyStateHumanKeys())gameState.hyPersonalReady[key]=false;
+}
+function hyPersonalReady(key){return !!gameState?.hyPersonalReady?.[key];}
+function hyAllHumanPersonalReady(){
+ if(!gameState||gameState.config.personalCardsEnabled===false)return true;
+ return hyStateHumanKeys().every(key=>{
+  const p=gameState.players?.[key];
+  if(!p)return false;
+  if(p.role==="captain")return hyPersonalReady(key);
+  return !!p.personalCard&&hyPersonalReady(key);
+ });
+}
+function hyMarkPersonalReady(key){
+ if(!gameState?.hyPersonalReady||!hyStateIsHuman(key))return;
+ gameState.hyPersonalReady[key]=true;
+}
+function hySetCpuGate(kind,actorKey=null){
+ if(!gameState)return;
+ if(!kind){delete gameState.hyCpuGate;return;}
+ gameState.hyCpuGate={kind,actorKey:actorKey||soloCpuActor||null,nextKey:gameState.turn||null,turnSerial:Number(gameState.turnSerial||0)};
+}
+function hySyncCpuGateFromRuntime(actorKey=null){
+ if(!gameState)return;
+ if(gameState.cardFlow?.resolver&&!soloIsCpu(gameState.cardFlow.resolver)){hySetCpuGate(null);return;}
+ if(soloCpuBusy){hySetCpuGate("busy",actorKey||soloCpuActor);return;}
+ if(soloCpuAwaitingConfirm){hySetCpuGate("confirm",actorKey||soloCpuActor);return;}
+ hySetCpuGate(null);
+}
+function hyTransitionFor(viewerKey){
+ if(!gameState)return {kind:"none",canAct:false,gameActionAllowed:false,title:"",subtitle:"",guide:""};
+ const phase=gameState.phase;
+ const viewerLabel=hyShortLabel(viewerKey);
+ if(phase==="clear"||phase==="gameover")return {kind:"ended",canAct:false,gameActionAllowed:false,title:phase==="clear"?"解除成功":"ゲーム終了",subtitle:"結果を確認してください",guide:"結果を確認してください"};
+ if(phase==="personalCards"){
+  const pending=hyStateHumanKeys().filter(k=>!hyPersonalReady(k));
+  if(pending.includes(viewerKey)){
+   const captain=gameState.players?.[viewerKey]?.role==="captain";
+   return captain
+    ? {kind:"personalCaptainReview",ownerKeys:pending,ownerKey:viewerKey,canAct:true,gameActionAllowed:false,actionKind:"confirmPersonal",title:"配牌を確認",subtitle:"隊長：フツたん固定",guide:"手牌と黄・赤候補を確認して「次へ」を押してください"}
+    : {kind:"personalChoose",ownerKeys:pending,ownerKey:viewerKey,canAct:true,gameActionAllowed:true,actionKind:"choosePersonal",title:"個人カードを選択",subtitle:viewerLabel,guide:"今回使う個人カードを選んでください"};
+  }
+  if(pending.length){
+   const names=pending.map(hyShortLabel);
+   return {kind:"personalWait",ownerKeys:pending,ownerKey:pending[0],canAct:false,gameActionAllowed:false,title:"個人カード選択待ち",subtitle:`${names.join("・")} が選択中`,guide:"ほかの人のカード選択を待っています"};
+  }
+  return {kind:"personalCpuAssign",canAct:false,gameActionAllowed:false,title:"個人カード準備中",subtitle:"CPUのカードを決めています",guide:"少し待ってください"};
+ }
+ if(phase==="infoTokens"){
+  const owner=gameState.infoTurn;
+  const label=hyShortLabel(owner);
+  if(owner===viewerKey)return {kind:"infoOwn",ownerKey:owner,canAct:true,gameActionAllowed:true,title:"情報トークンを配置",subtitle:"あなたの番",guide:"自分の通常数字を1枚選んでください"};
+  if(soloIsCpu(owner))return {kind:"infoCpu",ownerKey:owner,canAct:false,gameActionAllowed:false,title:`${label}が情報トークン配置中`,subtitle:"CPUが選んでいます",guide:"CPUの配置を待っています"};
+  return {kind:"infoWait",ownerKey:owner,canAct:false,gameActionAllowed:false,title:`${label}が情報トークン配置中`,subtitle:"ほかの人の操作待ち",guide:`${label}さんの配置を待っています`};
+ }
+ const flow=gameState.cardFlow;
+ if(flow){
+  const owner=flow.resolver||flow.actor;
+  const actor=flow.actor;
+  const cardName=hyFlowCardName(flow);
+  const ownerLabel=hyShortLabel(owner),actorLabel=hyShortLabel(actor);
+  if(owner===viewerKey)return {kind:"cardOwn",ownerKey:owner,actorKey:actor,resolverKey:flow.resolver||null,cardType:flow.equipmentType||flow.type,cardName,stage:flow.stage,canAct:true,gameActionAllowed:true,title:"あなたの選択が必要",subtitle:cardName,guide:hyFlowGuide(flow.stage)};
+  if(soloIsCpu(owner))return {kind:"cardCpu",ownerKey:owner,actorKey:actor,resolverKey:flow.resolver||null,cardType:flow.equipmentType||flow.type,cardName,stage:flow.stage,canAct:false,gameActionAllowed:false,title:`${ownerLabel}が${cardName}を処理中`,subtitle:"CPUの処理待ち",guide:"CPUの処理を待っています"};
+  if(viewerKey===actor)return {kind:"cardActorWait",ownerKey:owner,actorKey:actor,resolverKey:flow.resolver||null,cardType:flow.equipmentType||flow.type,cardName,stage:flow.stage,canAct:false,gameActionAllowed:false,title:`${ownerLabel}の回答待ち`,subtitle:cardName,guide:`${ownerLabel}さんの操作を待っています`};
+  return {kind:"cardWait",ownerKey:owner,actorKey:actor,resolverKey:flow.resolver||null,cardType:flow.equipmentType||flow.type,cardName,stage:flow.stage,canAct:false,gameActionAllowed:false,title:`${ownerLabel}が${cardName}を処理中`,subtitle:actorLabel?`${actorLabel}さんのカード` : "ほかの人の操作待ち",guide:`${ownerLabel}さんの操作を待っています`};
+ }
+ const gate=gameState.hyCpuGate;
+ if(gate?.kind==="busy"||soloCpuBusy){
+  const actor=gate?.actorKey||soloCpuActor;
+  return {kind:"cpuBusy",ownerKey:actor,canAct:false,gameActionAllowed:false,title:`${hyShortLabel(actor)}が考え中`,subtitle:"CPUが行動を選んでいます",guide:"CPUの行動を待っています"};
+ }
+ if(gate?.kind==="confirm"||soloCpuAwaitingConfirm){
+  const actor=gate?.actorKey||soloCpuActor;
+  const hostCan=viewerKey==="p0";
+  return {kind:"cpuConfirm",ownerKey:"p0",actorKey:actor,canAct:hostCan,gameActionAllowed:false,actionKind:hostCan?"confirmCpu":null,title:"CPUの結果を確認",subtitle:hostCan?"盤面と直前アクションを確認 → 次へ":"親機が結果を確認しています",guide:hostCan?'結果を確認したら「次へ」を押してください':"親機の確認を待っています"};
+ }
+ if(phase==="play"){
+  const turn=gameState.turn;
+  const label=hyShortLabel(turn);
+  if(soloIsCpu(turn)){
+   const hostCan=viewerKey==="p0";
+   return {kind:"cpuReady",ownerKey:"p0",actorKey:turn,canAct:hostCan,gameActionAllowed:false,actionKind:hostCan?"startCpu":null,title:`${label}の番`,subtitle:hostCan?"次へ → CPUの行動":"親機がCPUの手番を進めます",guide:hostCan?'「次へ」でCPUの手番を進めてください':"親機の操作を待っています"};
+  }
+  if(turn===viewerKey)return {kind:"turnOwn",ownerKey:turn,canAct:true,gameActionAllowed:true,title:"あなたの番",subtitle:viewerLabel,guide:"自分のタイルを選ぶ / またはカードを使う"};
+  return {kind:"turnWait",ownerKey:turn,canAct:false,gameActionAllowed:false,title:`${label}の番`,subtitle:"ほかの人の操作待ち",guide:`${label}さんの操作を待っています`};
+ }
+ return {kind:"waiting",canAct:false,gameActionAllowed:false,title:"進行待ち",subtitle:"",guide:"少し待ってください"};
+}
+function hyPushViews(){
+ if(!gameState)return;
+ renderPlayerView(makeViewFor("p0"));
+ if(role==="host")for(const key of hyStateHumanKeys())if(key!=="p0"&&gameState.players?.[key])sendTo(key,{type:"state",view:makeViewFor(key)});
+}
+function hyTransitionBlocksMessage(actorKey,msg){
+ const gate=gameState?.hyCpuGate;
+ if(!gate||!["busy","confirm"].includes(gate.kind))return false;
+ const transport=new Set(["setName","disconnect","iceRestartAnswer","iceRestartOffer"]);
+ return !transport.has(String(msg?.type||""));
+}
+function hyConfirmCaptainPersonal(actorKey){
+ if(!gameState||gameState.phase!=="personalCards"||!hyStateIsHuman(actorKey))return;
+ const p=gameState.players?.[actorKey];
+ if(!p||p.role!=="captain"||!p.personalCard)return;
+ hyMarkPersonalReady(actorKey);
+ hyMaybeAssignCpuPersonalCards();
+ broadcastViews();
+}
+
+// Hybrid personal-card choice: humans finish first; only then are CPU cards assigned.
+const hyBaseProcessChoosePersonalCard=processChoosePersonalCard;
+processChoosePersonalCard=function(actor,type){
+ if(!gameState?.config?.hybridMode)return hyBaseProcessChoosePersonalCard.apply(this,arguments);
+ if(!gameState||gameState.config.personalCardsEnabled===false||gameState.phase!=="personalCards")return;
+ const p=gameState.players?.[actor];
+ if(!p||!hyStateIsHuman(actor)||p.role==="captain"||p.personalCard)return;
+ if(!PERSONAL_CARDS[type])return;
+ if(PERSONAL_CARDS[type].unique){
+  const already=Object.values(gameState.players).some(x=>x.personalCard?.type===type);
+  if(already){actionError(actor,"その個人カードはすでに選ばれています。");broadcastViews();return;}
+ }
+ p.personalCard={type,remainingUses:1,usedCount:0};
+ hyMarkPersonalReady(actor);
+ hyMaybeAssignCpuPersonalCards();
+ broadcastViews();
+};
+
+// Attach the same authoritative transition to every player's legal view.
+const hyTransitionBaseMakeViewFor=makeViewFor;
+makeViewFor=function(playerKey){
+ const view=hyTransitionBaseMakeViewFor(playerKey);
+ if(gameState?.config?.hybridMode)view.sharedTransition=hyTransitionFor(playerKey);
+ return view;
+};
+
+// CPU busy/result-confirm are host-owned state too; push them to every human device.
+const hyTransitionBaseRunCpuTurn=soloRunCpuTurn;
+soloRunCpuTurn=async function(actor){
+ if(!gameState?.config?.hybridMode)return hyTransitionBaseRunCpuTurn.apply(this,arguments);
+ hySetCpuGate("busy",actor);hyPushViews();
+ const result=await hyTransitionBaseRunCpuTurn.apply(this,arguments);
+ hySyncCpuGateFromRuntime(actor);hyPushViews();
+ return result;
+};
+
+const hyTransitionBaseCpuNext=soloCpuNextBtn?.onclick;
+if(soloCpuNextBtn&&hyTransitionBaseCpuNext){
+ soloCpuNextBtn.onclick=async function(){
+  if(role!=="host")return;
+  // The button itself is the host acknowledgement for a shared CPU gate.
+  if(gameState?.hyCpuGate?.kind==="confirm")hySetCpuGate(null);
+  const result=await hyTransitionBaseCpuNext.apply(this,arguments);
+  hySyncCpuGateFromRuntime(soloCpuActor);hyPushViews();
+  return result;
+ };
+}
+
 function allNamesReady(){
  for(let i=0;i<expectedHumanCount;i++)if(!cleanPlayerName(playerNames[`p${i}`]))return false;
  return true;
@@ -27334,12 +27574,12 @@ function setupGuestChannel(ch){
 
 function hyMaybeAssignCpuPersonalCards(){
  if(!gameState||gameState.phase!=="personalCards"||gameState.config.personalCardsEnabled===false)return false;
- const humanPending=(gameState.turnOrder||[]).some(key=>!soloIsCpu(key)&&gameState.players[key]?.role!=="captain"&&!gameState.players[key]?.personalCard);
- if(humanPending)return false;
+ if(!hyAllHumanPersonalReady())return false;
  return soloAssignRemainingCpuPersonalCards();
 }
 soloAssignRemainingCpuPersonalCards=function(){
  if(!gameState||gameState.config.personalCardsEnabled===false)return false;
+ if(gameState.config.hybridMode&&!hyAllHumanPersonalReady())return false;
  const claimed=new Set();for(const p of Object.values(gameState.players||{}))if(p.personalCard&&PERSONAL_CARDS[p.personalCard.type]?.unique)claimed.add(p.personalCard.type);
  const availableUnique=["mitsu","dotchi","radar","swap"].filter(x=>!claimed.has(x));
  const cpuKeys=(gameState.turnOrder||[]).filter(key=>soloIsCpu(key)&&gameState.players?.[key]?.role!=="captain"&&!gameState.players?.[key]?.personalCard);
@@ -27385,13 +27625,21 @@ function hyPopulateProbabilities(view){
 const hyBaseBroadcastViews=broadcastViews;
 broadcastViews=function(){
  const r=hyBaseBroadcastViews();
- if(role==="host"&&gameState){for(let i=1;i<expectedHumanCount;i++){const key=`p${i}`;if(gameState.players[key])sendTo(key,{type:"state",view:makeViewFor(key)});}}
+ if(gameState?.config?.hybridMode)hySyncCpuGateFromRuntime(soloCpuActor);
+ if(role==="host"&&gameState){
+  // soloAfterBroadcast may change CPU busy/confirm state after the base host render.
+  // Re-render p0 from the final authoritative transition before sending guests.
+  renderPlayerView(makeViewFor("p0"));
+  for(let i=1;i<expectedHumanCount;i++){const key=`p${i}`;if(gameState.players[key])sendTo(key,{type:"state",view:makeViewFor(key)});}
+ }
  return r;
 };
 
 function handleHostMessage(actorKey,msg){
  if(msg.type==="iceRestartAnswer"){handleHostIceRestartAnswer(actorKey,msg.description);return;}
  if(msg.type==="setName"){const name=assignPlayerName(actorKey,msg.name);sendTo(actorKey,{type:"assignedName",name});if(gameState?.players?.[actorKey])gameState.players[actorKey].label=name+(gameState.players[actorKey].role==="captain"?"（隊長）":"");refreshHostConnectionUi();return;}
+ if(msg.type==="confirmPersonalReady"){hyConfirmCaptainPersonal(actorKey);return;}
+ if(hyTransitionBlocksMessage(actorKey,msg)){actionError(actorKey,"現在はCPUの処理・結果確認中です。親機の進行を待ってください。");return;}
  if(msg.type==="placeInfoToken"){applyInfoTokenPlacement(actorKey,Number(msg.boardIndex),Number(msg.position));return;}
  if(msg.type==="normalCut"){processNormalCut(actorKey,msg.myBoard,msg.myPosition,msg.targetPlayer,msg.targetBoard,msg.targetPosition);return;}
  if(msg.type==="selfCut"){processSelfCut(actorKey,msg.boardIndex,msg.position);return;}
@@ -27461,7 +27709,7 @@ function startHybridGame(){
  const humanNames={};for(let i=0;i<expectedHumanCount;i++)humanNames[`p${i}`]=cleanPlayerName(playerNames[`p${i}`])||`P${i+1}`;
  playerNames={...humanNames};soloCpuSettings=soloReadCpuSetup();const cpuNames=shuffle([...RANDOM_PLAYER_NAMES]);for(let i=0;i<expectedPlayerCount-expectedHumanCount;i++){const key=`p${expectedHumanCount+i}`,base=cpuNames[i]||`CPU${i+1}`;playerNames[key]=`${base} CPU`;}
  soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect?.value==="1";
- gameState=createGameState(readSetupSettings());gameState.config.soloMode=true;gameState.config.hybridMode=true;gameState.config.humanPlayerKeys=hyHumanKeys();gameState.config.cpuPlayerKeys=Object.keys(soloCpuSettings);gameState.config.humanPlayerCount=expectedHumanCount;gameState.config.cpuPlayerCount=gameState.config.cpuPlayerKeys.length;gameState.config.probabilityDisplayEnabled=soloProbabilityDisplayEnabled;gameState.config.redProbabilityEnabled=soloProbabilityDisplayEnabled;soloEnsurePersistentBoardFacts();gameState.soloCpuSettings=JSON.parse(JSON.stringify(soloCpuSettings));soloPreparePersonalCardsAtStart();
+ gameState=createGameState(readSetupSettings());gameState.config.soloMode=true;gameState.config.hybridMode=true;gameState.config.humanPlayerKeys=hyHumanKeys();gameState.config.cpuPlayerKeys=Object.keys(soloCpuSettings);gameState.config.humanPlayerCount=expectedHumanCount;gameState.config.cpuPlayerCount=gameState.config.cpuPlayerKeys.length;gameState.config.probabilityDisplayEnabled=soloProbabilityDisplayEnabled;gameState.config.redProbabilityEnabled=soloProbabilityDisplayEnabled;soloEnsurePersistentBoardFacts();gameState.soloCpuSettings=JSON.parse(JSON.stringify(soloCpuSettings));soloPreparePersonalCardsAtStart();delete gameState.soloCaptainReview;hyInitPersonalReadiness();hySetCpuGate(null);
  setStatus(`人間${expectedHumanCount}人＋CPU${gameState.config.cpuPlayerCount}人で開始`,"ok");document.body.classList.remove("wb-setup");document.body.classList.add("wb-playing");els.lobbyCard.classList.add("hidden");broadcastViews();soloRenderHistory();els.redealBtn.classList.remove("hidden");els.startGameBtn.textContent="同じ設定で新しいゲーム";armLeaveGuard();
  if(gameState.phase==="personalCards"&&hyMaybeAssignCpuPersonalCards())broadcastViews();
 }
@@ -27476,12 +27724,43 @@ function hyWbMenu(){
  for(const b of buttons)if(/現在の設定・新しいゲーム|設定を変更|同じ設定で再戦/.test(b.textContent||""))b.remove();
  const p=hyWB.node("p",null,"確率表示はこの端末だけの設定です。ゲーム設定と再戦は親機で行います。");body.append(p);
 }
-function hyAdjustRemoteHumanUi(view){
- if(view&&view.phase==="play"&&view.turn!==view.playerKey&&!soloIsCpu(view.turn)&&!soloCpuBusy&&!soloCpuAwaitingConfirm){
-  hyWB.text($("wbTurn"),`${hyWB.name(view.turnLabel)}の番`);
-  hyWB.text($("wbTurnSub"),"ほかの人の操作を待っています");
-  if(!actionState&&!view.cardFlow)hyWB.text($("wbGuide"),"ほかの人の操作を待っています");
+function hyRenderPersonalTransition(view,t){
+ const footer=$("wbDealFooter");
+ if(role==="guest"&&footer)footer.remove();
+ const area=els.personalCardChoiceArea;
+ if(!area||view.phase!=="personalCards")return;
+ if(t?.kind==="personalCaptainReview"){
+  area.classList.remove("hidden");area.replaceChildren();
+  const box=document.createElement("div");box.id="hyCaptainReviewBox";
+  const title=document.createElement("div");title.className="hyCaptainReviewTitle";title.textContent="隊長：フツたん固定";
+  const sub=document.createElement("div");sub.className="hyCaptainReviewSub";sub.textContent="手牌と黄・赤候補を確認してから進んでください。";
+  const btn=document.createElement("button");btn.id="hyCaptainReviewBtn";btn.type="button";btn.textContent="次へ";
+  btn.onclick=()=>{if(role==="host")hyConfirmCaptainPersonal(view.playerKey);else send({type:"confirmPersonalReady"});};
+  box.append(title,sub,btn);area.append(box);return;
  }
+ if(t?.kind==="personalWait"||t?.kind==="personalCpuAssign")area.classList.add("hidden");
+}
+function hyApplyTransitionUi(view){
+ const t=view?.sharedTransition;if(!t)return;
+ document.body.classList.toggle("hyTransitionLocked",!t.gameActionAllowed);
+ hyWB.text($("wbTurn"),t.title||"");hyWB.text($("wbTurnSub"),t.subtitle||"");
+ if(!actionState||!t.gameActionAllowed)hyWB.text($("wbGuide"),t.guide||"");
+ if(!t.gameActionAllowed){
+  els.playControls?.classList.add("hidden");els.tokenConfirmArea?.classList.add("hidden");els.interruptCardArea?.classList.add("hidden");
+  const hardInstantBlock=["cpuBusy","cpuConfirm","cardOwn","cardCpu","cardActorWait","cardWait","personalCaptainReview","personalChoose","personalWait","personalCpuAssign","infoOwn","infoCpu","infoWait","ended"].includes(t.kind);
+  if(hardInstantBlock)$("wbInstant")?.classList.add("hidden");
+ }
+ if(role==="guest"&&soloCpuPanel)soloCpuPanel.classList.add("hidden");
+ if(t.kind==="cpuConfirm"||t.kind==="cpuReady"){
+  if(role==="host"){
+   soloCpuPanel?.classList.remove("hidden");soloCpuPanel?.classList.add("nextOnly");
+   soloCpuStatus?.classList.add("hidden");soloCpuNextBtn?.classList.remove("hidden");soloCpuNextBtn.textContent="次へ";
+  }else soloCpuPanel?.classList.add("hidden");
+ }
+ hyRenderPersonalTransition(view,t);
+}
+function hyAdjustRemoteHumanUi(view){
+ hyApplyTransitionUi(view);
  if(role==="guest"){
   const end=$("wbEndActions");
   if(end)[...end.querySelectorAll("button")].forEach(b=>{if(/同じ設定で再戦|設定を変更/.test(b.textContent||""))b.style.display="none";});
@@ -27544,7 +27823,7 @@ function hyInit(){
  if(hyInitialized)return;hyInitialized=true;
  hyBindConnectionControls();
  hyShowConnectionStart();
- document.title="何切る？ マルチプレイ＋CPU v5";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
+ document.title="何切る？ マルチプレイ＋CPU v7";document.documentElement.dataset.hybridVersion="7";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
  soloProbabilityDisplayEnabled=false;if(soloProbabilityDisplaySelect)soloProbabilityDisplaySelect.value="0";
  if(els.personalCardsEnabledSelect)els.personalCardsEnabledSelect.value="1";if(els.equipmentCardsEnabledSelect)els.equipmentCardsEnabledSelect.value="all";if(els.maxNumberSelect){els.maxNumberSelect.value="12";updateSetupSelectors();}if(els.yellowCandidateSelect){els.yellowCandidateSelect.value="4";updateYellowUsedSelector(false);els.yellowUsedSelect.value="2";}if(els.redCandidateSelect){els.redCandidateSelect.value="3";updateRedUsedSelector(false);els.redUsedSelect.value="2";}
  expectedHumanCount=Number(els.playerCountSelect.value)||2;expectedPlayerCount=expectedHumanCount;soloPlayerCountSelect.value=String(expectedPlayerCount);soloPlayerCountSelect.disabled=true;
@@ -27552,7 +27831,7 @@ function hyInit(){
  hyGuestLobby=document.createElement("div");hyGuestLobby.id="guestLobby";hyGuestLobby.className="hidden";hyGuestLobby.innerHTML='<div id="hyGuestWaiting">親機がゲーム設定を行っています。開始すると自動で盤面に切り替わります。確率表示はゲーム中のメニューから各自でON/OFFできます（初期OFF）。</div>';els.lobbyCard.append(hyGuestLobby);
  els.lobbyCard.classList.add("hidden");els.hostLobby.classList.add("hidden");els.gameCard.classList.add("hidden");$("hyConnectionShell").classList.remove("hidden","hyReady");els.roleCard.classList.remove("hidden");els.hostCard.classList.add("hidden");els.guestCard.classList.add("hidden");setStatus("役割を選んでください");els.roleText.textContent="全員が同じHTMLを開きます。1台は親機、ほかの人間プレイヤーは子機を選んでください。人間＋CPUは最大6人です。";
  els.startGameBtn.onclick=startHybridGame;els.redealBtn.onclick=startHybridGame;soloPlayerCountSelect.onchange=()=>{};if($("wbMenu"))$("wbMenu").onclick=hyWbMenu;
- soloProbabilityDisplaySelect.onchange=()=>{soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect.value==="1";if(currentView){if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(currentView);hyWB.renderProbabilities();}};
+ soloProbabilityDisplaySelect.onchange=()=>{soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect.value==="1";if(currentView){if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(currentView);renderPlayerView(currentView);hyWB.renderProbabilities();}};
  ["pointerdown","keydown","touchstart"].forEach(type=>window.addEventListener(type,noteUserActivity,{passive:true}));window.addEventListener("scroll",noteUserActivity,{passive:true});window.addEventListener("visibilitychange",()=>{if(!document.hidden&&hasLiveConnection())checkIdleDisconnect();});window.addEventListener("popstate",()=>{if(!leaveGuardArmed||allowPageLeave||!isGameInProgress())return;try{history.pushState({bombBustersLeaveGuard:true},"",location.href);}catch(_){}showLeaveConfirm();});
  refreshHostConnectionUi();renderConnectionDiagnostics();setTimeout(autoJoinFromGuestLink,0);
 }

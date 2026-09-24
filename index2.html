@@ -24966,6 +24966,14 @@ function wbStatus(view){
   else if(view.phase==='infoTokens'){title=view.infoTurn===own?'情報トークンを配置':`${wbName(view.infoTurnLabel)}が配置中`;sub='自分の通常数字を1枚公開します';}
   else if(view.turn===own){title='あなたの番';sub=wbName(view.label);tone='success';}
   else {title=`${wbName(view.turnLabel)}の番`;sub='次へ → CPUの行動';}
+  // Hybrid multiplayer has an authoritative per-view transition. Never let the legacy solo wording overwrite it.
+  if(view?.sharedTransition){
+    const t=view.sharedTransition;
+    title=t.title||title;sub=t.subtitle||sub;
+    if(t.kind==='turnOwn')tone='success';
+    else if(['cpuConfirm','cardOwn','cardCpu','cardActorWait','cardWait','personalCaptainReview','personalChoose','personalWait','personalCpuAssign'].includes(t.kind))tone='card';
+    else if(t.kind==='ended'&&view.phase==='gameover')tone='danger';
+  }
   wbText(wb$('wbTurn'),title);wbText(wb$('wbTurnSub'),sub);wb$('wbHud').dataset.tone=tone;
   if(view.wbProbabilityError)wbText(wb$('wbTurnSub'),'確率の計算上限・詳細はメニュー');
   const lives=Number(view.lives||0);wbText(wb$('wbLife'),`♥ ${lives}`);wb$('wbLife').setAttribute('aria-label',`ライフ ${lives}`);
@@ -24990,6 +24998,11 @@ function wbStatus(view){
 }
 function wbGuide(view){
   const a=actionState;let s='';
+  // When this device is only waiting, the shared multiplayer transition owns the announcement.
+  if(view?.sharedTransition&&!a&&!view.sharedTransition.gameActionAllowed){
+    wbText(wb$('wbGuide'),view.sharedTransition.guide||'');
+    return;
+  }
   const target=a?.targetPlayer?wbName(view.opponents.find(p=>p.playerKey===a.targetPlayer)?.label||a.targetPlayer):'';
   const pos=a?.targetPosition!=null?` ${Number(a.targetPosition)+1}番`:'';
   if(view.phase==='clear'||view.phase==='gameover')s='終了結果を確認して「同じ設定で再戦」';
@@ -25607,6 +25620,8 @@ let hyCpuCountSelect=null;
 let hySetupHumanValue=null;
 let hyGuestLobby=null;
 let hyInitialized=false;
+// Per-guest display preference. Probability values are calculated by the host from that guest's legal view.
+const hyRemoteProbabilityEnabled=new Set();
 
 Object.assign(els,{
  statusDot:$("statusDot"),statusText:$("statusText"),roleText:$("roleText"),
@@ -27457,7 +27472,12 @@ processChoosePersonalCard=function(actor,type){
 const hyTransitionBaseMakeViewFor=makeViewFor;
 makeViewFor=function(playerKey){
  const view=hyTransitionBaseMakeViewFor(playerKey);
- if(gameState?.config?.hybridMode)view.sharedTransition=hyTransitionFor(playerKey);
+ if(gameState?.config?.hybridMode){
+  view.sharedTransition=hyTransitionFor(playerKey);
+  // Step6/theoreticalDP needs host-side public structural history. For guests, calculate on the
+  // host using only that guest's legal view, then send only the resulting probability fields.
+  if(playerKey!=="p0"&&hyRemoteProbabilityEnabled.has(playerKey))hyPopulateProbabilities(view,true);
+ }
  return view;
 };
 
@@ -27604,8 +27624,9 @@ soloAfterBroadcast=function(){
 
 // The latest probability engine is run independently on each human device from that device's legal view.
 let hyProbabilityCache=new WeakMap();
-function hyPopulateProbabilities(view){
- if(!view||view.playerKey!==localPlayerKey||!soloProbabilityDisplayEnabled||view.phase!=="play")return view;
+function hyPopulateProbabilities(view,forceHost=false){
+ if(!view||view.phase!=="play")return view;
+ if(!forceHost&&(view.playerKey!==localPlayerKey||!soloProbabilityDisplayEnabled))return view;
  let shared,distributions;
  try{const inf=soloBuildInference(view,3);distributions=hyProbabilityCache.get(inf);if(!distributions){shared=soloUnifiedConstraintMarginals(view,inf);distributions=new Map();hyProbabilityCache.set(inf,distributions);}}
  catch(error){view.wbProbabilityError=String(error.message||error);return view;}
@@ -27639,6 +27660,12 @@ function handleHostMessage(actorKey,msg){
  if(msg.type==="iceRestartAnswer"){handleHostIceRestartAnswer(actorKey,msg.description);return;}
  if(msg.type==="setName"){const name=assignPlayerName(actorKey,msg.name);sendTo(actorKey,{type:"assignedName",name});if(gameState?.players?.[actorKey])gameState.players[actorKey].label=name+(gameState.players[actorKey].role==="captain"?"（隊長）":"");refreshHostConnectionUi();return;}
  if(msg.type==="confirmPersonalReady"){hyConfirmCaptainPersonal(actorKey);return;}
+ if(msg.type==="setProbabilityDisplay"){
+  if(!gameState?.config?.hybridMode||!hyStateIsHuman(actorKey))return;
+  if(msg.enabled)hyRemoteProbabilityEnabled.add(actorKey);else hyRemoteProbabilityEnabled.delete(actorKey);
+  if(gameState.players?.[actorKey])sendTo(actorKey,{type:"state",view:makeViewFor(actorKey)});
+  return;
+ }
  if(hyTransitionBlocksMessage(actorKey,msg)){actionError(actorKey,"現在はCPUの処理・結果確認中です。親機の進行を待ってください。");return;}
  if(msg.type==="placeInfoToken"){applyInfoTokenPlacement(actorKey,Number(msg.boardIndex),Number(msg.position));return;}
  if(msg.type==="normalCut"){processNormalCut(actorKey,msg.myBoard,msg.myPosition,msg.targetPlayer,msg.targetBoard,msg.targetPosition);return;}
@@ -27655,7 +27682,9 @@ function handleGuestMessage(msg){
  if(msg.type==="assignedName"){const name=cleanPlayerName(msg.name);if(name)els.guestNameInput.value=name;return;}
  if(msg.type==="state"){
   document.body.classList.add("soloMode","wb-playing");document.body.classList.remove("wb-setup");els.lobbyCard.classList.add("hidden");hyGuestLobby.classList.add("hidden");els.gameCard.classList.remove("hidden");
-  const view=msg.view;if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(view);renderPlayerView(view);return;
+  const view=msg.view;
+  view.config={...view.config,probabilityDisplayEnabled:soloProbabilityDisplayEnabled,redProbabilityEnabled:soloProbabilityDisplayEnabled};
+  renderPlayerView(view);return;
  }
  if(msg.type==="actionError"){alert(msg.message||"操作を実行できませんでした。");return;}
  if(msg.type==="disconnect"){setStatus("親機が接続を切りました","bad");els.lobbyCard.classList.add("hidden");els.gameCard.classList.add("hidden");setTimeout(()=>closeGuestPeer(false),100);}
@@ -27716,12 +27745,42 @@ function startHybridGame(){
 startSoloGame=startHybridGame;startOrRedeal=startHybridGame;
 
 // Guest menu keeps local probability control, but host alone owns setup/rematch.
+function hyApplyLocalProbabilitySetting(){
+ if(!currentView)return;
+ currentView.config={
+  ...currentView.config,
+  probabilityDisplayEnabled:soloProbabilityDisplayEnabled,
+  redProbabilityEnabled:soloProbabilityDisplayEnabled
+ };
+ soloCheatHideProbabilityOverlay();
+ if(role==="guest"){
+  // Latest Step6 probability needs structural history held by the authoritative host.
+  // Ask the host to calculate from this player's legal view; no hidden tile values are sent back.
+  send({type:"setProbabilityDisplay",enabled:soloProbabilityDisplayEnabled});
+  renderPlayerView(currentView);
+  hyWB.renderProbabilities();
+  return;
+ }
+ if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(currentView);
+ renderPlayerView(currentView);
+ hyWB.renderProbabilities();
+}
 function hyWbMenu(){
  hyBaseWbMenu();
  if(role!=="guest")return;
  const body=hyWB.getSheetBody();if(!body)return;
  const buttons=[...body.querySelectorAll("button")];
- for(const b of buttons)if(/現在の設定・新しいゲーム|設定を変更|同じ設定で再戦/.test(b.textContent||""))b.remove();
+ const probabilityButton=buttons.find(b=>/^確率表示：/.test(String(b.textContent||"").trim()));
+ if(probabilityButton){
+  probabilityButton.onclick=()=>{
+   if(["clear","gameover"].includes(currentView?.phase||""))return;
+   soloProbabilityDisplayEnabled=!soloProbabilityDisplayEnabled;
+   if(soloProbabilityDisplaySelect)soloProbabilityDisplaySelect.value=soloProbabilityDisplayEnabled?"1":"0";
+   hyApplyLocalProbabilitySetting();
+   hyWbMenu();
+  };
+ }
+ for(const b of [...body.querySelectorAll("button")])if(/現在の設定・新しいゲーム|設定を変更|同じ設定で再戦/.test(b.textContent||""))b.remove();
  const p=hyWB.node("p",null,"確率表示はこの端末だけの設定です。ゲーム設定と再戦は親機で行います。");body.append(p);
 }
 function hyRenderPersonalTransition(view,t){
@@ -27768,7 +27827,9 @@ function hyAdjustRemoteHumanUi(view){
 }
 // Keep local probability setting when fresh state arrives on guests.
 renderPlayerView=function(view){
- if(role==="guest"&&view&&soloProbabilityDisplayEnabled)hyPopulateProbabilities(view);
+ if(role==="guest"&&view){
+  view.config={...view.config,probabilityDisplayEnabled:soloProbabilityDisplayEnabled,redProbabilityEnabled:soloProbabilityDisplayEnabled};
+ }
  const result=hyBaseRenderPlayerView(view);
  hyAdjustRemoteHumanUi(view);
  return result;
@@ -27823,7 +27884,7 @@ function hyInit(){
  if(hyInitialized)return;hyInitialized=true;
  hyBindConnectionControls();
  hyShowConnectionStart();
- document.title="何切る？ マルチプレイ＋CPU v7";document.documentElement.dataset.hybridVersion="7";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
+ document.title="何切る？ マルチプレイ＋CPU v8";document.documentElement.dataset.hybridVersion="8";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
  soloProbabilityDisplayEnabled=false;if(soloProbabilityDisplaySelect)soloProbabilityDisplaySelect.value="0";
  if(els.personalCardsEnabledSelect)els.personalCardsEnabledSelect.value="1";if(els.equipmentCardsEnabledSelect)els.equipmentCardsEnabledSelect.value="all";if(els.maxNumberSelect){els.maxNumberSelect.value="12";updateSetupSelectors();}if(els.yellowCandidateSelect){els.yellowCandidateSelect.value="4";updateYellowUsedSelector(false);els.yellowUsedSelect.value="2";}if(els.redCandidateSelect){els.redCandidateSelect.value="3";updateRedUsedSelector(false);els.redUsedSelect.value="2";}
  expectedHumanCount=Number(els.playerCountSelect.value)||2;expectedPlayerCount=expectedHumanCount;soloPlayerCountSelect.value=String(expectedPlayerCount);soloPlayerCountSelect.disabled=true;
@@ -27831,7 +27892,14 @@ function hyInit(){
  hyGuestLobby=document.createElement("div");hyGuestLobby.id="guestLobby";hyGuestLobby.className="hidden";hyGuestLobby.innerHTML='<div id="hyGuestWaiting">親機がゲーム設定を行っています。開始すると自動で盤面に切り替わります。確率表示はゲーム中のメニューから各自でON/OFFできます（初期OFF）。</div>';els.lobbyCard.append(hyGuestLobby);
  els.lobbyCard.classList.add("hidden");els.hostLobby.classList.add("hidden");els.gameCard.classList.add("hidden");$("hyConnectionShell").classList.remove("hidden","hyReady");els.roleCard.classList.remove("hidden");els.hostCard.classList.add("hidden");els.guestCard.classList.add("hidden");setStatus("役割を選んでください");els.roleText.textContent="全員が同じHTMLを開きます。1台は親機、ほかの人間プレイヤーは子機を選んでください。人間＋CPUは最大6人です。";
  els.startGameBtn.onclick=startHybridGame;els.redealBtn.onclick=startHybridGame;soloPlayerCountSelect.onchange=()=>{};if($("wbMenu"))$("wbMenu").onclick=hyWbMenu;
- soloProbabilityDisplaySelect.onchange=()=>{soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect.value==="1";if(currentView){if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(currentView);renderPlayerView(currentView);hyWB.renderProbabilities();}};
+ soloProbabilityDisplaySelect.onchange=()=>{
+  soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect.value==="1";
+  if(currentView){
+   if(role==="guest")send({type:"setProbabilityDisplay",enabled:soloProbabilityDisplayEnabled});
+   else if(soloProbabilityDisplayEnabled)hyPopulateProbabilities(currentView);
+   renderPlayerView(currentView);hyWB.renderProbabilities();
+  }
+ };
  ["pointerdown","keydown","touchstart"].forEach(type=>window.addEventListener(type,noteUserActivity,{passive:true}));window.addEventListener("scroll",noteUserActivity,{passive:true});window.addEventListener("visibilitychange",()=>{if(!document.hidden&&hasLiveConnection())checkIdleDisconnect();});window.addEventListener("popstate",()=>{if(!leaveGuardArmed||allowPageLeave||!isGameInProgress())return;try{history.pushState({bombBustersLeaveGuard:true},"",location.href);}catch(_){}showLeaveConfirm();});
  refreshHostConnectionUi();renderConnectionDiagnostics();setTimeout(autoJoinFromGuestLink,0);
 }

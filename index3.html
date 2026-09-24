@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111827">
-<title>何切る？ マルチプレイ＋CPU v10</title>
+<title>何切る？ マルチプレイ＋CPU v11</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -106,6 +106,34 @@ body.hyTransitionLocked #gameCard .insertGap{pointer-events:none!important;curso
 #playControls .actionButtons:has(#hyPassBtn){grid-template-columns:1fr 1fr}
 #hyPassBtn{border:1px solid #8a7a4f;background:#e8dcc0;color:#3c382c}
 #hyPassBtn:not(.hidden){display:block}
+</style>
+<style id="hy-pass-setup-style">
+/* Pass setting: keep the select at normal width and place help on its own line. */
+#wbSetupGrid .wb-setup-field.hyPassSetup{
+  display:grid!important;
+  grid-template-columns:auto minmax(0,1fr)!important;
+  align-items:center!important;
+  column-gap:5px!important;
+  row-gap:3px!important;
+}
+#wbSetupGrid .wb-setup-field.hyPassSetup>label{
+  grid-column:1;
+  grid-row:1;
+}
+#wbSetupGrid .wb-setup-field.hyPassSetup>#hyPassModeSelect{
+  grid-column:2;
+  grid-row:1;
+  width:100%!important;
+  min-width:0!important;
+}
+#wbSetupGrid .wb-setup-field.hyPassSetup>.hyPassHelp{
+  grid-column:1 / -1;
+  grid-row:2;
+  margin:0!important;
+  font-size:9px!important;
+  line-height:1.35!important;
+  color:#c3cfc4!important;
+}
 </style>
 </head>
 <body>
@@ -27923,7 +27951,7 @@ function hyInstallSetupControls(){
  hyCpuCountSelect=document.createElement("select");hyCpuCountSelect.id="hyCpuCountSelect";hyCpuCountSelect.onchange=hySyncTotalPlayers;
  if(totalRow){grid.insertBefore(mk("人間",hySetupHumanValue),totalRow);grid.insertBefore(mk("CPU",hyCpuCountSelect),totalRow);}else{grid.prepend(mk("CPU",hyCpuCountSelect),mk("人間",hySetupHumanValue));}
  hyPassModeSelect=document.createElement("select");hyPassModeSelect.id="hyPassModeSelect";hyPassModeSelect.innerHTML='<option value="off" selected>OFF</option><option value="free">ON</option><option value="life1">ON（ライフ-1）</option>';
- const probabilityRow=soloProbabilityDisplaySelect?.closest(".wb-setup-field");const passRow=mk("パス",hyPassModeSelect);const passHelp=document.createElement("div");passHelp.className="small";passHelp.textContent="ON：そのまま次の手番へ / ON（ライフ-1）：パス時にライフを1減らす";passRow.append(passHelp);if(probabilityRow)probabilityRow.after(passRow);else grid.append(passRow);
+ const probabilityRow=soloProbabilityDisplaySelect?.closest(".wb-setup-field");const passRow=mk("パス",hyPassModeSelect);passRow.classList.add("hyPassSetup");const passHelp=document.createElement("div");passHelp.className="small hyPassHelp";passHelp.textContent="ON：ライフ減少なし / ON（ライフ-1）：パス時にライフ-1";passRow.append(passHelp);if(probabilityRow)probabilityRow.after(passRow);else grid.append(passRow);
  const summary=document.createElement("div");summary.id="hyHybridSummary";grid.after(summary);
  const nameLabel=document.querySelector(`label[for="${soloHumanNameInput.id}"]`);if(nameLabel)nameLabel.style.display="none";soloHumanNameInput.style.display="none";
  hyRefreshCpuCountOptions();

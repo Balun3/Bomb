@@ -159,7 +159,7 @@ body.hyTransitionLocked #gameCard .insertGap{pointer-events:none!important;curso
 </section>
 <section id="hostCard" class="card hyConnCard hidden">
   <div class="hyCardHead"><h2>親機</h2><button id="backFromHostBtn" class="secondary hyBackBtn" type="button">戻る</button></div>
-  <div class="hyNameField"><label for="hostNameInput">あなたの名前</label><input id="hostNameInput" maxlength="16" value="あなた"></div>
+  <div class="hyNameField"><label for="hostNameInput">あなたの名前</label><input id="hostNameInput" maxlength="16" value="" placeholder="ランダム"></div>
   <div class="hyNameField"><label for="playerCountSelect">人間の人数</label><select id="playerCountSelect"><option value="2" selected>2人</option><option value="3">3人</option><option value="4">4人</option><option value="5">5人</option><option value="6">6人</option></select><div class="small">CPUは全員接続後のゲーム設定で0～残り人数を選べます。人間＋CPUは最大6人です。</div></div>
   <div id="hostConnectionStatus" class="notice info">親機のみ接続済み：1 / 2人</div>
   <div class="hyStep"><b>① 次の子機用QRを作成</b><p class="small">子機を1台ずつ追加します。</p><button id="createOfferBtn" class="primary">2人目の接続QRを作る</button><div id="offerQrArea" class="hidden"><div id="offerQr" class="hyQr"></div><button id="copyGuestLinkBtn" class="secondary" style="width:100%">QRが読めない子機用リンクをコピー</button></div></div>
@@ -6735,6 +6735,7 @@ wrap.onclick=()=>selectSwapTargetBoard(owner.playerKey,bi);
 }
 if(
 actionState?.mode==="hook" &&
+actionState.hookStage==="chooseBoard" &&
 !isOpponent
 ){
 wrap.classList.add("selectableBoard");
@@ -7234,9 +7235,13 @@ els.confirmActionBtn.textContent="2枚を切断";
 els.confirmActionBtn.disabled=
 (actionState.selectedTiles||[]).length!==2;
 }else if(mode==="hook"){
-els.confirmActionBtn.textContent="奪う";
+els.confirmActionBtn.textContent=
+actionState.hookStage==="chooseBoard"
+? "受取台を選択"
+: "奪う";
 els.confirmActionBtn.disabled=
-actionState.receiveBoard===null ||
+actionState.hookStage!=="chooseTarget" ||
+!Number.isInteger(Number(actionState.receiveBoard)) ||
 !actionState.targetTileId;
 }else if(mode==="hookInsert"){
 els.confirmActionBtn.textContent="置く";
@@ -8013,12 +8018,14 @@ if(!consumeEquipmentCard(type))return;
 gameState.cardFlow={
 type:"hook",
 equipmentType:"hook",
-stage:"hookInput",
+stage:"hookChooseBoard",
 actor,
 resolver:actor,
 baseTurn:gameState.turn,
 committed:true,
-flowId:gameState.nextCardFlowId++
+flowId:gameState.nextCardFlowId++,
+receiveBoard:null,
+cpuPlan:null
 };
 broadcastViews();
 };
@@ -8092,14 +8099,45 @@ function selectHookReceiveBoard(boardIndex){
 if(
 !actionState ||
 actionState.mode!=="hook" ||
+actionState.hookStage!=="chooseBoard" ||
 !currentView ||
 !Number.isInteger(boardIndex) ||
 boardIndex<0 ||
 boardIndex>=currentView.myBoards.length
 )return;
-actionState.receiveBoard=boardIndex;
-updateActionUi();
-rerenderBoardsOnly();
+const payload={
+type:"equipmentHookSelectBoard",
+boardIndex
+};
+if(role==="host"){
+processEquipmentHookSelectBoard(
+localPlayerKey,
+boardIndex
+);
+}else{
+send(payload);
+}
+}
+function processEquipmentHookSelectBoard(
+actor,
+boardIndex,
+cpuPlan=null
+){
+const flow=gameState?.cardFlow;
+const receiveBoard=Number(boardIndex);
+if(
+!flow ||
+flow.type!=="hook" ||
+flow.stage!=="hookChooseBoard" ||
+flow.actor!==actor ||
+!validBoardIndexFor(actor,receiveBoard)
+)return false;
+flow.stage="hookChooseTarget";
+flow.receiveBoard=receiveBoard;
+flow.resolver=actor;
+flow.cpuPlan=cpuPlan||null;
+broadcastViews();
+return true;
 }
 function processEquipmentHookPick(
 actor,
@@ -8109,17 +8147,17 @@ const flow=gameState?.cardFlow;
 if(
 !flow ||
 flow.type!=="hook" ||
-flow.stage!=="hookInput" ||
+flow.stage!=="hookChooseTarget" ||
 flow.actor!==actor
 )return false;
-const receiveBoard=
-Number(payload.receiveBoard);
+const receiveBoard=Number(flow.receiveBoard);
 const targetPlayer=
 String(payload.targetPlayer||"");
 const targetBoard=
 Number(payload.targetBoard);
 if(
 !validBoardIndexFor(actor,receiveBoard) ||
+(payload.receiveBoard!==undefined && Number(payload.receiveBoard)!==receiveBoard) ||
 targetPlayer===actor ||
 !validBoardIndexFor(
 targetPlayer,
@@ -8697,12 +8735,22 @@ flowId:flow.flowId,
 stage:"resolving"
 };
 if(
-flow.stage==="hookInput" &&
+flow.stage==="hookChooseBoard" &&
 viewerKey===flow.actor
 ){
 return {
 ...common,
-stage:"hookInput"
+stage:"hookChooseBoard"
+};
+}
+if(
+flow.stage==="hookChooseTarget" &&
+viewerKey===flow.actor
+){
+return {
+...common,
+stage:"hookChooseTarget",
+receiveBoard:flow.receiveBoard
 };
 }
 if(
@@ -8781,37 +8829,44 @@ return;
 }
 if(
 flow?.type==="hook" &&
-flow.stage==="hookInput" &&
+flow.stage==="hookChooseBoard" &&
 flow.actor===view.playerKey
 ){
-const same=
-previous?.mode==="hook" &&
-previous.flowId===flow.flowId;
 actionState={
 mode:"hook",
 forced:true,
 flowId:flow.flowId,
 equipmentType:"hook",
-receiveBoard:
-same
-? previous.receiveBoard
-: null,
-targetPlayer:
-same
-? previous.targetPlayer
-: null,
-targetBoard:
-same
-? previous.targetBoard
-: null,
-targetPosition:
-same
-? previous.targetPosition
-: null,
-targetTileId:
-same
-? previous.targetTileId
-: null
+hookStage:"chooseBoard",
+receiveBoard:null,
+targetPlayer:null,
+targetBoard:null,
+targetPosition:null,
+targetTileId:null
+};
+return;
+}
+if(
+flow?.type==="hook" &&
+flow.stage==="hookChooseTarget" &&
+flow.actor===view.playerKey
+){
+const same=
+previous?.mode==="hook" &&
+previous.flowId===flow.flowId &&
+previous.hookStage==="chooseTarget" &&
+Number(previous.receiveBoard)===Number(flow.receiveBoard);
+actionState={
+mode:"hook",
+forced:true,
+flowId:flow.flowId,
+equipmentType:"hook",
+hookStage:"chooseTarget",
+receiveBoard:Number(flow.receiveBoard),
+targetPlayer:same?previous.targetPlayer:null,
+targetBoard:same?previous.targetBoard:null,
+targetPosition:same?previous.targetPosition:null,
+targetTileId:same?previous.targetTileId:null
 };
 return;
 }
@@ -8879,6 +8934,8 @@ x=>x.tileId===tile.id
 }
 if(actionState?.mode==="hook"){
 return !!(
+actionState.hookStage==="chooseTarget" &&
+Number.isInteger(Number(actionState.receiveBoard)) &&
 isOpponent &&
 ownerKey!==view.playerKey &&
 !tile.cut
@@ -8955,6 +9012,8 @@ return;
 }
 if(actionState?.mode==="hook"){
 if(
+actionState.hookStage!=="chooseTarget" ||
+!Number.isInteger(Number(actionState.receiveBoard)) ||
 !isOpponent ||
 ownerKey===currentView?.playerKey ||
 !tile ||
@@ -9063,6 +9122,15 @@ handleHostMessage=function(
 actorKey,
 msg
 ){
+if(
+msg.type==="equipmentHookSelectBoard"
+){
+processEquipmentHookSelectBoard(
+actorKey,
+Number(msg.boardIndex)
+);
+return;
+}
 if(
 msg.type==="equipmentSingleLabelApply"
 ){
@@ -13465,9 +13533,17 @@ async function soloResolveFlowOnce(flow,autoHuman=false){
     if(c)processEquipmentSingleLabel(actor,c.boardIndex,c.position,c.tileId);
     soloCaptureRecent();return true;
   }
-  if(flow.stage==="hookInput"){
+  if(flow.stage==="hookChooseBoard"){
     const c=soloChooseHookPick(actor);
-    if(c)processEquipmentHookPick(actor,c);
+    if(c)processEquipmentHookSelectBoard(actor,c.receiveBoard,c);
+    else gameState.cardFlow=null;
+    soloCaptureRecent();return true;
+  }
+  if(flow.stage==="hookChooseTarget"){
+    let c=flow.cpuPlan||null;
+    if(!c||Number(c.receiveBoard)!==Number(flow.receiveBoard))c=soloChooseHookPick(actor);
+    if(c)processEquipmentHookPick(actor,{...c,receiveBoard:flow.receiveBoard});
+    else gameState.cardFlow=null;
     soloCaptureRecent();return true;
   }
   if(flow.stage==="hookInsert"){
@@ -25074,7 +25150,7 @@ function wbGuide(view){
   else if(a.mode==='equipmentLabel')s='ラベルを置く2枚の間を選ぶ';
   else if(a.mode==='singleLabel')s='シングルラベルを置くタイルを選ぶ';
   else if(a.mode==='priorityCut')s=`優先切断券：同じ数字の自分の2枚（${a.selectedTiles?.length||0}/2）`;
-  else if(a.mode==='hook')s='奪取：受け取る自分の台 → 相手タイルを選ぶ';
+  else if(a.mode==='hook')s=a.hookStage==='chooseBoard'?'ひっかけフック：受け取る自分の台を選ぶ':'ひっかけフック：相手から奪うタイルを選ぶ';
   else if(a.mode==='coffeeChoice')s='コーヒー：手番を渡す相手を選ぶ';
   else if(a.mode==='batteryChoice')s='非常電池：復活させるカードを選ぶ';
   else s=els.phaseHelp.textContent||'盤面で対象を選んでください';
@@ -25222,6 +25298,8 @@ function wbPersonalDetail(){
   const fn=currentView.turn===currentView.playerKey?beginPersonalCardAction:requestStartInstantCard;
   const use=wbButton('使用する',()=>{wbClose();fn();},'wb-use');const isInstant=PERSONAL_CARDS[c.type]?.mode==='instant';use.disabled=currentView.phase!=='play'||c.remainingUses<=0||!!currentView.cardFlow||(isInstant?soloHumanInstantBlocked():soloHumanControlsBlocked())||!!actionState||(currentView.turn!==currentView.playerKey&&!isInstant)||(isInstant&&!hyInstantCardHasLegalUseView(currentView,c.type));box.append(use);
 }
+// Personal-card actions use the same confirm-before-use flow as equipment cards.
+if(els.personalCardBtn)els.personalCardBtn.onclick=()=>wbPersonalDetail();
 function wbEquipmentBar(view){
   [...els.equipmentCards.querySelectorAll('.equipmentItem')].forEach(el=>{
     const c=view.equipmentCards.find(c=>c.type===el.dataset.equipmentType);if(!c)return;
@@ -25427,7 +25505,7 @@ function wbLocalCards(view){
  let button=wb$('wbInstant');const instant=view.phase==='play'&&def?.mode==='instant';
  els.gameCard.classList.toggle('wb-has-instant',instant);
  if(!instant){button?.remove();return;}
- if(!button){button=wbButton('',()=>{if(button.disabled)return;beginPersonalCardAction();});button.id='wbInstant';wb$('wbCommand').append(button);}
+ if(!button){button=wbButton('',()=>{if(button.disabled)return;wbPersonalDetail();});button.id='wbInstant';wb$('wbCommand').append(button);}
  // A previous CPU/card wait may have hidden this button. Restore visibility on every
  // personal-card render, then let the authoritative transition hide it again if needed.
  button.classList.remove('hidden');
@@ -27385,6 +27463,8 @@ function hyFlowGuide(stage){
   batteryChoosePlayer:"対象プレイヤーを選んでください",
   singleLabelInput:"シングルラベルを置くタイルを選んでください",
   hookInput:"ひっかけフックで取るタイルを選んでください",
+  hookChooseBoard:"ひっかけフック：受け取り先の自分の台を選んでください",
+  hookChooseTarget:"ひっかけフック：相手から奪うタイルを選んでください",
   hookInsert:"受け取ったタイルを置く隙間（↑）を選んでください"
  };
  return guides[stage]||"カードの処理を進めてください";
@@ -27523,6 +27603,14 @@ makeViewFor=function(playerKey){
  const view=hyTransitionBaseMakeViewFor(playerKey);
  if(gameState?.config?.hybridMode){
   view.sharedTransition=hyTransitionFor(playerKey);
+  // History is built only from public recent-action announcements. Send a detached copy so guests
+  // can render the same history without exposing the host's hidden game state.
+  view.publicHistory=(soloHistoryGroups||[])
+   .filter(group=>Array.isArray(group.entries)&&group.entries.length>0)
+   .map(group=>({
+    id:Number(group.id||0),actorKey:group.actorKey||null,actorLabel:String(group.actorLabel||"ゲーム"),
+    entries:group.entries.map(entry=>({id:Number(entry.id||0),text:String(entry.text||""),tone:String(entry.tone||"card")}))
+   }));
   // Step6/theoreticalDP needs host-side public structural history. For guests, calculate on the
   // host using only that guest's legal view, then send only the resulting probability fields.
   if(playerKey!=="p0"&&hyRemoteProbabilityEnabled.has(playerKey))hyPopulateProbabilities(view,true);
@@ -27622,7 +27710,13 @@ function showRole(which){
  els.roleCard.classList.add("hidden");els.hostCard.classList.toggle("hidden",which!=="host");els.guestCard.classList.toggle("hidden",which!=="guest");
  els.lobbyCard.classList.add("hidden");els.gameCard.classList.add("hidden");
  if(which==="host"){
-  expectedHumanCount=Number(els.playerCountSelect.value)||2;playerNames={p0:cleanPlayerName(els.hostNameInput.value)||"あなた"};els.roleText.textContent="この端末は親機（プレイヤー1）です。";setStatus("親機：子機の接続待ち","wait");hyRefreshCpuCountOptions();refreshHostConnectionUi();
+  expectedHumanCount=Number(els.playerCountSelect.value)||2;
+  const entered=cleanPlayerName(els.hostNameInput.value);
+  playerNames={};
+  const hostName=assignPlayerName("p0",entered&&entered!=="あなた"?entered:"");
+  els.hostNameInput.value=hostName;
+  if(soloHumanNameInput)soloHumanNameInput.value=hostName;
+  els.roleText.textContent="この端末は親機（プレイヤー1）です。";setStatus("親機：子機の接続待ち","wait");hyRefreshCpuCountOptions();refreshHostConnectionUi();
  }else{els.roleText.textContent="この端末は子機です。";setStatus("子機：親機QR待ち","wait");}
  renderConnectionDiagnostics();
 }
@@ -27737,6 +27831,18 @@ function handleGuestMessage(msg){
   document.body.classList.add("soloMode","wb-playing");document.body.classList.remove("wb-setup");els.lobbyCard.classList.add("hidden");hyGuestLobby.classList.add("hidden");els.gameCard.classList.remove("hidden");
   const view=msg.view;
   view.config={...view.config,probabilityDisplayEnabled:soloProbabilityDisplayEnabled,redProbabilityEnabled:soloProbabilityDisplayEnabled};
+  if(Array.isArray(view.publicHistory)){
+   const oldCount=(soloHistoryGroups||[]).reduce((n,g)=>n+(g.entries?.length||0),0);
+   soloHistoryGroups=view.publicHistory.map(group=>({
+    id:Number(group.id||0),actorKey:group.actorKey||null,actorLabel:String(group.actorLabel||"ゲーム"),
+    entries:(group.entries||[]).map(entry=>({id:Number(entry.id||0),text:String(entry.text||""),tone:String(entry.tone||"card")}))
+   }));
+   const newCount=soloHistoryGroups.reduce((n,g)=>n+(g.entries?.length||0),0);
+   soloHistoryNextGroupId=Math.max(1,...soloHistoryGroups.map(g=>Number(g.id||0)+1));
+   soloHistoryNextEventId=Math.max(1,...soloHistoryGroups.flatMap(g=>(g.entries||[]).map(e=>Number(e.id||0)+1)));
+   if(newCount>oldCount&&!soloHistoryOpen)soloHistoryMarkUnread();
+   soloRenderHistory();
+  }
   renderPlayerView(view);return;
  }
  if(msg.type==="actionError"){alert(msg.message||"操作を実行できませんでした。");return;}
@@ -27748,7 +27854,7 @@ async function disconnect(){
  clearIdleDisconnectTimer();leaveGuardArmed=false;leavePromptOpen=false;els.leaveConfirmOverlay?.classList.add("hidden");await stopAllScanners();
  if(role==="host"){
   for(const [,c] of hostConnections){retireHostEntry(c);clearRecoveryTimers(c);clearTimer(c,"restartResultTimer");try{if(c.channel?.readyState==="open")c.channel.send(JSON.stringify({type:"disconnect"}));}catch(_){}try{c.channel?.close()}catch(_){}try{c.pc?.close()}catch(_){}}
-  hostConnections.clear();pendingHostPlayerKey=null;gameState=null;currentView=null;connectedOnce=false;playerNames={p0:cleanPlayerName(els.hostNameInput.value)||"あなた"};els.playerCountSelect.disabled=false;
+  hostConnections.clear();pendingHostPlayerKey=null;gameState=null;currentView=null;connectedOnce=false;playerNames={p0:cleanPlayerName(els.hostNameInput.value)};els.playerCountSelect.disabled=false;
  }else{closeGuestPeer(false);connectedOnce=false;localPlayerKey=null;gameState=null;currentView=null;}
  document.body.classList.remove("wb-playing","wb-setup","myTurnNow","infoTurnNow");$("hyConnectionShell")?.classList.remove("hidden","hyReady");els.lobbyCard.classList.add("hidden");els.gameCard.classList.add("hidden");
  if(role==="host"){els.hostCard.classList.remove("hidden");els.guestCard.classList.add("hidden");setStatus("接続を切りました。子機を接続し直せます。","wait");refreshHostConnectionUi();}
@@ -27787,7 +27893,9 @@ function hyResetNewGameRuntime(){
 function startHybridGame(){
  if(role!=="host"){alert("新しいゲームの開始・設定変更は親機で行います。");return;}
  if(!allExpectedPlayersConnected()||!allNamesReady()){alert("人間プレイヤー全員の接続と名前入力を確認してください。");return;}
- hySyncTotalPlayers();hyResetNewGameRuntime();localPlayerKey="p0";soloHumanNameInput.value=cleanPlayerName(els.hostNameInput.value)||"あなた";
+ hySyncTotalPlayers();hyResetNewGameRuntime();localPlayerKey="p0";
+ const hostName=cleanPlayerName(els.hostNameInput.value)||assignPlayerName("p0","");
+ els.hostNameInput.value=hostName;soloHumanNameInput.value=hostName;playerNames.p0=hostName;
  const humanNames={};for(let i=0;i<expectedHumanCount;i++)humanNames[`p${i}`]=cleanPlayerName(playerNames[`p${i}`])||`P${i+1}`;
  playerNames={...humanNames};soloCpuSettings=soloReadCpuSetup();const cpuNames=shuffle([...RANDOM_PLAYER_NAMES]);for(let i=0;i<expectedPlayerCount-expectedHumanCount;i++){const key=`p${expectedHumanCount+i}`,base=cpuNames[i]||`CPU${i+1}`;playerNames[key]=`${base} CPU`;}
  soloProbabilityDisplayEnabled=soloProbabilityDisplaySelect?.value==="1";
@@ -27994,7 +28102,7 @@ function hyInit(){
  if(hyInitialized)return;hyInitialized=true;
  hyBindConnectionControls();
  hyShowConnectionStart();
- document.title="何切る？ マルチプレイ＋CPU v10";document.documentElement.dataset.hybridVersion="10";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
+ document.title="何切る？ マルチプレイ＋CPU v12";document.documentElement.dataset.hybridVersion="12";document.querySelector("body>.wrap>h1")?.replaceChildren("何切る？ マルチプレイ");document.body.classList.add("soloMode");document.body.classList.remove("wb-playing","wb-setup");
  soloProbabilityDisplayEnabled=false;if(soloProbabilityDisplaySelect)soloProbabilityDisplaySelect.value="0";
  if(els.personalCardsEnabledSelect)els.personalCardsEnabledSelect.value="1";if(els.equipmentCardsEnabledSelect)els.equipmentCardsEnabledSelect.value="all";if(els.maxNumberSelect){els.maxNumberSelect.value="12";updateSetupSelectors();}if(els.yellowCandidateSelect){els.yellowCandidateSelect.value="4";updateYellowUsedSelector(false);els.yellowUsedSelect.value="2";}if(els.redCandidateSelect){els.redCandidateSelect.value="3";updateRedUsedSelector(false);els.redUsedSelect.value="2";}
  expectedHumanCount=Number(els.playerCountSelect.value)||2;expectedPlayerCount=expectedHumanCount;soloPlayerCountSelect.value=String(expectedPlayerCount);soloPlayerCountSelect.disabled=true;
